@@ -282,6 +282,140 @@ def send_sms_otp(*, phone: str, code: str, intro: str) -> tuple[bool, str]:
     return False, f'Unsupported SMS backend "{backend}".'
 
 
+def generate_delivery_otp() -> str:
+    return f'{random.randint(0, 999999):06d}'
+
+
+def delivery_otp_expiry_minutes() -> int:
+    return int(getattr(settings, 'DELIVERY_OTP_EXPIRY_MINUTES', 15))
+
+
+def delivery_otp_resend_cooldown_seconds() -> int:
+    return int(getattr(settings, 'DELIVERY_OTP_RESEND_COOLDOWN_SECONDS', 45))
+
+
+def delivery_otp_reference_notification(order: Order):
+    return (
+        order.notifications.filter(
+            notification_type=NotificationType.RIDER,
+            title__in=['Delivery status updated', 'Delivery OTP resent'],
+        )
+        .order_by('-created_at')
+        .first()
+    )
+
+
+def delivery_otp_valid_until(order: Order):
+    reference = delivery_otp_reference_notification(order)
+    anchor = reference.created_at if reference else order.updated_at
+    return anchor + timezone.timedelta(minutes=delivery_otp_expiry_minutes())
+
+
+def delivery_otp_is_expired(order: Order) -> bool:
+    return order.status == OrderStatus.OUT_FOR_DELIVERY and timezone.now() > delivery_otp_valid_until(order)
+
+
+def send_customer_delivery_otp_sms(*, order: Order, intro: str) -> tuple[bool, str]:
+    return send_sms_otp(phone=order.customer.phone, code=order.customer_otp, intro=intro)
+
+
+def first_order_notification(
+    order: Order,
+    *,
+    title: str | None = None,
+    title_in: list[str] | tuple[str, ...] | None = None,
+    notification_type: str | None = None,
+    body_contains: str | None = None,
+    body_contains_any: list[str] | tuple[str, ...] | None = None,
+):
+    queryset = order.notifications.all()
+    if notification_type:
+        queryset = queryset.filter(notification_type=notification_type)
+    if title:
+        queryset = queryset.filter(title=title)
+    elif title_in:
+        queryset = queryset.filter(title__in=title_in)
+
+    for note in queryset.order_by('created_at'):
+        body = (note.body or '').lower()
+        if body_contains and body_contains.lower() not in body:
+            continue
+        if body_contains_any and not any(snippet.lower() in body for snippet in body_contains_any):
+            continue
+        return note
+    return None
+
+
+def short_relative_time(moment):
+    if not moment:
+        return ''
+
+    delta = timezone.now() - moment
+    total_minutes = max(int(delta.total_seconds() // 60), 0)
+    if total_minutes < 1:
+        return 'just now'
+    if total_minutes < 60:
+        return f'{total_minutes} min ago'
+
+    total_hours = total_minutes // 60
+    if total_hours < 24:
+        return f'{total_hours} hr ago' if total_hours == 1 else f'{total_hours} hrs ago'
+
+    total_days = total_hours // 24
+    return f'{total_days} day ago' if total_days == 1 else f'{total_days} days ago'
+
+
+def elapsed_time_label(moment):
+    if not moment:
+        return 'Just now'
+
+    delta = timezone.now() - moment
+    total_minutes = max(int(delta.total_seconds() // 60), 0)
+    if total_minutes < 1:
+        return 'Under 1 min'
+    if total_minutes < 60:
+        return f'{total_minutes} min'
+
+    total_hours, minutes = divmod(total_minutes, 60)
+    if total_hours < 24:
+        return f'{total_hours} hr {minutes} min' if minutes else f'{total_hours} hr'
+
+    total_days, hours = divmod(total_hours, 24)
+    return f'{total_days} day {hours} hr' if hours else f'{total_days} day'
+
+
+def build_order_milestone_timestamps(order: Order) -> dict[str, Any]:
+    rider_assigned_note = first_order_notification(
+        order,
+        title='Rider assigned',
+        notification_type=NotificationType.RIDER,
+    )
+    pickup_note = first_order_notification(
+        order,
+        title='Delivery status updated',
+        notification_type=NotificationType.RIDER,
+        body_contains_any=['pickup was confirmed', 'picked up by', 'picked up and is now on the way'],
+    )
+    delivered_note = first_order_notification(
+        order,
+        title='Delivery status updated',
+        notification_type=NotificationType.RIDER,
+        body_contains_any=['delivered successfully'],
+    )
+    cancelled_note = first_order_notification(
+        order,
+        title_in=['Order cancelled', 'Customer cancelled order', 'Store updated your order'],
+        body_contains='cancel',
+    )
+    return {
+        'placed': order.created_at,
+        'accepted': rider_assigned_note.created_at if rider_assigned_note else None,
+        'pickup': pickup_note.created_at if pickup_note else None,
+        'delivered': delivered_note.created_at if delivered_note else order.delivered_at,
+        'cancelled': cancelled_note.created_at if cancelled_note else (order.updated_at if order.status == OrderStatus.CANCELLED else None),
+    }
+
+
 def verify_google_credential(credential: str) -> tuple[dict[str, Any] | None, str | None]:
     client_id = getattr(settings, 'GOOGLE_CLIENT_ID', '')
     if not client_id:
@@ -817,6 +951,140 @@ def send_order_status_email(
         return False, 'Customer email update could not be sent with the current mail settings.'
 
 
+def send_store_order_status_email(
+    *,
+    order: Order,
+    subject: str,
+    headline: str,
+    detail: str,
+) -> tuple[bool, str]:
+    recipient = (order.shop.owner.email or '').strip()
+    if not recipient:
+        return False, 'No store email is available for this order.'
+
+    item_lines, subtotal = build_order_item_summary(order)
+    rider_name = order.rider.full_name if order.rider else 'Pending rider assignment'
+    rider_phone = order.rider.phone if order.rider else 'Unavailable'
+    customer_phone = order.customer.phone or 'Unavailable'
+    otp_lines = []
+    if order.status == OrderStatus.OUT_FOR_DELIVERY:
+        otp_lines = [
+            '',
+            'Handoff OTP',
+            f'Customer delivery OTP: {order.customer_otp}',
+        ]
+
+    message = '\n'.join(
+        [
+            headline,
+            '',
+            detail,
+            *otp_lines,
+            '',
+            'Dispatch Summary',
+            f'Order: {order.display_id}',
+            f'Status: {order.get_status_display()}',
+            f'Customer: {order.customer.full_name}',
+            f'Customer phone: {customer_phone}',
+            f'Rider: {rider_name}',
+            f'Rider phone: {rider_phone}',
+            f'Item total: Rs. {subtotal}',
+            f'Delivery fee: Rs. {order.delivery_fee}',
+            f'Total: Rs. {order.total_amount}',
+            '',
+            'Order Summary',
+            *item_lines,
+            '',
+            'Route',
+            f'Pickup: {order.shop.name}, {format_shop_address(order.shop)}',
+            f'Drop-off: {order.delivery_address}',
+        ]
+    )
+    try:
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@gramexpress.local'),
+            recipient_list=[recipient],
+            fail_silently=False,
+        )
+        return True, 'Store email update sent successfully.'
+    except Exception:
+        return False, 'Store email update could not be sent with the current mail settings.'
+
+
+def build_order_flow_steps(order: Order) -> list[dict[str, Any]]:
+    steps = [
+        {'label': 'Accepted', 'completed': bool(order.rider_id), 'current': False},
+        {
+            'label': 'Pickup',
+            'completed': order.status in [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED],
+            'current': False,
+        },
+        {'label': 'Delivered', 'completed': order.status == OrderStatus.DELIVERED, 'current': False},
+    ]
+    if order.status == OrderStatus.DELIVERED:
+        steps[2]['current'] = True
+    elif order.status == OrderStatus.OUT_FOR_DELIVERY:
+        steps[1]['current'] = True
+    elif order.rider_id:
+        steps[0]['current'] = True
+    else:
+        steps[0]['current'] = True
+    return steps
+
+
+def enrich_order_progress(order: Order) -> Order:
+    order.flow_steps = build_order_flow_steps(order)
+    order.milestone_timestamps = build_order_milestone_timestamps(order)
+    order.customer_otp_masked = f'••••{order.customer_otp[-2:]}' if order.customer_otp else 'Unavailable'
+    order.customer_otp_valid_until = delivery_otp_valid_until(order) if order.status == OrderStatus.OUT_FOR_DELIVERY else None
+    order.customer_otp_expired = delivery_otp_is_expired(order) if order.status == OrderStatus.OUT_FOR_DELIVERY else False
+    order.latest_rider_notification = (
+        order.notifications.filter(notification_type=NotificationType.RIDER).order_by('-created_at').first()
+    )
+    order.latest_rider_update = (
+        order.latest_rider_notification.body
+        if order.latest_rider_notification
+        else (
+            f'{order.rider.full_name} accepted this order and is heading to the store.'
+            if order.rider_id and order.status in [OrderStatus.CONFIRMED, OrderStatus.PACKED]
+            else 'Waiting for the next rider update.'
+        )
+    )
+    order.last_update_at = (
+        order.latest_rider_notification.created_at
+        if order.latest_rider_notification
+        else order.milestone_timestamps.get('delivered')
+        or order.milestone_timestamps.get('pickup')
+        or order.milestone_timestamps.get('accepted')
+        or order.created_at
+    )
+    order.last_update_label = short_relative_time(order.last_update_at)
+    order.last_update_timestamp_label = timezone.localtime(order.last_update_at).strftime('%b %d, %H:%M')
+    if order.status == OrderStatus.DELIVERED:
+        order.flow_headline = 'Delivered to customer'
+        order.flow_detail = 'The final handoff is complete and both customer and store have been updated.'
+        order.support_prompt = 'Need help after delivery?'
+        order.support_copy = 'Use support for billing issues, missing items, or post-delivery help.'
+    elif order.status == OrderStatus.OUT_FOR_DELIVERY:
+        order.flow_headline = 'Picked up and on the way'
+        order.flow_detail = 'The rider confirmed pickup at the store and is now heading to the customer.'
+        order.support_prompt = 'Need delivery help?'
+        order.support_copy = 'Use support if the rider cannot reach you, the OTP expired, or delivery feels delayed.'
+    elif order.rider_id:
+        order.flow_headline = 'Rider accepted and heading to pickup'
+        order.flow_detail = 'The next app action is confirming arrival at the store.'
+        order.support_prompt = 'Need dispatch help?'
+        order.support_copy = 'Use support if the order should be reassigned or the rider cannot reach the store.'
+    else:
+        order.flow_headline = 'Waiting for rider acceptance'
+        order.flow_detail = 'A nearby rider still needs to claim this delivery.'
+        order.support_prompt = 'Need order help?'
+        order.support_copy = 'Use support for address issues, store delays, or payment questions.'
+    return order
+
+
 def rider_status_chip(order: Order) -> str:
     if order.status == OrderStatus.OUT_FOR_DELIVERY:
         return 'success'
@@ -829,15 +1097,16 @@ def rider_status_chip(order: Order) -> str:
 
 def rider_status_hint(order: Order, *, pickup_gate_open: bool) -> str:
     if order.status == OrderStatus.OUT_FOR_DELIVERY:
-        return 'Picked up and moving to the drop-off location. Delivery updates go out by email.'
+        return 'Pickup confirmed. Head to the customer and complete handoff with the OTP.'
     if order.status == OrderStatus.DELIVERED:
         return 'Delivered successfully. This order is now part of your completed history.'
     if pickup_gate_open:
-        return 'You are close enough to confirm pickup and move this order into delivery.'
-    return 'Head to the pickup point first. You can only confirm pickup when you are close to the store.'
+        return 'You are at the store. Mark the order as picked up so customer and store are both updated immediately.'
+    return 'Go to the store first. You can only mark the order as picked up when you are close to the pickup point.'
 
 
 def enrich_rider_order(order: Order, rider: RiderProfile) -> Order:
+    enrich_order_progress(order)
     order.pickup_distance_km = kilometers_between(rider.latitude, rider.longitude, order.shop.latitude, order.shop.longitude)
     order.delivery_distance_km = kilometers_between(order.shop.latitude, order.shop.longitude, order.customer.latitude, order.customer.longitude)
     order.item_count = sum(item.quantity for item in order.items.all())
@@ -848,6 +1117,27 @@ def enrich_rider_order(order: Order, rider: RiderProfile) -> Order:
     order.pickup_gate_open = order.pickup_distance_km <= PICKUP_GEOFENCE_KM
     order.status_chip = rider_status_chip(order)
     order.status_hint = rider_status_hint(order, pickup_gate_open=order.pickup_gate_open)
+    order.accepted_at = order.milestone_timestamps.get('accepted')
+    order.pickup_confirmed_at = order.milestone_timestamps.get('pickup')
+    order.delivered_confirmed_at = order.milestone_timestamps.get('delivered')
+    if order.status == OrderStatus.OUT_FOR_DELIVERY:
+        order.current_mission_title = 'Finish the customer handoff'
+        order.current_mission_detail = 'Navigate to the drop-off pin, verify the OTP, and complete delivery.'
+        order.current_mission_map_url = order.dropoff_map_url
+        order.current_mission_map_label = 'Open Drop-off Pin'
+        order.current_mission_meta = f'{order.delivery_distance_km} km route to customer'
+    elif order.pickup_gate_open:
+        order.current_mission_title = 'Confirm store pickup'
+        order.current_mission_detail = 'You are within range of the store. Mark the order as picked up so both customer and store get updated immediately.'
+        order.current_mission_map_url = order.pickup_map_url
+        order.current_mission_map_label = 'Open Pickup Pin'
+        order.current_mission_meta = f'{order.pickup_distance_km} km from pickup pin'
+    else:
+        order.current_mission_title = 'Head to the pickup point'
+        order.current_mission_detail = 'Use the pinned pickup location and mark the order as picked up once you are close enough to the store.'
+        order.current_mission_map_url = order.pickup_map_url
+        order.current_mission_map_label = 'Open Pickup Pin'
+        order.current_mission_meta = f'{order.pickup_distance_km} km from pickup pin'
     return order
 
 
@@ -1300,9 +1590,9 @@ def notify_checkout_orders(*, checkout_session: CheckoutSession, created_orders:
                 else NotificationType.ORDER
             ),
         )
-        if order.rider:
+        for rider in eligible_available_riders(order.shop):
             create_notification(
-                rider=order.rider,
+                rider=rider,
                 order=order,
                 title='New delivery request',
                 body=f'Order #{order.id} is ready around {order.shop.area}.',
@@ -1345,18 +1635,16 @@ def finalize_checkout_session(checkout_session: CheckoutSession) -> list[Order]:
                 subtotal += unit_price * quantity
                 locked_items.append((locked_product, quantity, unit_price))
 
-            rider = nearest_available_rider(shop)
             order = Order.objects.create(
                 customer=locked_session.customer,
                 shop=shop,
-                rider=rider,
                 checkout_session=locked_session,
                 status=OrderStatus.CONFIRMED,
                 payment_method=locked_session.payment_method,
                 payment_status=locked_session.payment_status,
                 delivery_address=locked_session.delivery_address,
                 customer_notes=locked_session.customer_notes,
-                customer_otp=f'{random.randint(0, 999999):06d}',
+                customer_otp=generate_delivery_otp(),
                 total_amount=subtotal + Decimal(group_snapshot['delivery_fee']),
             )
             for locked_product, quantity, unit_price in locked_items:
@@ -1368,9 +1656,6 @@ def finalize_checkout_session(checkout_session: CheckoutSession) -> list[Order]:
                 )
                 locked_product.stock -= quantity
                 locked_product.save(update_fields=['stock', 'updated_at'])
-            if rider:
-                rider.is_available = False
-                rider.save(update_fields=['is_available', 'updated_at'])
             created_orders.append(order)
 
         locked_session.completed_at = timezone.now()
@@ -1461,6 +1746,7 @@ def customer_workspace_context(request: HttpRequest) -> dict[str, Any]:
         .all()
     )
     for order in orders:
+        enrich_order_progress(order)
         if order.rider:
             order.rider_route_url = build_google_route_url(
                 order.shop.latitude,
@@ -1507,8 +1793,9 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
         owner=owner,
     )
     editing_product = get_object_or_404(Product, pk=editing_product_id, shop=shop) if editing_product_id else None
-    orders = shop.orders.all()
+    orders = list(shop.orders.all())
     for order in orders:
+        enrich_order_progress(order)
         order.item_count = sum(item.quantity for item in order.items.all())
         order.can_mark_confirmed = order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED]
         order.can_mark_packed = order.status in [OrderStatus.CONFIRMED, OrderStatus.PACKED]
@@ -1526,8 +1813,8 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
             order.fulfillment_hint = 'Packaging is done. Dispatch will move as soon as an available rider accepts.'
             order.fulfillment_chip = 'info'
         elif order.status == OrderStatus.OUT_FOR_DELIVERY:
-            order.fulfillment_title = 'With rider for last-mile delivery'
-            order.fulfillment_hint = 'Store-side cancellation is locked once the rider has taken the order.'
+            order.fulfillment_title = 'Rider picked up and is delivering'
+            order.fulfillment_hint = 'Customer and store were updated at pickup. The final step is delivery confirmation.'
             order.fulfillment_chip = 'success'
         elif order.status == OrderStatus.DELIVERED:
             order.fulfillment_title = 'Delivered and closed'
@@ -1541,9 +1828,80 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
             order.fulfillment_title = 'Awaiting store confirmation'
             order.fulfillment_hint = 'Confirm the order before you begin packing.'
             order.fulfillment_chip = 'info'
+        if order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED]:
+            order.queue_anchor_at = order.created_at
+        elif order.status == OrderStatus.PACKED:
+            order.queue_anchor_at = order.milestone_timestamps.get('accepted') or order.updated_at
+        elif order.status == OrderStatus.OUT_FOR_DELIVERY:
+            order.queue_anchor_at = order.milestone_timestamps.get('pickup') or order.updated_at
+        else:
+            order.queue_anchor_at = order.delivered_at or order.updated_at
+        queue_age_minutes = max(int((timezone.now() - order.queue_anchor_at).total_seconds() // 60), 0)
+        order.queue_age_label = elapsed_time_label(order.queue_anchor_at)
+        if order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PACKED]:
+            if queue_age_minutes >= 30:
+                order.queue_priority_label = 'Needs attention'
+                order.queue_priority_chip = 'warn'
+            elif queue_age_minutes >= 15:
+                order.queue_priority_label = 'Watch closely'
+                order.queue_priority_chip = 'info'
+            else:
+                order.queue_priority_label = 'On track'
+                order.queue_priority_chip = 'success'
+        elif order.status == OrderStatus.OUT_FOR_DELIVERY:
+            order.queue_priority_label = 'On the road'
+            order.queue_priority_chip = 'success'
+        else:
+            order.queue_priority_label = 'Closed'
+            order.queue_priority_chip = 'info'
+        order.store_support_copy = 'Use support if packing is blocked, rider handoff is delayed, or delivery closes with an issue.'
+    active_queue_sort = lambda order: (order.queue_anchor_at, order.id)
+    needs_packing_orders = sorted(
+        [order for order in orders if order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED]],
+        key=active_queue_sort,
+    )
+    waiting_for_rider_orders = sorted(
+        [order for order in orders if order.status == OrderStatus.PACKED],
+        key=active_queue_sort,
+    )
+    out_for_delivery_orders = sorted(
+        [order for order in orders if order.status == OrderStatus.OUT_FOR_DELIVERY],
+        key=active_queue_sort,
+    )
+    closed_orders = sorted(
+        [order for order in orders if order.status in [OrderStatus.DELIVERED, OrderStatus.CANCELLED]],
+        key=lambda order: (order.delivered_at or order.updated_at),
+        reverse=True,
+    )
     return {
         'shop': shop,
         'orders': orders,
+        'order_sections': [
+            {
+                'label': 'Needs packing',
+                'eyebrow': 'Store action',
+                'description': 'Orders that still need confirmation or packing before rider handoff.',
+                'orders': needs_packing_orders,
+            },
+            {
+                'label': 'Waiting for rider or pickup',
+                'eyebrow': 'Dispatch ready',
+                'description': 'Orders that are packed and either waiting for rider acceptance or handoff at the store.',
+                'orders': waiting_for_rider_orders,
+            },
+            {
+                'label': 'Out for delivery',
+                'eyebrow': 'On the road',
+                'description': 'Orders already picked up by the rider and moving to the customer.',
+                'orders': out_for_delivery_orders,
+            },
+            {
+                'label': 'Closed orders',
+                'eyebrow': 'History',
+                'description': 'Delivered and cancelled orders stay here for review and ratings.',
+                'orders': closed_orders,
+            },
+        ],
         'editing_product': editing_product,
         'notifications': user_notifications(request.user),
         'live_product_count': shop.products.count(),
@@ -1613,6 +1971,7 @@ def rider_workspace_context(request: HttpRequest) -> dict[str, Any]:
         'rider': rider,
         'available_orders': available_orders,
         'active_orders': active_orders,
+        'priority_order': active_orders[0] if active_orders else None,
         'completed_orders': completed_orders,
         'location_form': RiderLocationForm(initial={'latitude': rider.latitude, 'longitude': rider.longitude}),
         'notifications': user_notifications(request.user),
@@ -1681,38 +2040,35 @@ def get_order_for_user(user, order_id: int):
 
 
 def build_order_timeline(order: Order) -> list[dict[str, Any]]:
+    milestones = getattr(order, 'milestone_timestamps', None) or build_order_milestone_timestamps(order)
     events = [
         {
             'key': 'placed',
             'label': 'Order placed',
-            'caption': f'{order.display_id} created successfully.',
+            'caption': f'{order.display_id} was created successfully and sent to the store.',
             'completed': True,
-            'current': order.status == OrderStatus.PENDING,
-            'timestamp': order.created_at,
+            'current': not order.rider_id and order.status != OrderStatus.CANCELLED,
+            'timestamp': milestones.get('placed'),
         },
         {
-            'key': 'confirmed',
-            'label': 'Store confirmed',
-            'caption': 'Store accepted the order for preparation.',
-            'completed': order.status in [OrderStatus.CONFIRMED, OrderStatus.PACKED, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED],
-            'current': order.status == OrderStatus.CONFIRMED,
-            'timestamp': order.updated_at if order.status in [OrderStatus.CONFIRMED, OrderStatus.PACKED, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED] else None,
-        },
-        {
-            'key': 'packed',
-            'label': 'Packed and ready',
-            'caption': 'Store has packed the items and handed them toward dispatch.',
-            'completed': order.status in [OrderStatus.PACKED, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED],
-            'current': order.status == OrderStatus.PACKED,
-            'timestamp': order.updated_at if order.status in [OrderStatus.PACKED, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED] else None,
+            'key': 'accepted',
+            'label': 'Rider accepted',
+            'caption': (
+                f'{order.rider.full_name} accepted the order and is heading to the store.'
+                if order.rider_id
+                else 'Waiting for a nearby rider to accept this order.'
+            ),
+            'completed': bool(order.rider_id),
+            'current': bool(order.rider_id) and order.status not in [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+            'timestamp': milestones.get('accepted'),
         },
         {
             'key': 'transit',
-            'label': 'Out for delivery',
-            'caption': 'Rider is moving toward the customer address.',
+            'label': 'Pickup confirmed',
+            'caption': 'Rider arrived at the store, collected the order, and is moving toward the customer.',
             'completed': order.status in [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED],
             'current': order.status == OrderStatus.OUT_FOR_DELIVERY,
-            'timestamp': order.updated_at if order.status in [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED] else None,
+            'timestamp': milestones.get('pickup'),
         },
         {
             'key': 'delivered',
@@ -1720,7 +2076,7 @@ def build_order_timeline(order: Order) -> list[dict[str, Any]]:
             'caption': 'Order handoff completed successfully.',
             'completed': order.status == OrderStatus.DELIVERED,
             'current': order.status == OrderStatus.DELIVERED,
-            'timestamp': order.delivered_at,
+            'timestamp': milestones.get('delivered'),
         },
     ]
     if order.status == OrderStatus.CANCELLED:
@@ -1733,7 +2089,7 @@ def build_order_timeline(order: Order) -> list[dict[str, Any]]:
                 'caption': order.cancellation_reason or 'This order was cancelled before delivery.',
                 'completed': True,
                 'current': True,
-                'timestamp': order.updated_at,
+                'timestamp': milestones.get('cancelled'),
             }
         )
     return events
@@ -1768,16 +2124,16 @@ def build_order_status_summary(order: Order) -> dict[str, str]:
         }
     if order.status == OrderStatus.OUT_FOR_DELIVERY:
         return {
-            'title': 'Rider is approaching',
-            'caption': 'Keep your phone nearby and share the OTP only during handoff.',
-            'detail': 'Live tracking is unavailable in this version. Delivery updates are sent to your registered email.',
+            'title': 'Rider picked up your order',
+            'caption': 'The pickup is complete. Keep your OTP ready for handoff.',
+            'detail': 'The app and your email both update at this stage so you know the order is now moving to your address.',
             'chip_class': 'info',
         }
     if order.status == OrderStatus.PACKED:
         return {
-            'title': 'Packed and leaving soon',
-            'caption': 'The store has packed everything and dispatch is the next step.',
-            'detail': 'A rider can pick this up as soon as dispatch is available.',
+            'title': 'Rider accepted the order',
+            'caption': 'The order is assigned and the rider is heading to the store.',
+            'detail': 'The next rider update will appear when pickup is confirmed in the app.',
             'chip_class': 'info',
         }
     if order.status == OrderStatus.CONFIRMED:
@@ -1868,7 +2224,7 @@ def find_role_user(role: str, identity: str):
         return profile.user if profile else None
     return User.objects.filter(username=f'{role}:{normalize_phone(identity)}').first()
 
-def nearest_available_rider(shop: Shop):
+def eligible_available_riders(shop: Shop):
     approved_riders = RiderProfile.objects.filter(
         approval_status=ApprovalStatus.APPROVED,
         is_available=True,
@@ -1881,6 +2237,11 @@ def nearest_available_rider(shop: Shop):
         if rider.pickup_distance_km <= rider.dispatch_radius_km:
             rider_pool.append(rider)
     rider_pool.sort(key=lambda candidate: (candidate.pickup_distance_km, candidate.full_name))
+    return rider_pool
+
+
+def nearest_available_rider(shop: Shop):
+    rider_pool = eligible_available_riders(shop)
     return rider_pool[0] if rider_pool else None
 
 
@@ -2413,21 +2774,25 @@ def order_detail_view(request: HttpRequest, order_id: int) -> HttpResponse:
     customer_map_url = order.customer.google_maps_url
     if active_role == RoleType.RIDER:
         enrich_rider_order(order, active_profile)
-    return render(
-        request,
-        'core/order_detail.html',
-        {
-            'order': order,
-            'timeline': timeline,
-            'related_notifications': related_notifications,
-            'active_role': active_role,
-            'show_customer_actions': active_role == RoleType.CUSTOMER,
-            'status_summary': status_summary,
-            'payment_summary': payment_summary,
-            'eta_label': build_order_eta_label(order),
-            'shop_map_url': shop_map_url,
-            'customer_map_url': customer_map_url,
-        },
+    else:
+        enrich_order_progress(order)
+    return disable_html_cache(
+        render(
+            request,
+            'core/order_detail.html',
+            {
+                'order': order,
+                'timeline': timeline,
+                'related_notifications': related_notifications,
+                'active_role': active_role,
+                'show_customer_actions': active_role == RoleType.CUSTOMER,
+                'status_summary': status_summary,
+                'payment_summary': payment_summary,
+                'eta_label': build_order_eta_label(order),
+                'shop_map_url': shop_map_url,
+                'customer_map_url': customer_map_url,
+            },
+        )
     )
 
 
@@ -2514,7 +2879,7 @@ def customer_orders_view(request: HttpRequest) -> HttpResponse:
         order for order in context['orders']
         if order.status in [OrderStatus.DELIVERED, OrderStatus.CANCELLED]
     ]
-    return render(request, 'core/customer_orders.html', context)
+    return disable_html_cache(render(request, 'core/customer_orders.html', context))
 
 
 @role_required(RoleType.CUSTOMER)
@@ -3030,7 +3395,7 @@ def shop_dashboard(request: HttpRequest) -> HttpResponse:
 def shop_orders_view(request: HttpRequest) -> HttpResponse:
     context = shop_workspace_context(request)
     context['store_rating_form'] = StoreRatingForm()
-    return render(request, 'core/shop_orders.html', context)
+    return disable_html_cache(render(request, 'core/shop_orders.html', context))
 
 
 @role_required(RoleType.SHOP)
@@ -3182,25 +3547,25 @@ def rider_dashboard(request: HttpRequest) -> HttpResponse:
     if redirect_response:
         return redirect_response
     context = rider_workspace_context(request)
-    return render(request, 'core/rider_dashboard.html', context)
+    return disable_html_cache(render(request, 'core/rider_dashboard.html', context))
 
 
 @role_required(RoleType.RIDER)
 def rider_deliveries_view(request: HttpRequest) -> HttpResponse:
     context = rider_workspace_context(request)
-    return render(request, 'core/rider_deliveries.html', context)
+    return disable_html_cache(render(request, 'core/rider_deliveries.html', context))
 
 
 @role_required(RoleType.RIDER)
 def rider_completed_orders_view(request: HttpRequest) -> HttpResponse:
     context = rider_workspace_context(request)
-    return render(request, 'core/rider_completed_orders.html', context)
+    return disable_html_cache(render(request, 'core/rider_completed_orders.html', context))
 
 
 @role_required(RoleType.RIDER)
 def rider_earnings_view(request: HttpRequest) -> HttpResponse:
     context = rider_workspace_context(request)
-    return render(request, 'core/rider_earnings.html', context)
+    return disable_html_cache(render(request, 'core/rider_earnings.html', context))
 
 
 @role_required(RoleType.RIDER)
@@ -3244,7 +3609,25 @@ def rider_resend_customer_otp(request: HttpRequest, order_id: int) -> HttpRespon
         messages.error(request, 'OTP reminders are only available for active drop-off orders.')
         return redirect(rider_order_redirect_target(request, order_id))
 
-    delivered, detail = send_order_status_email(
+    latest_resend = (
+        locked_order.notifications.filter(
+            notification_type=NotificationType.RIDER,
+            title='Delivery OTP resent',
+        )
+        .order_by('-created_at')
+        .first()
+    )
+    if latest_resend and timezone.now() < latest_resend.created_at + timezone.timedelta(seconds=delivery_otp_resend_cooldown_seconds()):
+        messages.error(
+            request,
+            f'Wait {delivery_otp_resend_cooldown_seconds()} seconds before resending the OTP again.',
+        )
+        return redirect(rider_order_redirect_target(request, order_id))
+
+    locked_order.customer_otp = generate_delivery_otp()
+    locked_order.save(update_fields=['customer_otp', 'updated_at'])
+
+    email_delivered, email_detail = send_order_status_email(
         order=locked_order,
         subject=f'Delivery OTP reminder for {locked_order.display_id}',
         headline='Your delivery OTP has been resent.',
@@ -3253,6 +3636,10 @@ def rider_resend_customer_otp(request: HttpRequest, order_id: int) -> HttpRespon
             f'Use OTP {locked_order.customer_otp} only when the order is handed to you.'
         ),
     )
+    sms_delivered, sms_detail = send_customer_delivery_otp_sms(
+        order=locked_order,
+        intro='Your GramExpress rider resent the delivery handoff code.',
+    )
     create_notification(
         customer=locked_order.customer,
         order=locked_order,
@@ -3260,10 +3647,15 @@ def rider_resend_customer_otp(request: HttpRequest, order_id: int) -> HttpRespon
         body=f'Order #{locked_order.id} delivery OTP reminder sent again: {locked_order.customer_otp}.',
         notification_type=NotificationType.RIDER,
     )
-    if delivered:
-        messages.success(request, 'Customer OTP reminder emailed again.')
+    if email_delivered or sms_delivered:
+        message_bits = []
+        if email_delivered:
+            message_bits.append('email')
+        if sms_delivered:
+            message_bits.append('SMS')
+        messages.success(request, f'Customer OTP reminder sent again by {" and ".join(message_bits)}.')
     else:
-        messages.error(request, detail)
+        messages.error(request, email_detail if email_detail != 'No customer email is available for this order.' else sms_detail)
     return redirect(rider_order_redirect_target(request, order_id))
 
 
@@ -3315,32 +3707,36 @@ def rider_accept_order(request: HttpRequest, order_id: int) -> HttpResponse:
         customer=locked_order.customer,
         order=locked_order,
         title='Rider assigned',
-        body=f'{locked_rider.full_name} accepted order #{locked_order.id}.',
+        body=f'{locked_rider.full_name} accepted order #{locked_order.id} and is heading to the store.',
         notification_type=NotificationType.RIDER,
     )
     create_notification(
         shop_owner=locked_order.shop.owner,
         order=locked_order,
         title='Rider assigned',
-        body=f'{locked_rider.full_name} accepted order #{locked_order.id}.',
+        body=f'{locked_rider.full_name} accepted order #{locked_order.id} and is on the way to pickup.',
         notification_type=NotificationType.RIDER,
     )
-    delivered, _ = send_order_status_email(
+    customer_emailed, _ = send_order_status_email(
         order=locked_order,
         subject=f'Your order {locked_order.display_id} now has a rider',
         headline='A rider has accepted your order.',
         detail=(
             f'{locked_rider.full_name} is now handling your delivery. '
-            'Live tracking is disabled in this version, so order updates will arrive by email.'
+            'The next app update will happen when pickup is confirmed at the store.'
         ),
+    )
+    store_emailed, _ = send_store_order_status_email(
+        order=locked_order,
+        subject=f'Rider assigned for {locked_order.display_id}',
+        headline='A rider has accepted this order.',
+        detail=f'{locked_rider.full_name} is heading to the store for pickup.',
     )
     messages.success(
         request,
-        (
-            f'Order #{locked_order.id} assigned to {locked_rider.full_name}. Customer emailed.'
-            if delivered
-            else f'Order #{locked_order.id} assigned to {locked_rider.full_name}.'
-        ),
+        f'Order #{locked_order.id} assigned to {locked_rider.full_name}.'
+        f'{" Customer updated." if customer_emailed else ""}'
+        f'{" Store updated." if store_emailed else ""}',
     )
     return redirect('core:rider_deliveries')
 
@@ -3387,21 +3783,33 @@ def rider_update_order_status(request: HttpRequest, order_id: int) -> HttpRespon
 
             locked_order.status = OrderStatus.OUT_FOR_DELIVERY
             locked_order.save(update_fields=['status', 'updated_at'])
-            status_message = 'was picked up and is now moving to your address'
+            status_message = 'pickup was confirmed and delivery is now in progress'
             customer_status_message = (
-                f'Order #{locked_order.id} was picked up and is now moving to your address. '
+                f'Order #{locked_order.id} pickup was confirmed and the rider is now heading to your address. '
                 f'Delivery OTP: {locked_order.customer_otp}.'
             )
             success_message = f'Pickup confirmed for order #{locked_order.id}.'
             email_subject = f'Your order {locked_order.display_id} has been picked up'
-            email_headline = 'Your rider has arrived at pickup and collected the order.'
+            email_headline = 'Your rider arrived at the store and confirmed pickup.'
             email_detail = (
-                'The order is now active in delivery. '
+                'The app status now shows that pickup is complete and delivery is in progress. '
                 f'Your handoff OTP is {locked_order.customer_otp}. We will continue sending updates by email.'
+            )
+            store_status_message = (
+                f'Order #{locked_order.id} was picked up by {locked_rider.full_name} and is now on the way to the customer.'
+            )
+            store_email_subject = f'{locked_order.display_id} picked up by rider'
+            store_email_headline = 'The rider confirmed pickup from your store.'
+            store_email_detail = (
+                f'{locked_rider.full_name} marked arrival at pickup and collected the order. '
+                'The customer has been updated in the app and by email.'
             )
         else:
             if locked_order.status != OrderStatus.OUT_FOR_DELIVERY:
                 messages.error(request, 'This order must be out for delivery before completion.')
+                return redirect('core:rider_deliveries')
+            if delivery_otp_is_expired(locked_order):
+                messages.error(request, 'Customer OTP expired. Resend a fresh OTP before completing delivery.')
                 return redirect('core:rider_deliveries')
             if otp != locked_order.customer_otp:
                 messages.error(request, 'Customer OTP did not match.')
@@ -3418,6 +3826,12 @@ def rider_update_order_status(request: HttpRequest, order_id: int) -> HttpRespon
             email_subject = f'Your order {locked_order.display_id} was delivered'
             email_headline = 'Your order has been delivered successfully.'
             email_detail = 'Thank you for ordering with GramExpress. Your final invoice summary is included below.'
+            store_status_message = f'Order #{locked_order.id} was delivered successfully by {locked_rider.full_name}.'
+            store_email_subject = f'{locked_order.display_id} delivered successfully'
+            store_email_headline = 'The rider completed delivery for this order.'
+            store_email_detail = (
+                f'{locked_rider.full_name} marked the order as delivered after customer OTP verification.'
+            )
 
     create_notification(
         customer=locked_order.customer,
@@ -3430,18 +3844,33 @@ def rider_update_order_status(request: HttpRequest, order_id: int) -> HttpRespon
         shop_owner=locked_order.shop.owner,
         order=locked_order,
         title='Delivery status updated',
-        body=f'Order #{locked_order.id} {status_message}.',
+        body=store_status_message,
         notification_type=NotificationType.RIDER,
     )
-    delivered, _ = send_order_status_email(
+    customer_emailed, _ = send_order_status_email(
         order=locked_order,
         subject=email_subject,
         headline=email_headline,
         detail=email_detail,
     )
+    customer_sms_sent = False
+    if next_status == OrderStatus.OUT_FOR_DELIVERY:
+        customer_sms_sent, _ = send_customer_delivery_otp_sms(
+            order=locked_order,
+            intro='Your GramExpress order was picked up. Share this code only at delivery handoff.',
+        )
+    store_emailed, _ = send_store_order_status_email(
+        order=locked_order,
+        subject=store_email_subject,
+        headline=store_email_headline,
+        detail=store_email_detail,
+    )
     messages.success(
         request,
-        f'{success_message}{" Customer emailed." if delivered else ""}',
+        f'{success_message}'
+        f'{" Customer emailed." if customer_emailed else ""}'
+        f'{" Customer SMS sent." if customer_sms_sent else ""}'
+        f'{" Store emailed." if store_emailed else ""}',
     )
     if next_status == OrderStatus.DELIVERED:
         return redirect('core:rider_completed_orders')
