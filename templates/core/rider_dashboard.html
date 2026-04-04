@@ -121,17 +121,18 @@
         <h2 class="section-title">Dispatch feed</h2>
         <div class="compact-list">
           {% for note in notifications %}
-            <div class="list-item compact-item">
+            <a class="list-item compact-item" href="{% url 'core:notification_open' note.id %}">
               <div>
                 <strong>{{ note.title }}</strong>
                 <p>{{ note.body }}</p>
               </div>
               <span class="tiny muted">{{ note.created_at|date:"M d, H:i" }}</span>
-            </div>
+            </a>
           {% empty %}
             <p>No rider notifications yet.</p>
           {% endfor %}
         </div>
+        <a class="button small secondary" href="{% url 'core:notifications' %}">View All Notifications</a>
       </article>
     </div>
 
@@ -178,6 +179,7 @@
                 <span class="pill">{{ order.pickup_distance_km }} km pickup</span>
               </div>
               <div class="inline-actions">
+                <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
                 <a class="button small secondary" href="{{ order.shop.google_maps_url }}" target="_blank" rel="noreferrer">Store</a>
                 <a class="button small secondary" href="{{ order.customer.google_maps_url }}" target="_blank" rel="noreferrer">Customer</a>
               </div>

@@ -1,0 +1,55 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="page-stack" id="top">
+    <article class="card" data-appear>
+      <div class="split-row">
+        <div>
+          <span class="eyebrow">Notifications</span>
+          <h1 class="page-title">Notification Centre</h1>
+          <p>Order updates, rider activity, approval alerts, and account messages all live here.</p>
+        </div>
+        <form method="post" action="{% url 'core:notifications_mark_all_read' %}">
+          {% csrf_token %}
+          <button class="button secondary" type="submit">Mark All Read</button>
+        </form>
+      </div>
+    </article>
+
+    {% for label, items in grouped_notifications %}
+      <section class="card" data-appear>
+        <div class="split-row">
+          <span class="eyebrow">{{ label }}</span>
+          <span class="tiny muted">{{ items|length }} update{{ items|length|pluralize }}</span>
+        </div>
+        <div class="stack">
+          {% for note in items %}
+            <a class="notification-item{% if not note.is_read %} notification-item-unread{% endif %}" href="{% url 'core:notification_open' note.id %}">
+              <div class="notification-copy">
+                <strong>{{ note.title }}</strong>
+                <p>{{ note.body }}</p>
+                {% if note.order_id %}
+                  <span class="soft-pill">Order #{{ note.order_id }}</span>
+                {% endif %}
+              </div>
+              <div class="notification-meta">
+                <span class="tiny muted">{{ note.created_at|date:"M d, H:i" }}</span>
+                {% if not note.is_read %}
+                  <span class="notification-dot" aria-hidden="true"></span>
+                {% endif %}
+              </div>
+            </a>
+          {% endfor %}
+        </div>
+      </section>
+    {% empty %}
+      <article class="card" data-appear>
+        <div class="empty-card">
+          <span class="eyebrow">All caught up</span>
+          <h2 class="section-title">No notifications yet</h2>
+          <p>Once orders move, riders accept jobs, or approvals change, updates will appear here.</p>
+        </div>
+      </article>
+    {% endfor %}
+  </section>
+{% endblock %}

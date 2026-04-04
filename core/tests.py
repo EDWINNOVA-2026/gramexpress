@@ -11,7 +11,9 @@ from .models import (
     ApprovalStatus,
     AuthOtpToken,
     CustomerProfile,
+    Notification,
     Order,
+    OrderItem,
     OrderStatus,
     OtpPurpose,
     Product,
@@ -97,6 +99,29 @@ class CoreFlowTests(TestCase):
             longitude=Decimal('76.643800'),
         )
 
+        cls.demo_order = Order.objects.create(
+            customer=cls.customer,
+            shop=cls.shop,
+            rider=cls.rider,
+            status=OrderStatus.OUT_FOR_DELIVERY,
+            total_amount=Decimal('76.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            customer_otp='123456',
+        )
+        OrderItem.objects.create(
+            order=cls.demo_order,
+            product=cls.product,
+            quantity=2,
+            unit_price=Decimal('28.00'),
+        )
+        Notification.objects.create(
+            customer=cls.customer,
+            order=cls.demo_order,
+            title='Rider is nearby',
+            body='Suresh is bringing your order now.',
+        )
+
         cls.admin_user = User.objects.create_superuser(
             username='admin',
             password='admin123',
@@ -129,6 +154,7 @@ class CoreFlowTests(TestCase):
 
     def test_customer_can_add_to_cart_and_checkout(self):
         self.client.force_login(self.customer_user)
+        before_count = Order.objects.count()
         add_response = self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '2'})
         self.assertEqual(add_response.status_code, 302)
 
@@ -138,12 +164,29 @@ class CoreFlowTests(TestCase):
             follow=True,
         )
         self.assertEqual(checkout_response.status_code, 200)
-        order = Order.objects.get()
+        self.assertEqual(Order.objects.count(), before_count + 1)
+        order = Order.objects.latest('id')
         self.assertEqual(order.customer, self.customer)
         self.assertEqual(order.shop, self.shop)
         self.assertEqual(order.rider, self.rider)
         self.assertEqual(order.status, OrderStatus.CONFIRMED)
         self.assertEqual(order.items.get().quantity, 2)
+
+    def test_customer_can_open_notifications_center(self):
+        self.client.force_login(self.customer_user)
+        response = self.client.get(reverse('core:notifications'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Notification Centre')
+        self.assertContains(response, 'Rider is nearby')
+
+    def test_customer_can_open_order_detail_and_tracking(self):
+        self.client.force_login(self.customer_user)
+        detail_response = self.client.get(reverse('core:order_detail', args=[self.demo_order.id]))
+        tracking_response = self.client.get(reverse('core:order_tracking', args=[self.demo_order.id]))
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertEqual(tracking_response.status_code, 200)
+        self.assertContains(detail_response, f'Order #{self.demo_order.id}')
+        self.assertContains(tracking_response, 'Live Tracking')
 
     def test_registration_flow_sends_mobile_otp_and_creates_customer(self):
         register_payload = {

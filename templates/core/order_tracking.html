@@ -1,0 +1,70 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="page-stack" id="top">
+    <article class="card tracking-hero-card" data-appear>
+      <div class="split-row">
+        <div>
+          <span class="eyebrow">Live Tracking</span>
+          <h1 class="page-title">Order #{{ order.id }}</h1>
+          <p>{{ order.shop.name }} to {{ order.customer.full_name }}</p>
+        </div>
+        <div class="hero-inline-facts">
+          <span class="soft-pill">{{ eta_label }}</span>
+          <span class="status-chip info">{{ order.get_status_display }}</span>
+        </div>
+      </div>
+    </article>
+
+    <section class="layout-two" id="workspace">
+      <article class="card tracking-map-card" data-appear>
+        <div class="tracking-map-scene">
+          <div class="tracking-map-copy">
+            <strong>Delivery route overview</strong>
+            <p>Store pickup, rider handoff, and customer destination stay visible in one place.</p>
+          </div>
+          <div class="tracking-route-line"></div>
+          <div class="tracking-pin tracking-pin-store">Store</div>
+          {% if order.rider %}
+            <div class="tracking-pin tracking-pin-rider">Rider</div>
+          {% endif %}
+          <div class="tracking-pin tracking-pin-home">Home</div>
+        </div>
+        <div class="inline-actions">
+          <a class="button small primary" href="{{ route_url }}" target="_blank" rel="noreferrer">Open Route In Maps</a>
+          {% if order.rider %}
+            <a class="button small secondary" href="{{ order.rider.google_maps_url }}" target="_blank" rel="noreferrer">Rider Location</a>
+          {% endif %}
+        </div>
+      </article>
+
+      <div class="stack">
+        <article class="card" data-appear>
+          <span class="eyebrow">ETA</span>
+          <h2 class="section-title">Arrival summary</h2>
+          <div class="metric-card tracking-metric-card">
+            <span class="metric-label">Estimated arrival</span>
+            <strong class="metric-value">{{ eta_label }}</strong>
+            <p>{{ order.delivery_address }}</p>
+          </div>
+        </article>
+
+        <article class="card" data-appear>
+          <span class="eyebrow">Progress</span>
+          <h2 class="section-title">Current delivery status</h2>
+          <div class="timeline-list">
+            {% for item in timeline %}
+              <div class="timeline-item{% if item.current %} timeline-item-current{% endif %}{% if item.completed %} timeline-item-complete{% endif %}">
+                <div class="timeline-marker"></div>
+                <div class="timeline-copy">
+                  <strong>{{ item.label }}</strong>
+                  <p>{{ item.caption }}</p>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
+    </section>
+  </section>
+{% endblock %}

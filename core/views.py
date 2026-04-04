@@ -16,7 +16,7 @@ from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
 from django.core.mail import send_mail
 from django.db.models import Avg
-from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -495,14 +495,119 @@ def create_notification(*, customer=None, shop_owner=None, rider=None, order=Non
 
 
 def user_notifications(user):
+    queryset = notification_queryset_for_user(user)
+    return queryset[:6]
+
+
+def notification_queryset_for_user(user):
     role, profile = get_role_profile(user)
     if role == RoleType.CUSTOMER:
-        return profile.notifications.select_related('order')[:6]
+        return profile.notifications.select_related('order')
     if role == RoleType.SHOP:
-        return profile.notifications.select_related('order')[:6]
+        return profile.notifications.select_related('order')
     if role == RoleType.RIDER:
-        return profile.notifications.select_related('order')[:6]
-    return []
+        return profile.notifications.select_related('order')
+    return Notification.objects.none()
+
+
+def group_notifications(notifications):
+    today = timezone.localdate()
+    grouped = {
+        'Today': [],
+        'Yesterday': [],
+        'This Week': [],
+        'Older': [],
+    }
+    for note in notifications:
+        created_date = timezone.localtime(note.created_at).date()
+        if created_date == today:
+            grouped['Today'].append(note)
+        elif created_date == today - timezone.timedelta(days=1):
+            grouped['Yesterday'].append(note)
+        elif created_date >= today - timezone.timedelta(days=7):
+            grouped['This Week'].append(note)
+        else:
+            grouped['Older'].append(note)
+    return [(label, items) for label, items in grouped.items() if items]
+
+
+def notification_target_url(note: Notification) -> str:
+    if note.order_id:
+        return reverse('core:order_detail', args=[note.order_id])
+    return reverse('core:notifications')
+
+
+def get_order_for_user(user, order_id: int):
+    role, profile = get_role_profile(user)
+    queryset = Order.objects.select_related('customer', 'shop__owner', 'rider').prefetch_related('items__product')
+    if role == RoleType.CUSTOMER:
+        return get_object_or_404(queryset, pk=order_id, customer=profile)
+    if role == RoleType.SHOP:
+        return get_object_or_404(queryset, pk=order_id, shop__owner=profile)
+    if role == RoleType.RIDER:
+        return get_object_or_404(queryset, pk=order_id, rider=profile)
+    if role == RoleType.ADMIN:
+        return get_object_or_404(queryset, pk=order_id)
+    raise Http404('Order not found')
+
+
+def build_order_timeline(order: Order) -> list[dict[str, Any]]:
+    events = [
+        {
+            'key': 'placed',
+            'label': 'Order placed',
+            'caption': f'Order #{order.id} created successfully.',
+            'completed': True,
+            'current': order.status == OrderStatus.PENDING,
+            'timestamp': order.created_at,
+        },
+        {
+            'key': 'confirmed',
+            'label': 'Store confirmed',
+            'caption': 'Store accepted the order for preparation.',
+            'completed': order.status in [OrderStatus.CONFIRMED, OrderStatus.PACKED, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED],
+            'current': order.status == OrderStatus.CONFIRMED,
+            'timestamp': order.updated_at if order.status in [OrderStatus.CONFIRMED, OrderStatus.PACKED, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED] else None,
+        },
+        {
+            'key': 'packed',
+            'label': 'Packed and ready',
+            'caption': 'Store has packed the items and handed them toward dispatch.',
+            'completed': order.status in [OrderStatus.PACKED, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED],
+            'current': order.status == OrderStatus.PACKED,
+            'timestamp': order.updated_at if order.status in [OrderStatus.PACKED, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED] else None,
+        },
+        {
+            'key': 'transit',
+            'label': 'Out for delivery',
+            'caption': 'Rider is moving toward the customer address.',
+            'completed': order.status in [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED],
+            'current': order.status == OrderStatus.OUT_FOR_DELIVERY,
+            'timestamp': order.updated_at if order.status in [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED] else None,
+        },
+        {
+            'key': 'delivered',
+            'label': 'Delivered',
+            'caption': 'Order handoff completed successfully.',
+            'completed': order.status == OrderStatus.DELIVERED,
+            'current': order.status == OrderStatus.DELIVERED,
+            'timestamp': order.delivered_at,
+        },
+    ]
+    if order.status == OrderStatus.CANCELLED:
+        for event in events:
+            event['current'] = False
+        events.append(
+            {
+                'key': 'cancelled',
+                'label': 'Cancelled',
+                'caption': 'This order was cancelled before delivery.',
+                'completed': True,
+                'current': True,
+                'timestamp': order.updated_at,
+            }
+        )
+    return events
 
 
 def create_or_update_role_user(role: str, phone: str, email: str, password: str, full_name: str):
@@ -863,6 +968,84 @@ def logout_view(request: HttpRequest) -> HttpResponse:
     request.session.pop(PENDING_REGISTRATION_SESSION_KEY, None)
     messages.success(request, 'Signed out successfully.')
     return redirect('core:login')
+
+
+@login_required
+def notifications_view(request: HttpRequest) -> HttpResponse:
+    notifications = list(notification_queryset_for_user(request.user))
+    grouped_notifications = group_notifications(notifications)
+    return render(
+        request,
+        'core/notifications.html',
+        {
+            'grouped_notifications': grouped_notifications,
+        },
+    )
+
+
+@login_required
+@require_POST
+def notifications_mark_all_read(request: HttpRequest) -> HttpResponse:
+    notification_queryset_for_user(request.user).filter(is_read=False).update(is_read=True)
+    messages.success(request, 'All notifications marked as read.')
+    return redirect('core:notifications')
+
+
+@login_required
+def notification_open(request: HttpRequest, notification_id: int) -> HttpResponse:
+    note = get_object_or_404(notification_queryset_for_user(request.user), pk=notification_id)
+    if not note.is_read:
+        note.is_read = True
+        note.save(update_fields=['is_read'])
+    return redirect(notification_target_url(note))
+
+
+@login_required
+def order_detail_view(request: HttpRequest, order_id: int) -> HttpResponse:
+    order = get_order_for_user(request.user, order_id)
+    order.subtotal_amount = order.total_amount - order.delivery_fee
+    related_notifications = order.notifications.order_by('-created_at')[:6]
+    timeline = build_order_timeline(order)
+    if order.rider:
+        order.rider_route_url = build_google_route_url(
+            order.shop.latitude,
+            order.shop.longitude,
+            order.customer.latitude,
+            order.customer.longitude,
+        )
+    return render(
+        request,
+        'core/order_detail.html',
+        {
+            'order': order,
+            'timeline': timeline,
+            'related_notifications': related_notifications,
+        },
+    )
+
+
+@login_required
+def order_tracking_view(request: HttpRequest, order_id: int) -> HttpResponse:
+    order = get_order_for_user(request.user, order_id)
+    order.subtotal_amount = order.total_amount - order.delivery_fee
+    timeline = build_order_timeline(order)
+    eta_label = '40-55 min' if order.status != OrderStatus.DELIVERED else 'Delivered'
+    route_url = build_google_route_url(
+        order.shop.latitude,
+        order.shop.longitude,
+        order.customer.latitude,
+        order.customer.longitude,
+    )
+    return render(
+        request,
+        'core/order_tracking.html',
+        {
+            'order': order,
+            'timeline': timeline,
+            'eta_label': eta_label,
+            'route_url': route_url,
+        },
+    )
 
 
 def customer_start(request: HttpRequest) -> HttpResponse:

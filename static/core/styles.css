@@ -240,6 +240,26 @@ textarea {
   color: var(--primary-ink) !important;
 }
 
+.nav-bell-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.nav-bell-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
 .toast-stack {
   display: grid;
   gap: 0.75rem;
@@ -284,7 +304,8 @@ textarea {
 .compact-list,
 .store-grid,
 .product-grid,
-.auth-grid-two {
+.auth-grid-two,
+.page-stack {
   display: grid;
   gap: 1rem;
 }
@@ -634,11 +655,168 @@ textarea {
   gap: 0.65rem;
 }
 
+.page-title {
+  margin: 0;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-size: clamp(1.65rem, 5vw, 2.5rem);
+  letter-spacing: -0.04em;
+}
+
 .compact-item {
   padding: 0.9rem;
   border-radius: 1.1rem;
   background: rgba(245, 249, 244, 0.72);
   border: 1px solid rgba(18, 42, 31, 0.06);
+}
+
+.notification-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem;
+  border-radius: 1.2rem;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.notification-item-unread {
+  background: rgba(240, 249, 255, 0.9);
+  border-color: rgba(2, 132, 199, 0.16);
+}
+
+.notification-copy,
+.notification-meta {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.notification-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.timeline-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.timeline-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.timeline-marker {
+  width: 0.95rem;
+  height: 0.95rem;
+  margin-top: 0.25rem;
+  border-radius: 999px;
+  border: 2px solid rgba(17, 24, 39, 0.18);
+  background: #fff;
+  box-shadow: 0 0 0 6px rgba(17, 24, 39, 0.04);
+}
+
+.timeline-item-complete .timeline-marker {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.timeline-item-current .timeline-marker {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.timeline-copy {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.bill-grid {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.bill-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgba(17, 24, 39, 0.08);
+}
+
+.tracking-map-card,
+.order-hero-card,
+.tracking-hero-card {
+  overflow: hidden;
+}
+
+.tracking-map-scene {
+  position: relative;
+  min-height: 320px;
+  padding: 1.25rem;
+  border-radius: 1.5rem;
+  background:
+    radial-gradient(circle at 20% 25%, rgba(255, 87, 51, 0.14), transparent 18%),
+    radial-gradient(circle at 80% 20%, rgba(2, 132, 199, 0.14), transparent 18%),
+    linear-gradient(180deg, #f6f8fd 0%, #eef3fb 100%);
+}
+
+.tracking-map-copy {
+  max-width: 16rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.tracking-route-line {
+  position: absolute;
+  inset: 7rem 22% 7rem 22%;
+  border: 3px dashed rgba(31, 45, 85, 0.22);
+  border-radius: 999px;
+}
+
+.tracking-pin {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.4rem;
+  min-height: 2.2rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  font-weight: 700;
+}
+
+.tracking-pin-store {
+  top: 6rem;
+  left: 14%;
+}
+
+.tracking-pin-rider {
+  top: 11rem;
+  left: 44%;
+  color: var(--accent);
+}
+
+.tracking-pin-home {
+  right: 12%;
+  bottom: 4.5rem;
+}
+
+.tracking-metric-card {
+  border-radius: 1.4rem;
+}
+
+.empty-card {
+  display: grid;
+  gap: 0.6rem;
 }
 
 .order-card {
@@ -734,6 +912,7 @@ code {
   padding: 0.15rem 0.42rem;
   border-radius: 0.4rem;
   background: rgba(24, 38, 27, 0.08);
+  font-family: "JetBrains Mono", monospace;
 }
 
 .auth-stage {
@@ -966,7 +1145,8 @@ code {
   .product-card,
   .feature-row,
   .split-row,
-  .auth-location-card {
+  .auth-location-card,
+  .notification-item {
     flex-direction: row;
     justify-content: space-between;
   }

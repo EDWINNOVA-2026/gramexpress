@@ -1,0 +1,113 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="page-stack" id="top">
+    <article class="card order-hero-card" data-appear>
+      <div class="split-row">
+        <div>
+          <span class="eyebrow">Order Detail</span>
+          <h1 class="page-title">Order #{{ order.id }}</h1>
+          <p>{{ order.shop.name }} to {{ order.customer.full_name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
+        </div>
+        <div class="hero-inline-facts">
+          <span class="status-chip {% if order.status == 'delivered' %}success{% elif order.status == 'cancelled' %}warn{% else %}info{% endif %}">{{ order.get_status_display }}</span>
+          <span class="pill">Rs. {{ order.total_amount }}</span>
+          <a class="button small primary" href="{% url 'core:order_tracking' order.id %}">Track Order</a>
+        </div>
+      </div>
+    </article>
+
+    <section class="layout-two" id="workspace">
+      <article class="card" data-appear>
+        <span class="eyebrow">Timeline</span>
+        <h2 class="section-title">Order progress</h2>
+        <div class="timeline-list">
+          {% for item in timeline %}
+            <div class="timeline-item{% if item.current %} timeline-item-current{% endif %}{% if item.completed %} timeline-item-complete{% endif %}">
+              <div class="timeline-marker"></div>
+              <div class="timeline-copy">
+                <strong>{{ item.label }}</strong>
+                <p>{{ item.caption }}</p>
+                {% if item.timestamp %}
+                  <span class="tiny muted">{{ item.timestamp|date:"M d, H:i" }}</span>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </article>
+
+      <div class="stack">
+        <article class="card" data-appear>
+          <span class="eyebrow">Delivery</span>
+          <h2 class="section-title">Route and handoff</h2>
+          <div class="stack small-gap">
+            <div class="compact-item">
+              <strong>Store</strong>
+              <p>{{ order.shop.name }}, {{ order.shop.area }}</p>
+            </div>
+            <div class="compact-item">
+              <strong>Customer address</strong>
+              <p>{{ order.delivery_address }}</p>
+            </div>
+            {% if order.rider %}
+              <div class="compact-item">
+                <strong>Rider</strong>
+                <p>{{ order.rider.full_name }} | {{ order.rider.get_vehicle_type_display }}</p>
+                <div class="inline-actions">
+                  <a class="button small secondary" href="{{ order.rider.google_maps_url }}" target="_blank" rel="noreferrer">Open Rider</a>
+                  <a class="button small secondary" href="{{ order.rider_route_url }}" target="_blank" rel="noreferrer">Open Route</a>
+                </div>
+              </div>
+            {% endif %}
+            {% if order.status == 'out_for_delivery' %}
+              <div class="compact-item">
+                <strong>Delivery OTP</strong>
+                <p>Share this OTP with the rider at handoff.</p>
+                <code>{{ order.customer_otp }}</code>
+              </div>
+            {% endif %}
+          </div>
+        </article>
+
+        <article class="card" data-appear>
+          <span class="eyebrow">Updates</span>
+          <h2 class="section-title">Recent notifications</h2>
+          <div class="stack small-gap">
+            {% for note in related_notifications %}
+              <div class="compact-item">
+                <strong>{{ note.title }}</strong>
+                <p>{{ note.body }}</p>
+                <span class="tiny muted">{{ note.created_at|date:"M d, H:i" }}</span>
+              </div>
+            {% empty %}
+              <p>No order-linked notifications yet.</p>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <article class="card" data-appear>
+      <span class="eyebrow">Items</span>
+      <h2 class="section-title">Items and billing</h2>
+      <div class="stack">
+        {% for item in order.items.all %}
+          <div class="list-item compact-item">
+            <div>
+              <strong>{{ item.product.name }}</strong>
+              <p>{{ item.quantity }} x Rs. {{ item.unit_price }}</p>
+            </div>
+            <span class="pill">Rs. {{ item.line_total }}</span>
+          </div>
+        {% endfor %}
+      </div>
+      <div class="bill-grid">
+        <div class="bill-row"><span>Item total</span><strong>Rs. {{ order.subtotal_amount|floatformat:2 }}</strong></div>
+        <div class="bill-row"><span>Delivery fee</span><strong>Rs. {{ order.delivery_fee|floatformat:2 }}</strong></div>
+        <div class="bill-row"><span>Total</span><strong>Rs. {{ order.total_amount|floatformat:2 }}</strong></div>
+        <div class="bill-row"><span>Payment status</span><strong>{{ order.get_payment_status_display }}</strong></div>
+      </div>
+    </article>
+  </section>
+{% endblock %}

@@ -120,17 +120,18 @@
         <h2 class="section-title">Store activity</h2>
         <div class="compact-list">
           {% for note in notifications %}
-            <div class="list-item compact-item">
+            <a class="list-item compact-item" href="{% url 'core:notification_open' note.id %}">
               <div>
                 <strong>{{ note.title }}</strong>
                 <p>{{ note.body }}</p>
               </div>
               <span class="tiny muted">{{ note.created_at|date:"M d, H:i" }}</span>
-            </div>
+            </a>
           {% empty %}
             <p>No store notifications yet.</p>
           {% endfor %}
         </div>
+        <a class="button small secondary" href="{% url 'core:notifications' %}">View All Notifications</a>
       </article>
     </div>
 
@@ -198,6 +199,7 @@
               </div>
 
               <div class="inline-actions">
+                <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
                 <form method="post" action="{% url 'core:shop_update_order_status' order.id %}">
                   {% csrf_token %}
                   <input type="hidden" name="status" value="confirmed" />
