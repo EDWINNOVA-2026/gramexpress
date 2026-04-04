@@ -40,6 +40,16 @@
           <p>Editing core storefront details may move the store back into review so customers only see approved profiles.</p>
         </div>
       </article>
+
+      <section class="shop-approval-visibility-grid" data-appear>
+        {% for card in approval_cards %}
+          <article class="shop-approval-visibility-card{% if card.is_approved %} is-approved{% else %} is-review{% endif %}">
+            <span class="metric-label">{{ card.label }}</span>
+            <strong>{{ card.value }}</strong>
+            <p>{{ card.detail }}</p>
+          </article>
+        {% endfor %}
+      </section>
     </div>
   </section>
 {% endblock %}

@@ -7,8 +7,8 @@
     {% endfor %}
   </section>
 
-  <section class="layout-two" id="workspace">
-    <article class="card" data-appear>
+  <section class="layout-two shop-catalog-layout" id="workspace">
+    <article class="card shop-catalog-composer" data-appear>
       <span class="eyebrow">Product Composer</span>
       <h2 class="section-title">{% if editing_product %}Edit product{% else %}Add product{% endif %}</h2>
       <form method="post" class="stack">
@@ -21,12 +21,12 @@
       </form>
     </article>
 
-    <article class="card" data-appear>
+    <article class="card shop-catalog-panel" data-appear>
       <span class="eyebrow">Catalog</span>
       <h2 class="section-title">Products on the shelf</h2>
-      <div class="store-grid store-grid-catalog">
+      <div class="store-grid store-grid-catalog shop-catalog-grid">
         {% for product in shop.products.all %}
-          <div class="store-card product-showcase-card">
+          <div class="store-card product-showcase-card shop-catalog-card">
             <div class="store-card-media product-card-media" style="background: linear-gradient(135deg, {{ product.color }}, #fff4ee);">
               {% if product.image_url %}
                 <img src="{{ product.image_url }}" alt="{{ product.name }}" />
