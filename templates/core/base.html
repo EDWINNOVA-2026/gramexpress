@@ -176,10 +176,16 @@
         </main>
 
         {% if user.is_authenticated and route_name != 'login' and route_name != 'login_verify' and route_name != 'register' and route_name != 'register_details' and route_name != 'register_verify' and route_name != 'email_otp' and route_name != 'email_otp_verify' and route_name != 'customer_start' and route_name != 'shop_start' and route_name != 'rider_start' %}
-          <nav class="mobile-bottom-nav" aria-label="Bottom navigation">
-            {% for link in shell_primary_links %}
-              <a href="{{ link.url }}" class="mobile-bottom-link{% if request.path == link.url %} mobile-bottom-link-active{% endif %}">{{ link.label }}</a>
-            {% endfor %}
+          <nav class="mobile-bottom-nav{% if shell_active_role == 'shop' %} mobile-bottom-nav-shop{% endif %}" aria-label="Bottom navigation">
+            {% if shell_active_role == 'shop' %}
+              {% for link in shell_role_links %}
+                <a href="{{ link.url }}" class="mobile-bottom-link{% if request.path == link.url %} mobile-bottom-link-active{% endif %}"{% if request.path == link.url %} aria-current="page"{% endif %}>{{ link.label }}</a>
+              {% endfor %}
+            {% else %}
+              {% for link in shell_primary_links %}
+                <a href="{{ link.url }}" class="mobile-bottom-link{% if request.path == link.url %} mobile-bottom-link-active{% endif %}">{{ link.label }}</a>
+              {% endfor %}
+            {% endif %}
           </nav>
         {% endif %}
       </div>

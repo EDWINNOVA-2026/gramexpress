@@ -1,7 +1,7 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
-  <section class="feature-nav card" data-appear>
+  <section class="feature-nav card shop-segmented-nav" data-appear>
     {% for item in page_nav %}
       <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
     {% endfor %}

@@ -427,13 +427,13 @@ class Notification(TimeStampedModel):
     @property
     def glyph(self) -> str:
         return {
-            NotificationType.ORDER: 'Order',
-            NotificationType.STORE: 'Store',
-            NotificationType.RIDER: 'Rider',
-            NotificationType.PAYMENT: 'Pay',
-            NotificationType.PROMO: 'Promo',
-            NotificationType.SYSTEM: 'Info',
-        }.get(self.notification_type, 'Info')
+            NotificationType.ORDER: 'OD',
+            NotificationType.STORE: 'ST',
+            NotificationType.RIDER: 'RD',
+            NotificationType.PAYMENT: 'PY',
+            NotificationType.PROMO: 'PR',
+            NotificationType.SYSTEM: 'IN',
+        }.get(self.notification_type, 'IN')
 
 
 class EmailOtpToken(TimeStampedModel):
