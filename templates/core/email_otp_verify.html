@@ -1,0 +1,53 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="auth-stage" data-appear>
+    <article class="auth-card auth-shell-narrow">
+      <div class="auth-lockmark" aria-hidden="true">
+        <span class="auth-lock-body"></span>
+      </div>
+      <h1>Verify Email OTP</h1>
+      <p class="auth-subtitle">The passwordless verification step now has its own screen.</p>
+      <p class="auth-lead">We sent a 6 digit OTP to {{ pending_email_otp_masked_email }}.</p>
+
+      <div class="auth-step-strip">
+        {% if pending_email_otp_role_label %}<span class="soft-pill">{{ pending_email_otp_role_label }}</span>{% endif %}
+        <span class="soft-pill">Step 2 of 2</span>
+        <span class="soft-pill">Expires in {{ otp_expiry_minutes }} min</span>
+      </div>
+
+      <section class="auth-note-panel">
+        <div>
+          <strong>Use the same email</strong>
+          <p>Enter the email that received the OTP so this workflow stays isolated from the request page.</p>
+        </div>
+      </section>
+
+      <form class="auth-form auth-form-tight" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="verify" />
+        <div class="auth-field">
+          <label for="{{ verify_form.email.id_for_label }}">Email Address</label>
+          {{ verify_form.email }}
+          {% for error in verify_form.email.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+        </div>
+        <div class="auth-field">
+          <label for="{{ verify_form.code.id_for_label }}">OTP Code</label>
+          {{ verify_form.code }}
+          {% for error in verify_form.code.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+        </div>
+        {% for error in verify_form.non_field_errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+        <button class="auth-primary-button" type="submit">Verify OTP</button>
+      </form>
+
+      <div class="form-actions">
+        <form method="post" class="auth-inline-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="resend" />
+          <button class="auth-secondary-button" type="submit">Resend OTP</button>
+        </form>
+        <a class="auth-secondary-button" href="{% url 'core:email_otp' %}?reset=1">Use Different Email</a>
+      </div>
+    </article>
+  </section>
+{% endblock %}

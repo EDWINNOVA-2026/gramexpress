@@ -53,13 +53,13 @@
     {% endif %}
   </head>
   {% with route_name=request.resolver_match.url_name %}
-    <body class="{% if route_name == 'login' or route_name == 'register' or route_name == 'email_otp' or route_name == 'customer_start' or route_name == 'shop_start' or route_name == 'rider_start' %}auth-screen{% else %}app-screen{% endif %} route-{{ route_name|default:'unknown' }} role-{{ shell_active_role|default:'guest' }}">
+    <body class="{% if route_name == 'login' or route_name == 'login_verify' or route_name == 'register' or route_name == 'register_details' or route_name == 'register_verify' or route_name == 'email_otp' or route_name == 'email_otp_verify' or route_name == 'customer_start' or route_name == 'shop_start' or route_name == 'rider_start' %}auth-screen{% else %}app-screen{% endif %} route-{{ route_name|default:'unknown' }} role-{{ shell_active_role|default:'guest' }}">
       <div class="app-frame">
         <div class="ambient ambient-one"></div>
         <div class="ambient ambient-two"></div>
         <div class="ambient ambient-three"></div>
 
-        {% if route_name != 'login' and route_name != 'register' and route_name != 'email_otp' and route_name != 'customer_start' and route_name != 'shop_start' and route_name != 'rider_start' %}
+        {% if route_name != 'login' and route_name != 'login_verify' and route_name != 'register' and route_name != 'register_details' and route_name != 'register_verify' and route_name != 'email_otp' and route_name != 'email_otp_verify' and route_name != 'customer_start' and route_name != 'shop_start' and route_name != 'rider_start' %}
           <header class="site-shell site-header" data-appear>
             <div class="topbar" id="top">
               <a class="brand" href="{% if user.is_authenticated %}{{ shell_dashboard_url }}{% else %}{% url 'core:home' %}{% endif %}">
@@ -161,7 +161,7 @@
           </header>
         {% endif %}
 
-        <main class="site-shell site-main{% if route_name == 'login' or route_name == 'register' or route_name == 'email_otp' or route_name == 'customer_start' or route_name == 'shop_start' or route_name == 'rider_start' %} site-main-auth{% endif %}">
+        <main class="site-shell site-main{% if route_name == 'login' or route_name == 'login_verify' or route_name == 'register' or route_name == 'register_details' or route_name == 'register_verify' or route_name == 'email_otp' or route_name == 'email_otp_verify' or route_name == 'customer_start' or route_name == 'shop_start' or route_name == 'rider_start' %} site-main-auth{% endif %}">
           {% if messages %}
             <section class="toast-stack" data-appear>
               {% for message in messages %}
@@ -172,7 +172,7 @@
           {% block content %}{% endblock %}
         </main>
 
-        {% if user.is_authenticated and route_name != 'login' and route_name != 'register' and route_name != 'email_otp' and route_name != 'customer_start' and route_name != 'shop_start' and route_name != 'rider_start' %}
+        {% if user.is_authenticated and route_name != 'login' and route_name != 'login_verify' and route_name != 'register' and route_name != 'register_details' and route_name != 'register_verify' and route_name != 'email_otp' and route_name != 'email_otp_verify' and route_name != 'customer_start' and route_name != 'shop_start' and route_name != 'rider_start' %}
           <nav class="mobile-bottom-nav" aria-label="Bottom navigation">
             {% for link in shell_primary_links %}
               <a href="{{ link.url }}" class="mobile-bottom-link{% if request.path == link.url %} mobile-bottom-link-active{% endif %}">{{ link.label }}</a>

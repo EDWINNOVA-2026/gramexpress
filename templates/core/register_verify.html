@@ -1,0 +1,48 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="auth-stage" data-appear>
+    <article class="auth-card auth-shell-narrow">
+      <div class="auth-lockmark" aria-hidden="true">
+        <span class="auth-lock-body"></span>
+      </div>
+      <h1>Verify Your Mobile Number</h1>
+      <p class="auth-subtitle">The OTP step now lives on its own screen.</p>
+      <p class="auth-lead">We sent a 6 digit code to {{ pending_registration_phone }} for your {{ pending_registration_role_label|lower }} account.</p>
+
+      <div class="auth-step-strip">
+        <a class="soft-pill" href="{% url 'core:register' %}">1. Choose role</a>
+        <a class="soft-pill" href="{% url 'core:register_details' %}?account_type={{ pending_registration.account_type }}">2. Add onboarding details</a>
+        <span class="soft-pill soft-pill-active">3. Verify mobile OTP</span>
+      </div>
+
+      <section class="auth-note-panel">
+        <div class="split-row">
+          <strong>{{ pending_registration_role_label }} onboarding saved</strong>
+          <span class="soft-pill">Expires in {{ otp_expiry_minutes }} min</span>
+        </div>
+        <p>Finish verification to create the account and open the correct dashboard.</p>
+      </section>
+
+      <form class="auth-form auth-form-tight" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="verify_register_otp" />
+        <div class="auth-field">
+          <label for="{{ otp_form.code.id_for_label }}">Mobile OTP</label>
+          {{ otp_form.code }}
+          {% for error in otp_form.code.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+        </div>
+        <button class="auth-primary-button" type="submit">Verify and Continue</button>
+      </form>
+
+      <div class="form-actions">
+        <form method="post" class="auth-inline-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="resend_register_otp" />
+          <button class="auth-secondary-button" type="submit">Resend OTP</button>
+        </form>
+        <a class="auth-secondary-button" href="{% url 'core:register_details' %}?account_type={{ pending_registration.account_type }}">Edit Details</a>
+      </div>
+    </article>
+  </section>
+{% endblock %}

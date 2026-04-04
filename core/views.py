@@ -85,6 +85,16 @@ DEFAULT_LONGITUDE = Decimal('76.643800')
 DEFAULT_DELIVERY_RADIUS_KM = 20
 PICKUP_GEOFENCE_KM = 0.2
 ACCOUNT_ROLE_CHOICES = [RoleType.CUSTOMER, RoleType.SHOP, RoleType.RIDER]
+REGISTRATION_ROLE_DESCRIPTIONS = {
+    RoleType.CUSTOMER: 'Browse local stores, save your address, and place deliveries quickly.',
+    RoleType.SHOP: 'Launch your store workspace with catalogue, order queue, and shop profile details.',
+    RoleType.RIDER: 'Set up your rider workspace with vehicle details and delivery-ready location access.',
+}
+REGISTRATION_ROLE_ONBOARDING_COPY = {
+    RoleType.CUSTOMER: 'Add the delivery details we need to match you with nearby stores and route your orders accurately.',
+    RoleType.SHOP: 'Add your store and service area details so the shop dashboard opens with the right onboarding data.',
+    RoleType.RIDER: 'Share only the rider essentials for now. You can complete the rest inside your dashboard later.',
+}
 TWILIO_API_BASE = 'https://api.twilio.com/2010-04-01/Accounts'
 RAZORPAY_API_BASE = 'https://api.razorpay.com/v1'
 PHONE_SANITIZER = re.compile(r'[^\d+]')
@@ -143,6 +153,34 @@ def mask_email(email: str) -> str:
 
 def role_label(role: str) -> str:
     return dict(RoleType.choices).get(role, role.title() if role else 'Account')
+
+
+def registration_role_links(*, full_name: str = '', email: str = '', selected_role: str = '') -> list[dict[str, str]]:
+    links = []
+    for role in ACCOUNT_ROLE_CHOICES:
+        query = {'account_type': role}
+        if full_name:
+            query['full_name'] = full_name
+        if email:
+            query['email'] = email
+        links.append(
+            {
+                'value': role,
+                'label': role_label(role),
+                'description': REGISTRATION_ROLE_DESCRIPTIONS.get(role, ''),
+                'url': f'{reverse("core:register_details")}?{urllib_parse.urlencode(query)}',
+                'selected': role == selected_role,
+            }
+        )
+    return links
+
+
+def registration_details_template(selected_role: str) -> str:
+    return {
+        RoleType.CUSTOMER: 'core/register_details_customer.html',
+        RoleType.SHOP: 'core/register_details_shop.html',
+        RoleType.RIDER: 'core/register_details_rider.html',
+    }.get(selected_role, 'core/register_details.html')
 
 
 def find_profiles_for_identity(identity: str) -> list[tuple[str, Any]]:
@@ -2563,136 +2601,153 @@ def home(request: HttpRequest) -> HttpResponse:
 def login_view(request: HttpRequest) -> HttpResponse:
     if request.user.is_authenticated:
         return redirect(get_dashboard_url_for_user(request.user))
-    pending_login = request.session.get(PENDING_LOGIN_SESSION_KEY, {})
+
+    if request.GET.get('reset') == '1':
+        request.session.pop(PENDING_LOGIN_SESSION_KEY, None)
+
+    pending_login = request.session.get(PENDING_LOGIN_SESSION_KEY)
+    if pending_login and request.method == 'GET':
+        return redirect('core:login_verify')
+
     login_form = LoginForm(
         initial={
             'identity': request.GET.get('email')
             or request.GET.get('identity')
-            or pending_login.get('email', '')
+            or (pending_login or {}).get('email', '')
         }
     )
-    otp_form = LoginOtpVerifyForm()
 
     if request.method == 'POST':
-        action = request.POST.get('action', 'login')
-        if action == 'login':
-            login_form = LoginForm(request.POST)
-            if login_form.is_valid():
-                identity = login_form.cleaned_data['identity'].strip()
-                password = login_form.cleaned_data['password']
-                user, role, error = find_user_by_identity(identity)
-                if error:
-                    login_form.add_error('identity', error)
-                else:
-                    authenticated = authenticate(
-                        request,
-                        username=user.username if user else '',
-                        password=password,
+        login_form = LoginForm(request.POST)
+        if login_form.is_valid():
+            identity = login_form.cleaned_data['identity'].strip()
+            password = login_form.cleaned_data['password']
+            user, role, error = find_user_by_identity(identity)
+            if error:
+                login_form.add_error('identity', error)
+            else:
+                authenticated = authenticate(
+                    request,
+                    username=user.username if user else '',
+                    password=password,
+                )
+                if not authenticated:
+                    login_form.add_error('password', 'Your password is not correct for this account.')
+                elif '@' in identity and role != RoleType.ADMIN:
+                    email = authenticated.email.strip().lower()
+                    token = create_auth_otp(
+                        purpose=OtpPurpose.LOGIN_EMAIL,
+                        channel=OtpChannel.EMAIL,
+                        user=authenticated,
+                        role=role or '',
+                        email=email,
                     )
-                    if not authenticated:
-                        login_form.add_error('password', 'Your password is not correct for this account.')
-                    elif '@' in identity and role != RoleType.ADMIN:
-                        email = authenticated.email.strip().lower()
-                        token = create_auth_otp(
-                            purpose=OtpPurpose.LOGIN_EMAIL,
-                            channel=OtpChannel.EMAIL,
-                            user=authenticated,
-                            role=role or '',
-                            email=email,
-                        )
-                        delivered, detail = send_email_otp(
-                            email=email,
-                            code=token.code,
-                            subject='Your GramExpress sign-in OTP',
-                            intro='Use this OTP to finish signing in to GramExpress.',
-                        )
-                        if delivered:
-                            request.session[PENDING_LOGIN_SESSION_KEY] = {
-                                'user_id': authenticated.id,
-                                'email': email,
-                            }
-                            request.session.modified = True
-                            messages.success(request, 'We sent a 6 digit OTP to your email address.')
-                        else:
-                            token.delete()
-                            messages.error(request, detail)
-                    else:
-                        request.session.pop(PENDING_LOGIN_SESSION_KEY, None)
-                        login(request, authenticated)
-                        messages.success(request, 'Signed in successfully.')
-                        return redirect(get_dashboard_url_for_user(authenticated))
-        elif action in ['verify_login_otp', 'resend_login_otp']:
-            pending_login = request.session.get(PENDING_LOGIN_SESSION_KEY)
-            if not pending_login:
-                messages.error(request, 'Your email sign-in session expired. Please enter your details again.')
-                return redirect('core:login')
-            user = get_user_model().objects.filter(pk=pending_login.get('user_id')).first()
-            if not user:
-                request.session.pop(PENDING_LOGIN_SESSION_KEY, None)
-                messages.error(request, 'That email login session is no longer valid.')
-                return redirect('core:login')
-
-            if action == 'resend_login_otp':
-                token = create_auth_otp(
-                    purpose=OtpPurpose.LOGIN_EMAIL,
-                    channel=OtpChannel.EMAIL,
-                    user=user,
-                    role=get_role_profile(user)[0] or '',
-                    email=pending_login['email'],
-                )
-                delivered, detail = send_email_otp(
-                    email=pending_login['email'],
-                    code=token.code,
-                    subject='Your GramExpress sign-in OTP',
-                    intro='Use this OTP to finish signing in to GramExpress.',
-                )
-                if delivered:
-                    messages.success(request, 'A fresh OTP was sent to your email.')
-                else:
+                    delivered, detail = send_email_otp(
+                        email=email,
+                        code=token.code,
+                        subject='Your GramExpress sign-in OTP',
+                        intro='Use this OTP to finish signing in to GramExpress.',
+                    )
+                    if delivered:
+                        request.session[PENDING_LOGIN_SESSION_KEY] = {
+                            'user_id': authenticated.id,
+                            'email': email,
+                        }
+                        request.session.modified = True
+                        messages.success(request, 'We sent a 6 digit OTP to your email address.')
+                        return redirect('core:login_verify')
                     token.delete()
                     messages.error(request, detail)
-            else:
-                otp_form = LoginOtpVerifyForm(request.POST)
-                if otp_form.is_valid():
-                    token = (
-                        AuthOtpToken.objects.filter(
-                            user=user,
-                            purpose=OtpPurpose.LOGIN_EMAIL,
-                            channel=OtpChannel.EMAIL,
-                            email__iexact=pending_login['email'],
-                            code=otp_form.cleaned_data['code'],
-                            is_used=False,
-                        )
-                        .order_by('-created_at')
-                        .first()
-                    )
-                    if token and token.is_valid:
-                        token.is_used = True
-                        token.save(update_fields=['is_used'])
-                        request.session.pop(PENDING_LOGIN_SESSION_KEY, None)
-                        login(request, user)
-                        messages.success(request, 'Email verification completed. Welcome back.')
-                        return redirect(get_dashboard_url_for_user(user))
-                    otp_form.add_error('code', 'That OTP is invalid or expired.')
+                else:
+                    request.session.pop(PENDING_LOGIN_SESSION_KEY, None)
+                    login(request, authenticated)
+                    messages.success(request, 'Signed in successfully.')
+                    return redirect(get_dashboard_url_for_user(authenticated))
 
-    pending_login = request.session.get(PENDING_LOGIN_SESSION_KEY, {})
-    pending_login_role_label = ''
-    if pending_login:
-        pending_user = get_user_model().objects.filter(pk=pending_login.get('user_id')).first()
-        if pending_user:
-            pending_login_role_label = role_label(get_role_profile(pending_user)[0] or '')
-    return render(
-        request,
-        'core/login.html',
-        {
-            'form': login_form,
-            'otp_form': otp_form,
-            'pending_login': pending_login,
-            'pending_login_masked_email': mask_email(pending_login['email']) if pending_login else '',
-            'otp_expiry_minutes': getattr(settings, 'OTP_EXPIRY_MINUTES', 10),
-            'pending_login_role_label': pending_login_role_label,
-            'google_client_id': getattr(settings, 'GOOGLE_CLIENT_ID', ''),
-        },
+    return disable_html_cache(
+        render(
+            request,
+            'core/login.html',
+            {
+                'form': login_form,
+                'google_client_id': getattr(settings, 'GOOGLE_CLIENT_ID', ''),
+            },
+        )
+    )
+
+
+def login_verify_view(request: HttpRequest) -> HttpResponse:
+    if request.user.is_authenticated:
+        return redirect(get_dashboard_url_for_user(request.user))
+
+    pending_login = request.session.get(PENDING_LOGIN_SESSION_KEY)
+    if not pending_login:
+        messages.error(request, 'Your email sign-in session expired. Please enter your details again.')
+        return redirect('core:login')
+
+    user = get_user_model().objects.filter(pk=pending_login.get('user_id')).first()
+    if not user:
+        request.session.pop(PENDING_LOGIN_SESSION_KEY, None)
+        messages.error(request, 'That email login session is no longer valid.')
+        return redirect('core:login')
+
+    otp_form = LoginOtpVerifyForm()
+    if request.method == 'POST':
+        action = request.POST.get('action', 'verify_login_otp')
+        if action == 'resend_login_otp':
+            token = create_auth_otp(
+                purpose=OtpPurpose.LOGIN_EMAIL,
+                channel=OtpChannel.EMAIL,
+                user=user,
+                role=get_role_profile(user)[0] or '',
+                email=pending_login['email'],
+            )
+            delivered, detail = send_email_otp(
+                email=pending_login['email'],
+                code=token.code,
+                subject='Your GramExpress sign-in OTP',
+                intro='Use this OTP to finish signing in to GramExpress.',
+            )
+            if delivered:
+                messages.success(request, 'A fresh OTP was sent to your email.')
+                return redirect('core:login_verify')
+            token.delete()
+            messages.error(request, detail)
+        else:
+            otp_form = LoginOtpVerifyForm(request.POST)
+            if otp_form.is_valid():
+                token = (
+                    AuthOtpToken.objects.filter(
+                        user=user,
+                        purpose=OtpPurpose.LOGIN_EMAIL,
+                        channel=OtpChannel.EMAIL,
+                        email__iexact=pending_login['email'],
+                        code=otp_form.cleaned_data['code'],
+                        is_used=False,
+                    )
+                    .order_by('-created_at')
+                    .first()
+                )
+                if token and token.is_valid:
+                    token.is_used = True
+                    token.save(update_fields=['is_used'])
+                    request.session.pop(PENDING_LOGIN_SESSION_KEY, None)
+                    login(request, user)
+                    messages.success(request, 'Email verification completed. Welcome back.')
+                    return redirect(get_dashboard_url_for_user(user))
+                otp_form.add_error('code', 'That OTP is invalid or expired.')
+
+    return disable_html_cache(
+        render(
+            request,
+            'core/login_verify.html',
+            {
+                'otp_form': otp_form,
+                'pending_login_masked_email': mask_email(pending_login['email']),
+                'pending_login_role_label': role_label(get_role_profile(user)[0] or ''),
+                'otp_expiry_minutes': getattr(settings, 'OTP_EXPIRY_MINUTES', 10),
+            },
+        )
     )
 
 
@@ -2731,118 +2786,167 @@ def google_auth_view(request: HttpRequest) -> HttpResponse:
 def register_view(request: HttpRequest) -> HttpResponse:
     if request.user.is_authenticated:
         return redirect(get_dashboard_url_for_user(request.user))
+    return disable_html_cache(
+        render(
+            request,
+            'core/register.html',
+            {
+                'role_cards': registration_role_links(
+                    full_name=request.GET.get('full_name', '').strip(),
+                    email=request.GET.get('email', '').strip(),
+                    selected_role=request.GET.get('account_type', '').strip(),
+                ),
+                'pending_registration': request.session.get(PENDING_REGISTRATION_SESSION_KEY, {}),
+                'google_client_id': getattr(settings, 'GOOGLE_CLIENT_ID', ''),
+            },
+        )
+    )
+
+
+def register_details_view(request: HttpRequest) -> HttpResponse:
+    if request.user.is_authenticated:
+        return redirect(get_dashboard_url_for_user(request.user))
+
     pending_registration = request.session.get(PENDING_REGISTRATION_SESSION_KEY, {})
-    initial_data = pending_registration or {
-        'account_type': request.GET.get('account_type', RoleType.CUSTOMER),
+    selected_role = (
+        request.POST.get('account_type')
+        or request.GET.get('account_type')
+        or pending_registration.get('account_type', '')
+    )
+    if selected_role not in ACCOUNT_ROLE_CHOICES:
+        messages.info(request, 'Choose a role before continuing with registration.')
+        return redirect('core:register')
+
+    initial_data = {
+        'account_type': selected_role,
         'full_name': request.GET.get('full_name', ''),
         'email': request.GET.get('email', ''),
         'latitude': DEFAULT_LATITUDE,
         'longitude': DEFAULT_LONGITUDE,
     }
-    form = UnifiedRegistrationForm(initial=initial_data)
-    otp_form = LoginOtpVerifyForm()
+    if pending_registration.get('account_type') == selected_role:
+        initial_data.update(pending_registration)
+
+    form = UnifiedRegistrationForm(initial=initial_data, selected_role=selected_role)
 
     if request.method == 'POST':
-        action = request.POST.get('action', 'register')
-        if action == 'register':
-            form = UnifiedRegistrationForm(request.POST)
-            if form.is_valid():
-                cleaned_data = form.cleaned_data.copy()
-                cleaned_data['phone'] = normalize_phone(cleaned_data['phone'])
-                cleaned_data['email'] = cleaned_data['email'].strip().lower()
-                if contact_exists_elsewhere(phone=cleaned_data['phone'], email=cleaned_data['email']):
-                    form.add_error(None, 'That phone number or email is already linked to an existing account.')
-                else:
-                    payload = serialize_registration_data(cleaned_data)
-                    token = create_auth_otp(
-                        purpose=OtpPurpose.REGISTER,
-                        channel=OtpChannel.SMS,
-                        role=payload['account_type'],
-                        phone=payload['phone'],
-                        metadata={'full_name': payload['full_name']},
-                    )
-                    delivered, detail = send_sms_otp(
-                        phone=payload['phone'],
-                        code=token.code,
-                        intro='Your GramExpress registration code is',
-                    )
-                    if delivered:
-                        request.session[PENDING_REGISTRATION_SESSION_KEY] = payload
-                        request.session.modified = True
-                        messages.success(request, 'We sent a mobile OTP to verify your registration.')
-                    else:
-                        token.delete()
-                        form.add_error(None, detail)
-        elif action in ['verify_register_otp', 'resend_register_otp']:
-            pending_registration = request.session.get(PENDING_REGISTRATION_SESSION_KEY)
-            if not pending_registration:
-                messages.error(request, 'Your registration session expired. Please fill the form again.')
-                return redirect('core:register')
-
-            form = UnifiedRegistrationForm(initial=pending_registration)
-            if action == 'resend_register_otp':
+        form = UnifiedRegistrationForm(request.POST, selected_role=selected_role)
+        if form.is_valid():
+            cleaned_data = form.cleaned_data.copy()
+            cleaned_data['phone'] = normalize_phone(cleaned_data['phone'])
+            cleaned_data['email'] = cleaned_data['email'].strip().lower()
+            if contact_exists_elsewhere(phone=cleaned_data['phone'], email=cleaned_data['email']):
+                form.add_error(None, 'That phone number or email is already linked to an existing account.')
+            else:
+                payload = serialize_registration_data(cleaned_data)
                 token = create_auth_otp(
                     purpose=OtpPurpose.REGISTER,
                     channel=OtpChannel.SMS,
-                    role=pending_registration['account_type'],
-                    phone=pending_registration['phone'],
-                    metadata={'full_name': pending_registration['full_name']},
+                    role=payload['account_type'],
+                    phone=payload['phone'],
+                    metadata={'full_name': payload['full_name']},
                 )
                 delivered, detail = send_sms_otp(
-                    phone=pending_registration['phone'],
+                    phone=payload['phone'],
                     code=token.code,
                     intro='Your GramExpress registration code is',
                 )
                 if delivered:
-                    messages.success(request, 'A fresh mobile OTP was sent.')
-                else:
-                    token.delete()
-                    messages.error(request, detail)
-            else:
-                otp_form = LoginOtpVerifyForm(request.POST)
-                if otp_form.is_valid():
-                    token = (
-                        AuthOtpToken.objects.filter(
-                            purpose=OtpPurpose.REGISTER,
-                            channel=OtpChannel.SMS,
-                            role=pending_registration['account_type'],
-                            phone=normalize_phone(pending_registration['phone']),
-                            code=otp_form.cleaned_data['code'],
-                            is_used=False,
-                        )
-                        .order_by('-created_at')
-                        .first()
-                    )
-                    if token and token.is_valid:
-                        token.is_used = True
-                        token.save(update_fields=['is_used'])
-                        normalized_data = pending_registration.copy()
-                        if normalized_data.get('latitude'):
-                            normalized_data['latitude'] = Decimal(normalized_data['latitude'])
-                        if normalized_data.get('longitude'):
-                            normalized_data['longitude'] = Decimal(normalized_data['longitude'])
-                        if normalized_data.get('age') not in [None, '']:
-                            normalized_data['age'] = int(normalized_data['age'])
-                        user, _ = create_account_from_registration(normalized_data)
-                        request.session.pop(PENDING_REGISTRATION_SESSION_KEY, None)
-                        login(request, user)
-                        messages.success(request, 'Your account is ready and your mobile number is verified.')
-                        return redirect(get_dashboard_url_for_user(user))
-                    otp_form.add_error('code', 'That OTP is invalid or expired.')
+                    request.session[PENDING_REGISTRATION_SESSION_KEY] = payload
+                    request.session.modified = True
+                    messages.success(request, 'We sent a mobile OTP to verify your registration.')
+                    return redirect('core:register_verify')
+                token.delete()
+                form.add_error(None, detail)
 
-    pending_registration = request.session.get(PENDING_REGISTRATION_SESSION_KEY, {})
-    return render(
-        request,
-        'core/register.html',
-        {
-            'form': form,
-            'otp_form': otp_form,
-            'pending_registration': pending_registration,
-            'pending_registration_phone': pending_registration.get('phone', ''),
-            'pending_registration_role_label': role_label(pending_registration.get('account_type', '')) if pending_registration else '',
-            'otp_expiry_minutes': getattr(settings, 'OTP_EXPIRY_MINUTES', 10),
-            'google_client_id': getattr(settings, 'GOOGLE_CLIENT_ID', ''),
-        },
+    return disable_html_cache(
+        render(
+            request,
+            registration_details_template(selected_role),
+            {
+                'form': form,
+                'selected_role': selected_role,
+                'selected_role_label': role_label(selected_role),
+                'selected_role_copy': REGISTRATION_ROLE_ONBOARDING_COPY.get(selected_role, ''),
+            },
+        )
+    )
+
+
+def register_verify_view(request: HttpRequest) -> HttpResponse:
+    if request.user.is_authenticated:
+        return redirect(get_dashboard_url_for_user(request.user))
+
+    pending_registration = request.session.get(PENDING_REGISTRATION_SESSION_KEY)
+    if not pending_registration:
+        messages.error(request, 'Your registration session expired. Please fill the form again.')
+        return redirect('core:register')
+
+    otp_form = LoginOtpVerifyForm()
+    if request.method == 'POST':
+        action = request.POST.get('action', 'verify_register_otp')
+        if action == 'resend_register_otp':
+            token = create_auth_otp(
+                purpose=OtpPurpose.REGISTER,
+                channel=OtpChannel.SMS,
+                role=pending_registration['account_type'],
+                phone=pending_registration['phone'],
+                metadata={'full_name': pending_registration['full_name']},
+            )
+            delivered, detail = send_sms_otp(
+                phone=pending_registration['phone'],
+                code=token.code,
+                intro='Your GramExpress registration code is',
+            )
+            if delivered:
+                messages.success(request, 'A fresh mobile OTP was sent.')
+                return redirect('core:register_verify')
+            token.delete()
+            messages.error(request, detail)
+        else:
+            otp_form = LoginOtpVerifyForm(request.POST)
+            if otp_form.is_valid():
+                token = (
+                    AuthOtpToken.objects.filter(
+                        purpose=OtpPurpose.REGISTER,
+                        channel=OtpChannel.SMS,
+                        role=pending_registration['account_type'],
+                        phone=normalize_phone(pending_registration['phone']),
+                        code=otp_form.cleaned_data['code'],
+                        is_used=False,
+                    )
+                    .order_by('-created_at')
+                    .first()
+                )
+                if token and token.is_valid:
+                    token.is_used = True
+                    token.save(update_fields=['is_used'])
+                    normalized_data = pending_registration.copy()
+                    if normalized_data.get('latitude'):
+                        normalized_data['latitude'] = Decimal(normalized_data['latitude'])
+                    if normalized_data.get('longitude'):
+                        normalized_data['longitude'] = Decimal(normalized_data['longitude'])
+                    if normalized_data.get('age') not in [None, '']:
+                        normalized_data['age'] = int(normalized_data['age'])
+                    user, _ = create_account_from_registration(normalized_data)
+                    request.session.pop(PENDING_REGISTRATION_SESSION_KEY, None)
+                    login(request, user)
+                    messages.success(request, 'Your account is ready and your mobile number is verified.')
+                    return redirect(get_dashboard_url_for_user(user))
+                otp_form.add_error('code', 'That OTP is invalid or expired.')
+
+    return disable_html_cache(
+        render(
+            request,
+            'core/register_verify.html',
+            {
+                'otp_form': otp_form,
+                'pending_registration': pending_registration,
+                'pending_registration_phone': pending_registration.get('phone', ''),
+                'pending_registration_role_label': role_label(pending_registration.get('account_type', '')),
+                'otp_expiry_minutes': getattr(settings, 'OTP_EXPIRY_MINUTES', 10),
+            },
+        )
     )
 
 
@@ -2850,66 +2954,28 @@ def email_otp_view(request: HttpRequest) -> HttpResponse:
     if request.user.is_authenticated:
         return redirect(get_dashboard_url_for_user(request.user))
 
-    pending_email_otp = request.session.get(PENDING_EMAIL_OTP_SESSION_KEY, {})
-    request_form = EmailOtpRequestForm(initial={'email': pending_email_otp.get('email', request.GET.get('email', ''))})
-    verify_form = EmailOtpVerifyForm(initial={'email': pending_email_otp.get('email', request.GET.get('email', ''))})
+    if request.GET.get('reset') == '1':
+        request.session.pop(PENDING_EMAIL_OTP_SESSION_KEY, None)
+
+    pending_email_otp = request.session.get(PENDING_EMAIL_OTP_SESSION_KEY)
+    if pending_email_otp and request.method == 'GET':
+        return redirect('core:email_otp_verify')
+
+    request_form = EmailOtpRequestForm(initial={'email': (pending_email_otp or {}).get('email', request.GET.get('email', ''))})
 
     if request.method == 'POST':
-        action = request.POST.get('action', 'request')
-        if action == 'request':
-            request_form = EmailOtpRequestForm(request.POST)
-            verify_form = EmailOtpVerifyForm(initial={'email': request.POST.get('email', '').strip()})
-            if request_form.is_valid():
-                email = request_form.cleaned_data['email'].strip().lower()
-                user, role, error = find_user_by_identity(email)
-                if error or not user:
-                    request_form.add_error('email', error or 'No account matched that email address.')
-                else:
-                    token = create_auth_otp(
-                        purpose=OtpPurpose.LOGIN_EMAIL,
-                        channel=OtpChannel.EMAIL,
-                        user=user,
-                        role=role or '',
-                        email=email,
-                    )
-                    delivered, detail = send_email_otp(
-                        email=email,
-                        code=token.code,
-                        subject='Your GramExpress email OTP',
-                        intro='Use this OTP to continue into GramExpress without entering your password.',
-                    )
-                    if delivered:
-                        request.session[PENDING_EMAIL_OTP_SESSION_KEY] = {
-                            'user_id': user.id,
-                            'email': email,
-                            'role': role or '',
-                        }
-                        request.session.modified = True
-                        verify_form = EmailOtpVerifyForm(initial={'email': email})
-                        messages.success(request, 'We sent a 6 digit OTP to your email address.')
-                    else:
-                        token.delete()
-                        request_form.add_error('email', detail)
-        elif action in ['verify', 'resend']:
-            pending_email_otp = request.session.get(PENDING_EMAIL_OTP_SESSION_KEY)
-            if not pending_email_otp:
-                messages.error(request, 'Your email OTP session expired. Request a new code.')
-                return redirect('core:email_otp')
-
-            email = pending_email_otp.get('email', '')
-            user = get_user_model().objects.filter(pk=pending_email_otp.get('user_id')).first()
-            if not user or not email:
-                request.session.pop(PENDING_EMAIL_OTP_SESSION_KEY, None)
-                messages.error(request, 'That email OTP session is no longer valid.')
-                return redirect('core:email_otp')
-
-            request_form = EmailOtpRequestForm(initial={'email': email})
-            if action == 'resend':
+        request_form = EmailOtpRequestForm(request.POST)
+        if request_form.is_valid():
+            email = request_form.cleaned_data['email'].strip().lower()
+            user, role, error = find_user_by_identity(email)
+            if error or not user:
+                request_form.add_error('email', error or 'No account matched that email address.')
+            else:
                 token = create_auth_otp(
                     purpose=OtpPurpose.LOGIN_EMAIL,
                     channel=OtpChannel.EMAIL,
                     user=user,
-                    role=pending_email_otp.get('role', ''),
+                    role=role or '',
                     email=email,
                 )
                 delivered, detail = send_email_otp(
@@ -2919,51 +2985,107 @@ def email_otp_view(request: HttpRequest) -> HttpResponse:
                     intro='Use this OTP to continue into GramExpress without entering your password.',
                 )
                 if delivered:
-                    messages.success(request, 'A fresh OTP was sent to your email.')
-                else:
-                    token.delete()
-                    messages.error(request, detail)
-                verify_form = EmailOtpVerifyForm(initial={'email': email})
-            else:
-                verify_form = EmailOtpVerifyForm(request.POST)
-                if verify_form.is_valid():
-                    submitted_email = verify_form.cleaned_data['email'].strip().lower()
-                    token = (
-                        AuthOtpToken.objects.filter(
-                            user=user,
-                            purpose=OtpPurpose.LOGIN_EMAIL,
-                            channel=OtpChannel.EMAIL,
-                            email__iexact=submitted_email,
-                            code=verify_form.cleaned_data['code'],
-                            is_used=False,
-                        )
-                        .order_by('-created_at')
-                        .first()
-                    )
-                    if submitted_email != email:
-                        verify_form.add_error('email', 'Enter the same email address that received the OTP.')
-                    elif token and token.is_valid:
-                        token.is_used = True
-                        token.save(update_fields=['is_used'])
-                        request.session.pop(PENDING_EMAIL_OTP_SESSION_KEY, None)
-                        login(request, user)
-                        messages.success(request, 'Email OTP verified. Welcome back.')
-                        return redirect(get_dashboard_url_for_user(user))
-                    else:
-                        verify_form.add_error('code', 'That OTP is invalid or expired.')
+                    request.session[PENDING_EMAIL_OTP_SESSION_KEY] = {
+                        'user_id': user.id,
+                        'email': email,
+                        'role': role or '',
+                    }
+                    request.session.modified = True
+                    messages.success(request, 'We sent a 6 digit OTP to your email address.')
+                    return redirect('core:email_otp_verify')
+                token.delete()
+                request_form.add_error('email', detail)
 
-    pending_email_otp = request.session.get(PENDING_EMAIL_OTP_SESSION_KEY, {})
-    return render(
-        request,
-        'core/email_otp.html',
-        {
-            'request_form': request_form,
-            'verify_form': verify_form,
-            'pending_email_otp': pending_email_otp,
-            'pending_email_otp_masked_email': mask_email(pending_email_otp.get('email', '')) if pending_email_otp else '',
-            'pending_email_otp_role_label': role_label(pending_email_otp.get('role', '')) if pending_email_otp else '',
-            'otp_expiry_minutes': getattr(settings, 'OTP_EXPIRY_MINUTES', 10),
-        },
+    return disable_html_cache(
+        render(
+            request,
+            'core/email_otp.html',
+            {
+                'request_form': request_form,
+            },
+        )
+    )
+
+
+def email_otp_verify_view(request: HttpRequest) -> HttpResponse:
+    if request.user.is_authenticated:
+        return redirect(get_dashboard_url_for_user(request.user))
+
+    pending_email_otp = request.session.get(PENDING_EMAIL_OTP_SESSION_KEY)
+    if not pending_email_otp:
+        messages.error(request, 'Your email OTP session expired. Request a new code.')
+        return redirect('core:email_otp')
+
+    email = pending_email_otp.get('email', '')
+    user = get_user_model().objects.filter(pk=pending_email_otp.get('user_id')).first()
+    if not user or not email:
+        request.session.pop(PENDING_EMAIL_OTP_SESSION_KEY, None)
+        messages.error(request, 'That email OTP session is no longer valid.')
+        return redirect('core:email_otp')
+
+    verify_form = EmailOtpVerifyForm(initial={'email': email})
+
+    if request.method == 'POST':
+        action = request.POST.get('action', 'verify')
+        if action == 'resend':
+            token = create_auth_otp(
+                purpose=OtpPurpose.LOGIN_EMAIL,
+                channel=OtpChannel.EMAIL,
+                user=user,
+                role=pending_email_otp.get('role', ''),
+                email=email,
+            )
+            delivered, detail = send_email_otp(
+                email=email,
+                code=token.code,
+                subject='Your GramExpress email OTP',
+                intro='Use this OTP to continue into GramExpress without entering your password.',
+            )
+            if delivered:
+                messages.success(request, 'A fresh OTP was sent to your email.')
+                return redirect('core:email_otp_verify')
+            token.delete()
+            messages.error(request, detail)
+        else:
+            verify_form = EmailOtpVerifyForm(request.POST)
+            if verify_form.is_valid():
+                submitted_email = verify_form.cleaned_data['email'].strip().lower()
+                token = (
+                    AuthOtpToken.objects.filter(
+                        user=user,
+                        purpose=OtpPurpose.LOGIN_EMAIL,
+                        channel=OtpChannel.EMAIL,
+                        email__iexact=submitted_email,
+                        code=verify_form.cleaned_data['code'],
+                        is_used=False,
+                    )
+                    .order_by('-created_at')
+                    .first()
+                )
+                if submitted_email != email:
+                    verify_form.add_error('email', 'Enter the same email address that received the OTP.')
+                elif token and token.is_valid:
+                    token.is_used = True
+                    token.save(update_fields=['is_used'])
+                    request.session.pop(PENDING_EMAIL_OTP_SESSION_KEY, None)
+                    login(request, user)
+                    messages.success(request, 'Email OTP verified. Welcome back.')
+                    return redirect(get_dashboard_url_for_user(user))
+                else:
+                    verify_form.add_error('code', 'That OTP is invalid or expired.')
+
+    return disable_html_cache(
+        render(
+            request,
+            'core/email_otp_verify.html',
+            {
+                'verify_form': verify_form,
+                'pending_email_otp': pending_email_otp,
+                'pending_email_otp_masked_email': mask_email(email),
+                'pending_email_otp_role_label': role_label(pending_email_otp.get('role', '')),
+                'otp_expiry_minutes': getattr(settings, 'OTP_EXPIRY_MINUTES', 10),
+            },
+        )
     )
 
 
@@ -3099,15 +3221,15 @@ def order_tracking_view(request: HttpRequest, order_id: int) -> HttpResponse:
 
 
 def customer_start(request: HttpRequest) -> HttpResponse:
-    return redirect(f'{reverse("core:register")}?account_type={RoleType.CUSTOMER}')
+    return redirect(f'{reverse("core:register_details")}?account_type={RoleType.CUSTOMER}')
 
 
 def shop_start(request: HttpRequest) -> HttpResponse:
-    return redirect(f'{reverse("core:register")}?account_type={RoleType.SHOP}')
+    return redirect(f'{reverse("core:register_details")}?account_type={RoleType.SHOP}')
 
 
 def rider_start(request: HttpRequest) -> HttpResponse:
-    return redirect(f'{reverse("core:register")}?account_type={RoleType.RIDER}')
+    return redirect(f'{reverse("core:register_details")}?account_type={RoleType.RIDER}')
 
 @role_required(RoleType.CUSTOMER)
 def customer_dashboard(request: HttpRequest) -> HttpResponse:

@@ -17,6 +17,11 @@ LANGUAGE_CHOICES = [
     ('hi', 'Hindi'),
     ('kn', 'Kannada'),
 ]
+REGISTRATION_ROLE_FIELDS = {
+    RoleType.CUSTOMER: ['preferred_language', 'address_line_1', 'address_line_2', 'district', 'pincode', 'latitude', 'longitude'],
+    RoleType.SHOP: ['shop_name', 'shop_type', 'area', 'address_line_1', 'address_line_2', 'district', 'pincode', 'description', 'offer', 'latitude', 'longitude'],
+    RoleType.RIDER: ['age', 'vehicle_type', 'latitude', 'longitude'],
+}
 
 
 class BaseStyledForm:
@@ -113,27 +118,47 @@ class UnifiedRegistrationForm(forms.Form, BaseStyledForm):
     vehicle_type = forms.ChoiceField(choices=VehicleType.choices, required=False)
 
     def __init__(self, *args, **kwargs):
+        selected_role = kwargs.pop('selected_role', '')
         super().__init__(*args, **kwargs)
-        self._style_fields()
-        self.fields['full_name'].widget.attrs['autocomplete'] = 'name'
-        self.fields['email'].widget.attrs['placeholder'] = 'you@example.com'
-        self.fields['password1'].widget.attrs['autocomplete'] = 'new-password'
-        self.fields['password2'].widget.attrs['autocomplete'] = 'new-password'
-        self.fields['address_line_1'].widget.attrs['autocomplete'] = 'address-line1'
-        self.fields['address_line_2'].widget.attrs['autocomplete'] = 'address-line2'
-        self.fields['district'].widget.attrs['autocomplete'] = 'address-level2'
-        self.fields['pincode'].widget.attrs['autocomplete'] = 'postal-code'
-        self.fields['latitude'].widget.attrs['readonly'] = True
-        self.fields['longitude'].widget.attrs['readonly'] = True
 
-        role_fields = {
-            'customer': ['preferred_language', 'address_line_1', 'address_line_2', 'district', 'pincode', 'latitude', 'longitude'],
-            'shop': ['shop_name', 'shop_type', 'area', 'address_line_1', 'address_line_2', 'district', 'pincode', 'description', 'offer', 'latitude', 'longitude'],
-            'rider': ['age', 'vehicle_type', 'latitude', 'longitude'],
-        }
-        for role, field_names in role_fields.items():
-            for field_name in field_names:
-                self.fields[field_name].widget.attrs['data-role-field'] = role
+        if selected_role in REGISTRATION_ROLE_FIELDS:
+            keep_fields = {
+                'account_type',
+                'full_name',
+                'phone',
+                'email',
+                'password1',
+                'password2',
+                *REGISTRATION_ROLE_FIELDS[selected_role],
+            }
+            for field_name in list(self.fields):
+                if field_name not in keep_fields:
+                    self.fields.pop(field_name)
+            self.fields['account_type'].initial = selected_role
+            self.fields['account_type'].widget = forms.HiddenInput()
+
+        self._style_fields()
+
+        if 'full_name' in self.fields:
+            self.fields['full_name'].widget.attrs['autocomplete'] = 'name'
+        if 'email' in self.fields:
+            self.fields['email'].widget.attrs['placeholder'] = 'you@example.com'
+        if 'password1' in self.fields:
+            self.fields['password1'].widget.attrs['autocomplete'] = 'new-password'
+        if 'password2' in self.fields:
+            self.fields['password2'].widget.attrs['autocomplete'] = 'new-password'
+        if 'address_line_1' in self.fields:
+            self.fields['address_line_1'].widget.attrs['autocomplete'] = 'address-line1'
+        if 'address_line_2' in self.fields:
+            self.fields['address_line_2'].widget.attrs['autocomplete'] = 'address-line2'
+        if 'district' in self.fields:
+            self.fields['district'].widget.attrs['autocomplete'] = 'address-level2'
+        if 'pincode' in self.fields:
+            self.fields['pincode'].widget.attrs['autocomplete'] = 'postal-code'
+        if 'latitude' in self.fields:
+            self.fields['latitude'].widget.attrs['readonly'] = True
+        if 'longitude' in self.fields:
+            self.fields['longitude'].widget.attrs['readonly'] = True
 
     def clean(self):
         cleaned_data = super().clean()

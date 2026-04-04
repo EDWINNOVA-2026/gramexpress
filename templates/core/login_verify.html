@@ -1,0 +1,47 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="auth-stage" data-appear>
+    <article class="auth-card auth-shell-narrow">
+      <div class="auth-lockmark" aria-hidden="true">
+        <span class="auth-lock-body"></span>
+      </div>
+      <h1>Verify Sign In</h1>
+      <p class="auth-subtitle">The email verification step now opens on its own page.</p>
+      <p class="auth-lead">We sent a 6 digit OTP to {{ pending_login_masked_email }} to finish this sign-in.</p>
+
+      <div class="auth-step-strip">
+        {% if pending_login_role_label %}<span class="soft-pill">{{ pending_login_role_label }}</span>{% endif %}
+        <span class="soft-pill">Password accepted</span>
+        <span class="soft-pill">Expires in {{ otp_expiry_minutes }} min</span>
+      </div>
+
+      <section class="auth-note-panel">
+        <div>
+          <strong>Check your inbox</strong>
+          <p>Enter the OTP below to open the same workspace without showing the sign-in form again.</p>
+        </div>
+      </section>
+
+      <form class="auth-form auth-form-tight" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="verify_login_otp" />
+        <div class="auth-field">
+          <label for="{{ otp_form.code.id_for_label }}">Email OTP</label>
+          {{ otp_form.code }}
+          {% for error in otp_form.code.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+        </div>
+        <button class="auth-primary-button" type="submit">Verify OTP</button>
+      </form>
+
+      <div class="form-actions">
+        <form method="post" class="auth-inline-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="resend_login_otp" />
+          <button class="auth-secondary-button" type="submit">Resend OTP</button>
+        </form>
+        <a class="auth-secondary-button" href="{% url 'core:login' %}?reset=1">Use Another Account</a>
+      </div>
+    </article>
+  </section>
+{% endblock %}

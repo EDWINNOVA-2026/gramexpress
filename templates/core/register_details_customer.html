@@ -1,0 +1,138 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="auth-stage" data-appear>
+    <article class="auth-card auth-card-wide">
+      <div class="auth-lockmark" aria-hidden="true">
+        <span class="auth-lock-body"></span>
+      </div>
+      <h1>Customer Onboarding</h1>
+      <p class="auth-subtitle">This page is only for customer account setup.</p>
+      <p class="auth-lead">{{ selected_role_copy }}</p>
+
+      <div class="auth-step-strip">
+        <a class="soft-pill" href="{% url 'core:register' %}">1. Choose role</a>
+        <span class="soft-pill soft-pill-active">2. Add customer details</span>
+        <span class="soft-pill">3. Verify mobile OTP</span>
+      </div>
+
+      <form class="auth-form auth-register-form" method="post">
+        {% csrf_token %}
+        {{ form.account_type }}
+
+        <section class="auth-role-section">
+          <div class="auth-section-head">
+            <strong>Account details</strong>
+            <p>These details create your login and connect your customer workspace to this phone number.</p>
+          </div>
+          <div class="auth-grid-two">
+            <div class="auth-field">
+              <label for="{{ form.full_name.id_for_label }}">Full Name</label>
+              {{ form.full_name }}
+              {% for error in form.full_name.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+            <div class="auth-field">
+              <label for="{{ form.phone.id_for_label }}">Mobile Number</label>
+              {{ form.phone }}
+              {% for error in form.phone.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+          </div>
+          <div class="auth-grid-two">
+            <div class="auth-field">
+              <label for="{{ form.email.id_for_label }}">Email Address</label>
+              {{ form.email }}
+              {% for error in form.email.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+            <div class="auth-field">
+              <label for="{{ form.password1.id_for_label }}">Password</label>
+              {{ form.password1 }}
+              {% for error in form.password1.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+          </div>
+          <div class="auth-grid-two">
+            <div class="auth-field">
+              <label for="{{ form.password2.id_for_label }}">Confirm Password</label>
+              {{ form.password2 }}
+              {% for error in form.password2.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+          </div>
+        </section>
+
+        <section class="auth-role-section">
+          <div class="auth-section-head">
+            <strong>Customer details</strong>
+            <p>This customer-only section sets your language preference for browsing and checkout.</p>
+          </div>
+          <div class="auth-grid-two">
+            <div class="auth-field">
+              <label for="{{ form.preferred_language.id_for_label }}">Preferred Language</label>
+              {{ form.preferred_language }}
+              {% for error in form.preferred_language.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+          </div>
+        </section>
+
+        <section class="auth-role-section">
+          <div class="auth-section-head">
+            <strong>Delivery address</strong>
+            <p>Your saved address is used for customer checkout and nearby store matching.</p>
+          </div>
+          <div class="auth-grid-two">
+            <div class="auth-field">
+              <label for="{{ form.address_line_1.id_for_label }}">Address Line 1</label>
+              {{ form.address_line_1 }}
+              {% for error in form.address_line_1.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+            <div class="auth-field">
+              <label for="{{ form.address_line_2.id_for_label }}">Address Line 2</label>
+              {{ form.address_line_2 }}
+              {% for error in form.address_line_2.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+          </div>
+          <div class="auth-grid-two">
+            <div class="auth-field">
+              <label for="{{ form.district.id_for_label }}">District</label>
+              {{ form.district }}
+              {% for error in form.district.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+            <div class="auth-field">
+              <label for="{{ form.pincode.id_for_label }}">Pincode</label>
+              {{ form.pincode }}
+              {% for error in form.pincode.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+          </div>
+        </section>
+
+        <section class="auth-role-section auth-role-section-location">
+          <div class="auth-location-card">
+            <div>
+              <strong>Current location</strong>
+              <p>Capture your live coordinates before we send the OTP.</p>
+            </div>
+            <button class="auth-link-button" type="button" data-location-trigger>Use Current Location</button>
+          </div>
+          <div class="auth-grid-two">
+            <div class="auth-field">
+              <label for="{{ form.latitude.id_for_label }}">Latitude</label>
+              {{ form.latitude }}
+              {% for error in form.latitude.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+            <div class="auth-field">
+              <label for="{{ form.longitude.id_for_label }}">Longitude</label>
+              {{ form.longitude }}
+              {% for error in form.longitude.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+          </div>
+          <small class="field-help" data-location-status>Location coordinates will stay here after capture.</small>
+        </section>
+
+        {% for error in form.non_field_errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+
+        <div class="form-actions">
+          <button class="auth-primary-button" type="submit">Send Mobile OTP</button>
+          <a class="auth-secondary-button" href="{% url 'core:register' %}">Change Role</a>
+        </div>
+      </form>
+    </article>
+  </section>
+{% endblock %}

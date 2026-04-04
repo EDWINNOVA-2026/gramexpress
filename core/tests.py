@@ -150,12 +150,24 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, 'Sign in to your local delivery workspace')
         self.assertContains(response, 'Continue with Google')
         self.assertContains(response, 'Use passwordless email OTP instead')
+        self.assertEqual(response['Cache-Control'], 'no-store, no-cache, must-revalidate, max-age=0')
 
     def test_register_route_renders(self):
         response = self.client.get(reverse('core:register'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Create Account')
-        self.assertContains(response, 'Send Mobile OTP')
+        self.assertContains(response, 'Choose Your Role')
+        self.assertContains(response, 'Open customer onboarding')
+        self.assertEqual(response['Cache-Control'], 'no-store, no-cache, must-revalidate, max-age=0')
+
+    def test_register_details_only_shows_selected_role_fields(self):
+        response = self.client.get(f'{reverse("core:register_details")}?account_type={RoleType.CUSTOMER}')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Customer details')
+        self.assertContains(response, 'Preferred Language')
+        self.assertNotContains(response, 'Shop details')
+        self.assertNotContains(response, 'Vehicle Type')
+        self.assertNotContains(response, 'Open shop onboarding')
 
     def test_root_renders_landing_page_for_anonymous_users(self):
         response = self.client.get(reverse('core:home'))
@@ -233,6 +245,17 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Checkout is blocked until these issues are fixed')
         self.assertContains(response, 'Only 1 unit(s) are available right now.')
+
+    @override_settings(RAZORPAY_KEY_ID='rzp_test_123', RAZORPAY_KEY_SECRET='secret_123')
+    def test_customer_cart_shows_payment_buttons(self):
+        self.client.force_login(self.customer_user)
+        self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '1'})
+
+        response = self.client.get(reverse('core:customer_cart'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'RazorPay')
+        self.assertContains(response, 'Cash/UPI on delivery')
 
     def test_customer_can_update_cart_quantity_inline(self):
         self.client.force_login(self.customer_user)
@@ -1206,7 +1229,6 @@ class CoreFlowTests(TestCase):
 
     def test_registration_flow_sends_mobile_otp_and_creates_customer(self):
         register_payload = {
-            'action': 'register',
             'account_type': RoleType.CUSTOMER,
             'full_name': 'New User',
             'phone': '9990001112',
@@ -1221,16 +1243,16 @@ class CoreFlowTests(TestCase):
             'latitude': '12.915300',
             'longitude': '76.643800',
         }
-        response = self.client.post(reverse('core:register'), register_payload, follow=True)
+        response = self.client.post(reverse('core:register_details'), register_payload, follow=True)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Verify your mobile number')
+        self.assertContains(response, 'Verify Your Mobile Number')
 
         otp = AuthOtpToken.objects.filter(
             purpose=OtpPurpose.REGISTER,
             phone='9990001112',
         ).latest('created_at')
         verify_response = self.client.post(
-            reverse('core:register'),
+            reverse('core:register_verify'),
             {'action': 'verify_register_otp', 'code': otp.code},
             follow=True,
         )
@@ -1250,7 +1272,7 @@ class CoreFlowTests(TestCase):
             follow=True,
         )
         self.assertEqual(first_response.status_code, 200)
-        self.assertContains(first_response, 'Check your inbox')
+        self.assertContains(first_response, 'Verify Sign In')
         self.assertEqual(len(mail.outbox), 1)
 
         otp = AuthOtpToken.objects.filter(
@@ -1258,7 +1280,7 @@ class CoreFlowTests(TestCase):
             email='ananya@example.com',
         ).latest('created_at')
         second_response = self.client.post(
-            reverse('core:login'),
+            reverse('core:login_verify'),
             {'action': 'verify_login_otp', 'code': otp.code},
             follow=True,
         )
@@ -1284,7 +1306,7 @@ class CoreFlowTests(TestCase):
             email='ananya@example.com',
         ).latest('created_at')
         verify_response = self.client.post(
-            reverse('core:email_otp'),
+            reverse('core:email_otp_verify'),
             {
                 'action': 'verify',
                 'email': 'ananya@example.com',
@@ -1301,6 +1323,8 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Continue with Email OTP')
         self.assertContains(response, 'Step 1')
+        self.assertNotContains(response, 'Step 2')
+        self.assertEqual(response['Cache-Control'], 'no-store, no-cache, must-revalidate, max-age=0')
 
     def test_admin_actions_can_approve_pending_entities(self):
         pending_user = get_user_model().objects.create_user(

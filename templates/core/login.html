@@ -45,36 +45,6 @@
         <a href="{% url 'core:email_otp' %}">Use passwordless email OTP instead</a>
       </div>
 
-      {% if pending_login %}
-        <section class="auth-otp-card">
-          <div>
-            <strong>Check your inbox</strong>
-            <p>We sent a 6 digit OTP to {{ pending_login_masked_email }}. Enter it below to finish email sign-in.</p>
-            <div class="auth-step-strip auth-step-strip-compact">
-              {% if pending_login_role_label %}<span class="soft-pill">{{ pending_login_role_label }}</span>{% endif %}
-              <span class="soft-pill">Expires in {{ otp_expiry_minutes }} min</span>
-            </div>
-          </div>
-
-          <form class="auth-form auth-form-tight" method="post">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="verify_login_otp" />
-            <div class="auth-field">
-              <label for="{{ otp_form.code.id_for_label }}">Email OTP</label>
-              {{ otp_form.code }}
-              {% for error in otp_form.code.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
-            </div>
-            <button class="auth-primary-button" type="submit">Verify OTP</button>
-          </form>
-
-          <form method="post" class="auth-inline-form">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="resend_login_otp" />
-            <button class="auth-link-button" type="submit">Resend OTP</button>
-          </form>
-        </section>
-      {% endif %}
-
       <div class="auth-divider auth-divider-bottom"><span>or</span></div>
 
       <a class="auth-secondary-button" href="{% url 'core:register' %}">Create Account</a>

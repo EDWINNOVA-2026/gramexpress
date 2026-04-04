@@ -115,7 +115,30 @@
           <form method="post" action="{% url 'core:customer_checkout' %}" class="stack">
             {% csrf_token %}
             <input type="hidden" name="action" value="review" />
-            {{ order_form.as_p }}
+            <div class="auth-field">
+              <label for="{{ order_form.customer_notes.id_for_label }}">Delivery Notes</label>
+              {{ order_form.customer_notes }}
+              {% for error in order_form.customer_notes.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+            <div class="payment-choice-grid">
+              {% if razorpay_enabled %}
+                <button class="payment-choice-button payment-choice-button-primary" type="submit" name="payment_method" value="razorpay" {% if cart.has_blocking_issues %}disabled{% endif %}>
+                  <span class="payment-choice-copy">
+                    <strong>RazorPay</strong>
+                    <span>Pay online now and confirm before dispatch.</span>
+                  </span>
+                  <span class="soft-pill">Online</span>
+                </button>
+              {% endif %}
+              <button class="payment-choice-button" type="submit" name="payment_method" value="cod" {% if cart.has_blocking_issues %}disabled{% endif %}>
+                <span class="payment-choice-copy">
+                  <strong>Cash/UPI on delivery</strong>
+                  <span>Pay the rider at delivery using cash or UPI.</span>
+                </span>
+                <span class="soft-pill">Delivery</span>
+              </button>
+            </div>
+            {% for error in order_form.payment_method.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
             {% if cart.has_blocking_issues %}
               <div class="checkout-alert checkout-alert-error">
                 <strong>Checkout is blocked until these issues are fixed.</strong>
@@ -129,10 +152,9 @@
             {% if not razorpay_enabled %}
               <div class="checkout-cod-panel">
                 <strong>Razorpay is not configured yet</strong>
-                <p>Set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` in your environment to enable online payments. Until then, checkout uses cash on delivery only.</p>
+                <p>Set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` in your environment to enable online payments. Until then, checkout uses Cash/UPI on delivery only.</p>
               </div>
             {% endif %}
-            <button class="button primary" type="submit" {% if cart.has_blocking_issues %}disabled{% endif %}>Continue To Review</button>
           </form>
         {% endif %}
       </article>
