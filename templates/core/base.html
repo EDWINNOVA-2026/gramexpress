@@ -6,19 +6,21 @@
     <title>{{ request.resolver_match.url_name|default:'GramExpress'|title }} | GramExpress</title>
     <meta name="theme-color" content="#1a1a2e" />
     <meta name="description" content="GramExpress mobile-first delivery workspace with OTP auth, tracking, and multi-role local commerce dashboards." />
-    <link rel="manifest" href="{% url 'core:manifest' %}" />
-    <link rel="icon" href="/static/core/icon.svg" type="image/svg+xml" />
+    {% if shell_pwa_enabled %}
+      <link rel="manifest" href="{% url 'core:manifest' %}?v={{ shell_asset_version }}" />
+    {% endif %}
+    <link rel="icon" href="/static/core/icon.svg?v={{ shell_asset_version }}" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/core/styles.css" />
+    <link rel="stylesheet" href="/static/core/styles.css?v={{ shell_asset_version }}" />
     <script type="module" src="https://unpkg.com/@lottiefiles/dotlottie-wc@latest/dist/dotlottie-wc.js"></script>
     {% if google_client_id %}
       <script src="https://accounts.google.com/gsi/client" async defer></script>
     {% endif %}
   </head>
   {% with route_name=request.resolver_match.url_name %}
-    <body class="{% if route_name == 'login' or route_name == 'register' or route_name == 'email_otp' or route_name == 'customer_start' or route_name == 'shop_start' or route_name == 'rider_start' %}auth-screen{% else %}app-screen{% endif %}">
+    <body class="{% if route_name == 'login' or route_name == 'register' or route_name == 'email_otp' or route_name == 'customer_start' or route_name == 'shop_start' or route_name == 'rider_start' %}auth-screen{% else %}app-screen{% endif %} route-{{ route_name|default:'unknown' }} role-{{ shell_active_role|default:'guest' }}">
       <div class="app-frame">
         <div class="ambient ambient-one"></div>
         <div class="ambient ambient-two"></div>
@@ -27,7 +29,7 @@
         {% if route_name != 'login' and route_name != 'register' and route_name != 'email_otp' and route_name != 'customer_start' and route_name != 'shop_start' and route_name != 'rider_start' %}
           <header class="site-shell site-header" data-appear>
             <div class="topbar" id="top">
-              <a class="brand" href="{% if user.is_authenticated %}{{ shell_dashboard_url }}{% else %}{% url 'core:login' %}{% endif %}">
+              <a class="brand" href="{% if user.is_authenticated %}{{ shell_dashboard_url }}{% else %}{% url 'core:home' %}{% endif %}">
                 <span class="brand-mark" aria-hidden="true">
                   <span class="brand-mark-lock"></span>
                 </span>
@@ -49,28 +51,51 @@
                 </span>
               </a>
 
-              <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-nav-toggle>
-                Menu
-              </button>
-
-            <nav class="nav" id="site-nav" data-nav>
               {% if user.is_authenticated %}
-                <a href="{{ shell_dashboard_url }}" class="nav-active">{{ shell_dashboard_label }}</a>
-                <a href="{% url 'core:notifications' %}" class="nav-bell-link">
-                  Alerts
-                  {% if shell_unread_notification_count %}
-                    <span class="nav-bell-count">{{ shell_unread_notification_count|default:0 }}</span>
-                  {% endif %}
-                </a>
-                {% if user.is_staff %}
-                  <a href="/admin/">Django Admin</a>
-                {% endif %}
-                <a href="{% url 'core:logout' %}" class="nav-cta">Logout</a>
-                {% else %}
+                <div class="topbar-actions">
+                  <nav class="nav nav-primary" aria-label="Primary navigation">
+                    {% for link in shell_primary_links %}
+                      <a href="{{ link.url }}" class="{% if request.path == link.url %}nav-active{% endif %}">{{ link.label }}</a>
+                    {% endfor %}
+                  </nav>
+
+                  <div class="menu-shell">
+                    <button class="avatar-menu-toggle header-menu-toggle" type="button" aria-label="Open account menu" aria-expanded="false" aria-controls="site-menu" data-nav-toggle>
+                      <span class="avatar-menu-toggle-badge">{{ shell_user_initial }}</span>
+                      {% if shell_unread_notification_count %}
+                        <span class="avatar-menu-alert-dot"></span>
+                      {% endif %}
+                    </button>
+                    <div class="menu-panel" id="site-menu" data-nav>
+                      <div class="menu-panel-head">
+                        <strong>{{ shell_user_label|default:'Workspace' }}</strong>
+                        <small>{{ shell_dashboard_label }}</small>
+                      </div>
+                      {% for link in shell_menu_links %}
+                        <a href="{{ link.url }}" class="menu-link{% if request.path == link.url %} menu-link-active{% endif %}">{{ link.label }}</a>
+                      {% endfor %}
+                      <a href="{% url 'core:notifications' %}" class="menu-link menu-link-alerts{% if route_name == 'notifications' %} menu-link-active{% endif %}">
+                        Alerts
+                        {% if shell_unread_notification_count %}
+                          <span class="nav-bell-count nav-bell-count-live">
+                            {% if shell_unread_notification_count > 9 %}9+{% else %}{{ shell_unread_notification_count|default:0 }}{% endif %}
+                          </span>
+                        {% endif %}
+                      </a>
+                      {% if user.is_staff %}
+                        <a href="/admin/" class="menu-link">Django Admin</a>
+                      {% endif %}
+                      <a href="{% url 'core:logout' %}" class="menu-link menu-link-danger">Logout</a>
+                    </div>
+                  </div>
+                </div>
+              {% else %}
+                <nav class="nav nav-guest" aria-label="Guest navigation">
+                  <a href="{% url 'core:home' %}" class="{% if route_name == 'home' %}nav-active{% endif %}">Home</a>
                   <a href="{% url 'core:login' %}" class="nav-active">Sign In</a>
                   <a href="{% url 'core:register' %}">Register</a>
-                {% endif %}
-              </nav>
+                </nav>
+              {% endif %}
             </div>
           </header>
         {% endif %}
@@ -88,26 +113,47 @@
 
         {% if user.is_authenticated and route_name != 'login' and route_name != 'register' and route_name != 'email_otp' and route_name != 'customer_start' and route_name != 'shop_start' and route_name != 'rider_start' %}
           <nav class="mobile-bottom-nav" aria-label="Bottom navigation">
-            <a href="#top" class="mobile-bottom-link mobile-bottom-link-active">Home</a>
-            <a href="#workspace" class="mobile-bottom-link">Workspace</a>
-            <a href="{% url 'core:notifications' %}" class="mobile-bottom-link">Alerts</a>
-            <a href="#account" class="mobile-bottom-link">Account</a>
-            <a href="{% url 'core:logout' %}" class="mobile-bottom-link">Logout</a>
+            {% for link in shell_primary_links %}
+              <a href="{{ link.url }}" class="mobile-bottom-link{% if request.path == link.url %} mobile-bottom-link-active{% endif %}">{{ link.label }}</a>
+            {% endfor %}
           </nav>
         {% endif %}
       </div>
 
       <script>
         function attachNavToggle() {
-          var toggle = document.querySelector('[data-nav-toggle]');
+          var toggles = document.querySelectorAll('[data-nav-toggle]');
           var nav = document.querySelector('[data-nav]');
-          if (!toggle || !nav) {
+          if (!toggles.length || !nav) {
             return;
           }
 
-          toggle.addEventListener('click', function () {
-            var isOpen = nav.classList.toggle('is-open');
-            toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+          function setOpenState(isOpen) {
+            nav.classList.toggle('is-open', isOpen);
+            toggles.forEach(function (toggle) {
+              toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            });
+          }
+
+          toggles.forEach(function (toggle) {
+            toggle.addEventListener('click', function (event) {
+              event.stopPropagation();
+              setOpenState(!nav.classList.contains('is-open'));
+            });
+          });
+
+          nav.addEventListener('click', function (event) {
+            event.stopPropagation();
+          });
+
+          document.addEventListener('click', function () {
+            setOpenState(false);
+          });
+
+          document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+              setOpenState(false);
+            }
           });
         }
 
@@ -118,7 +164,19 @@
               var form = button.closest('form');
               var latInput = form && form.querySelector('[name="latitude"]');
               var lngInput = form && form.querySelector('[name="longitude"]');
-              var status = form && form.querySelector('[data-location-status]');
+              var status = null;
+              if (form) {
+                status = form.querySelector('[data-location-status]');
+              }
+              if (!status && form && form.parentElement) {
+                status = form.parentElement.querySelector('[data-location-status]');
+              }
+              if (!status && form) {
+                var scope = form.closest('[data-location-scope]');
+                if (scope) {
+                  status = scope.querySelector('[data-location-status]');
+                }
+              }
 
               if (!latInput || !lngInput) {
                 return;
@@ -141,6 +199,9 @@
                   lngInput.value = position.coords.longitude.toFixed(6);
                   if (status) {
                     status.textContent = 'Current location captured successfully.';
+                  }
+                  if (form && form.hasAttribute('data-location-autosubmit')) {
+                    form.submit();
                   }
                 },
                 function () {
@@ -259,9 +320,38 @@
         attachGoogleSignIn();
         attachInstallPrompt();
 
+        if ('caches' in window) {
+          caches.keys().then(function (keys) {
+            keys.forEach(function (key) {
+              if (key.indexOf('gramexpress-shell-v') === 0 && key !== ('gramexpress-shell-v' + '{{ shell_asset_version }}')) {
+                caches.delete(key);
+              }
+            });
+          });
+        }
+
         if ('serviceWorker' in navigator) {
           window.addEventListener('load', function () {
-            navigator.serviceWorker.register("{% url 'core:service_worker' %}");
+            {% if shell_pwa_enabled %}
+              navigator.serviceWorker.register("{% url 'core:service_worker' %}?v={{ shell_asset_version }}", { updateViaCache: 'none' }).then(function (registration) {
+                registration.update();
+              });
+            {% else %}
+              navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                registrations.forEach(function (registration) {
+                  registration.unregister();
+                });
+              });
+              if ('caches' in window) {
+                caches.keys().then(function (keys) {
+                  keys.forEach(function (key) {
+                    if (key.indexOf('gramexpress-shell-v') === 0) {
+                      caches.delete(key);
+                    }
+                  });
+                });
+              }
+            {% endif %}
           });
         }
       </script>

@@ -58,6 +58,21 @@
                   <div class="bill-row"><span>Items</span><strong>Rs. {{ group.subtotal }}</strong></div>
                   <div class="bill-row"><span>Delivery</span><strong>Rs. {{ group.delivery_fee }}</strong></div>
                 </div>
+                <div class="compact-list top-gap-sm">
+                  {% for item in cart.groups %}
+                    {% if item.shop.id == group.shop.id %}
+                      {% for line in item.items %}
+                        <div class="list-item compact-item compact-item-tight{% if line.has_blocking_issue %} compact-item-warning{% endif %}">
+                          <div>
+                            <strong>{{ line.product.name }}</strong>
+                            <p>{{ line.quantity }} x Rs. {{ line.product.price }}</p>
+                          </div>
+                          <span class="pill">Rs. {{ line.line_total }}</span>
+                        </div>
+                      {% endfor %}
+                    {% endif %}
+                  {% endfor %}
+                </div>
               </div>
             {% endfor %}
           </div>
@@ -84,23 +99,101 @@
                 <li>Repeated delivery refusals can affect COD availability.</li>
               </ul>
             </div>
+          {% elif razorpay_enabled %}
+            <div class="checkout-cod-panel">
+              <strong>Razorpay checkout enabled</strong>
+              <p>Your environment has Razorpay keys configured, so online payment is available for this order flow.</p>
+              {% if checkout_session and checkout_session.failure_reason %}
+                <p class="utility-note">Latest payment update: {{ checkout_session.failure_reason }}</p>
+              {% endif %}
+            </div>
           {% else %}
             <div class="checkout-cod-panel">
-              <strong>Online payment demo</strong>
-              <p>This demo still marks Razorpay as paid immediately after confirmation until full payment JS is wired.</p>
+              <strong>Razorpay not configured</strong>
+              <p>Online payment stays hidden until `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` are configured. For now, use cash on delivery.</p>
             </div>
           {% endif %}
 
-          <form method="post" action="{% url 'core:customer_checkout' %}" class="stack">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="confirm" />
-            <button class="button primary" type="submit" {% if cart.has_blocking_issues %}disabled{% endif %}>
-              {% if is_cod %}Yes, Place COD Order{% else %}Place Order{% endif %}
-            </button>
-            <a class="button secondary" href="{% url 'core:customer_dashboard' %}">Back To Cart</a>
-          </form>
+          {% if is_cod %}
+            <form method="post" action="{% url 'core:customer_checkout' %}" class="stack">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="confirm" />
+              <button class="button primary" type="submit" {% if cart.has_blocking_issues %}disabled{% endif %}>
+                Yes, Place COD Order
+              </button>
+              <a class="button secondary" href="{% url 'core:customer_cart' %}">Back To Cart</a>
+            </form>
+          {% elif razorpay_checkout %}
+            <div class="stack">
+              <button class="button primary" type="button" id="razorpay-pay-button" {% if cart.has_blocking_issues %}disabled{% endif %}>
+                Pay Rs. {{ estimated_total }} With Razorpay
+              </button>
+              <p class="utility-note">You will stay on the same checkout flow and return here after the payment is verified.</p>
+              <a class="button secondary" href="{% url 'core:customer_cart' %}">Back To Cart</a>
+            </div>
+            <form method="post" action="{% url 'core:customer_razorpay_complete' %}" id="razorpay-success-form" hidden>
+              {% csrf_token %}
+              <input type="hidden" name="checkout_session_id" value="{{ checkout_session.id }}" />
+              <input type="hidden" name="razorpay_payment_id" id="razorpay_payment_id" />
+              <input type="hidden" name="razorpay_order_id" id="razorpay_order_id" />
+              <input type="hidden" name="razorpay_signature" id="razorpay_signature" />
+            </form>
+            <form method="post" action="{% url 'core:customer_razorpay_failed' %}" id="razorpay-failure-form" hidden>
+              {% csrf_token %}
+              <input type="hidden" name="checkout_session_id" value="{{ checkout_session.id }}" />
+              <input type="hidden" name="error_description" id="razorpay_error_description" />
+              <input type="hidden" name="error_reason" id="razorpay_error_reason" />
+            </form>
+          {% else %}
+            <div class="stack">
+              <button class="button primary" type="button" disabled>Razorpay Setup Required</button>
+              <a class="button secondary" href="{% url 'core:customer_cart' %}">Back To Cart</a>
+            </div>
+          {% endif %}
         </article>
       </div>
     </section>
   </section>
+
+  {% if razorpay_checkout %}
+    {{ razorpay_checkout|json_script:"razorpay-checkout-options" }}
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script>
+      (function () {
+        var payButton = document.getElementById('razorpay-pay-button');
+        var optionsNode = document.getElementById('razorpay-checkout-options');
+        var successForm = document.getElementById('razorpay-success-form');
+        var failureForm = document.getElementById('razorpay-failure-form');
+        if (!payButton || !optionsNode || !window.Razorpay || !successForm || !failureForm) {
+          return;
+        }
+
+        var options = JSON.parse(optionsNode.textContent);
+        options.handler = function (response) {
+          document.getElementById('razorpay_payment_id').value = response.razorpay_payment_id || '';
+          document.getElementById('razorpay_order_id').value = response.razorpay_order_id || '';
+          document.getElementById('razorpay_signature').value = response.razorpay_signature || '';
+          successForm.submit();
+        };
+        options.modal = {
+          ondismiss: function () {
+            payButton.disabled = false;
+          }
+        };
+
+        var razorpayCheckout = new window.Razorpay(options);
+        razorpayCheckout.on('payment.failed', function (response) {
+          var error = (response && response.error) || {};
+          document.getElementById('razorpay_error_description').value = error.description || 'The online payment was not completed.';
+          document.getElementById('razorpay_error_reason').value = error.reason || '';
+          failureForm.submit();
+        });
+
+        payButton.addEventListener('click', function () {
+          payButton.disabled = true;
+          razorpayCheckout.open();
+        });
+      })();
+    </script>
+  {% endif %}
 {% endblock %}

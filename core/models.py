@@ -50,6 +50,15 @@ class RoleType(models.TextChoices):
     ADMIN = 'admin', 'Admin'
 
 
+class NotificationType(models.TextChoices):
+    ORDER = 'order', 'Order'
+    STORE = 'store', 'Store'
+    RIDER = 'rider', 'Rider'
+    PAYMENT = 'payment', 'Payment'
+    PROMO = 'promo', 'Promo'
+    SYSTEM = 'system', 'System'
+
+
 class TimeStampedModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -217,6 +226,38 @@ class Product(TimeStampedModel):
         return f'{self.name} - {self.shop.name}'
 
 
+class CheckoutSession(TimeStampedModel):
+    customer = models.ForeignKey(
+        CustomerProfile,
+        on_delete=models.CASCADE,
+        related_name='checkout_sessions',
+    )
+    payment_method = models.CharField(max_length=12, choices=PaymentMethod.choices, default=PaymentMethod.COD)
+    payment_status = models.CharField(max_length=12, choices=PaymentStatus.choices, default=PaymentStatus.PENDING)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    currency = models.CharField(max_length=3, default='INR')
+    customer_notes = models.CharField(max_length=200, blank=True)
+    delivery_address = models.CharField(max_length=240)
+    cart_snapshot = models.JSONField(default=dict, blank=True)
+    cart_signature = models.CharField(max_length=64)
+    receipt = models.CharField(max_length=40, blank=True, db_index=True)
+    razorpay_order_id = models.CharField(max_length=80, blank=True, db_index=True)
+    razorpay_payment_id = models.CharField(max_length=80, blank=True)
+    razorpay_signature = models.CharField(max_length=160, blank=True)
+    failure_reason = models.CharField(max_length=240, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'Checkout #{self.id} - {self.customer.full_name}'
+
+    @property
+    def is_completed(self) -> bool:
+        return self.completed_at is not None
+
+
 class Order(TimeStampedModel):
     customer = models.ForeignKey(
         CustomerProfile,
@@ -226,6 +267,13 @@ class Order(TimeStampedModel):
     shop = models.ForeignKey(Shop, on_delete=models.CASCADE, related_name='orders')
     rider = models.ForeignKey(
         RiderProfile,
+        on_delete=models.SET_NULL,
+        related_name='orders',
+        null=True,
+        blank=True,
+    )
+    checkout_session = models.ForeignKey(
+        CheckoutSession,
         on_delete=models.SET_NULL,
         related_name='orders',
         null=True,
@@ -321,6 +369,11 @@ class Notification(TimeStampedModel):
         blank=True,
     )
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='notifications', null=True, blank=True)
+    notification_type = models.CharField(
+        max_length=12,
+        choices=NotificationType.choices,
+        default=NotificationType.SYSTEM,
+    )
     title = models.CharField(max_length=120)
     body = models.CharField(max_length=240)
     is_read = models.BooleanField(default=False)
@@ -330,6 +383,28 @@ class Notification(TimeStampedModel):
 
     def __str__(self) -> str:
         return self.title
+
+    @property
+    def accent_class(self) -> str:
+        return {
+            NotificationType.ORDER: 'notification-accent-order',
+            NotificationType.STORE: 'notification-accent-store',
+            NotificationType.RIDER: 'notification-accent-rider',
+            NotificationType.PAYMENT: 'notification-accent-payment',
+            NotificationType.PROMO: 'notification-accent-promo',
+            NotificationType.SYSTEM: 'notification-accent-system',
+        }.get(self.notification_type, 'notification-accent-system')
+
+    @property
+    def glyph(self) -> str:
+        return {
+            NotificationType.ORDER: 'Order',
+            NotificationType.STORE: 'Store',
+            NotificationType.RIDER: 'Rider',
+            NotificationType.PAYMENT: 'Pay',
+            NotificationType.PROMO: 'Promo',
+            NotificationType.SYSTEM: 'Info',
+        }.get(self.notification_type, 'Info')
 
 
 class EmailOtpToken(TimeStampedModel):

@@ -41,11 +41,19 @@
         <button class="auth-primary-button" type="submit">Sign In</button>
       </form>
 
+      <div class="auth-inline-links auth-inline-links-centered">
+        <a href="{% url 'core:email_otp' %}">Use passwordless email OTP instead</a>
+      </div>
+
       {% if pending_login %}
         <section class="auth-otp-card">
           <div>
             <strong>Check your inbox</strong>
             <p>We sent a 6 digit OTP to {{ pending_login_masked_email }}. Enter it below to finish email sign-in.</p>
+            <div class="auth-step-strip auth-step-strip-compact">
+              {% if pending_login_role_label %}<span class="soft-pill">{{ pending_login_role_label }}</span>{% endif %}
+              <span class="soft-pill">Expires in {{ otp_expiry_minutes }} min</span>
+            </div>
           </div>
 
           <form class="auth-form auth-form-tight" method="post">

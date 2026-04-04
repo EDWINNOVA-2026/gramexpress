@@ -47,12 +47,15 @@
         {% else %}
           <div class="checkout-cod-panel">
             <strong>Online payment recorded</strong>
-            <p>The demo marked the order as paid and moved it into confirmation immediately.</p>
+            <p>Your payment was recorded successfully, and the order has already moved into confirmation.</p>
+            {% if checkout_session and checkout_session.razorpay_payment_id %}
+              <p class="utility-note">Payment reference: {{ checkout_session.razorpay_payment_id }}</p>
+            {% endif %}
           </div>
         {% endif %}
         <div class="stack small-gap">
           <a class="button primary" href="{% if primary_order %}{% url 'core:order_tracking' primary_order.id %}{% else %}{% url 'core:customer_dashboard' %}{% endif %}">Track My Order</a>
-          <a class="button secondary" href="{% url 'core:customer_dashboard' %}">Continue Shopping</a>
+          <a class="button secondary" href="{% url 'core:customer_dashboard' %}">Browse Stores</a>
         </div>
       </article>
     </section>

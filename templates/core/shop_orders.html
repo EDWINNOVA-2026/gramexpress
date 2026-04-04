@@ -1,0 +1,109 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="feature-nav card" data-appear>
+    {% for item in page_nav %}
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+    {% endfor %}
+  </section>
+
+  <section class="card" data-appear>
+    <span class="eyebrow">Orders</span>
+    <h2 class="section-title">Packaging and handoff queue</h2>
+    <div class="stack">
+      {% for order in orders %}
+        <div class="nested-panel order-card">
+          <div class="split-row">
+            <div>
+              <strong>Order #{{ order.id }}</strong>
+              <p>{{ order.customer.full_name }} | {{ order.get_status_display }}{% if order.rider %} | Rider: {{ order.rider.full_name }}{% endif %}</p>
+              <p class="utility-note">{{ order.fulfillment_title }}</p>
+              <p class="utility-note">{{ order.fulfillment_hint }}</p>
+            </div>
+            <div class="hero-inline-facts">
+              <span class="pill">Rs. {{ order.total_amount }}</span>
+              <span class="soft-pill">{{ order.item_count }} item{{ order.item_count|pluralize }}</span>
+              <span class="status-chip {{ order.fulfillment_chip }}">{{ order.get_status_display }}</span>
+            </div>
+          </div>
+
+          <div class="compact-list">
+            {% for item in order.items.all %}
+              <div class="list-item compact-item compact-item-tight">
+                <div>
+                  <strong>{{ item.product.name }}</strong>
+                  <p>{{ item.quantity }} x Rs. {{ item.unit_price }}</p>
+                </div>
+                <span class="muted">Rs. {{ item.line_total }}</span>
+              </div>
+            {% endfor %}
+          </div>
+
+          <div class="inline-actions">
+            <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
+            {% if order.can_mark_confirmed %}
+              <form method="post" action="{% url 'core:shop_update_order_status' order.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="confirmed" />
+                <button class="button small secondary" type="submit">Confirm</button>
+              </form>
+            {% endif %}
+            {% if order.can_mark_packed %}
+              <form method="post" action="{% url 'core:shop_update_order_status' order.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="packed" />
+                <button class="button small primary" type="submit">Packed</button>
+              </form>
+            {% endif %}
+            {% if order.rider %}
+              <a class="button small secondary" href="{{ order.rider_tracking_url }}" target="_blank" rel="noreferrer">Track Rider</a>
+            {% endif %}
+          </div>
+
+          {% if order.can_cancel_from_store %}
+            <form method="post" action="{% url 'core:shop_update_order_status' order.id %}" class="stack small-gap lifecycle-form">
+              {% csrf_token %}
+              <input type="hidden" name="status" value="cancelled" />
+              <label>Cancellation reason
+                <input type="text" name="cancellation_reason" value="Store could not fulfil this order." />
+              </label>
+              <button class="button small danger" type="submit">Cancel From Store</button>
+            </form>
+          {% elif order.status == 'cancelled' and order.cancellation_reason %}
+            <div class="checkout-cod-panel">
+              <strong>Cancellation summary</strong>
+              <p>{{ order.cancellation_reason }}</p>
+              {% if order.cancelled_by_role %}
+                <span class="soft-pill">Cancelled by {{ order.get_cancelled_by_role_display }}</span>
+              {% endif %}
+            </div>
+          {% endif %}
+
+          {% if order.can_be_rated_by_store %}
+            <form method="post" action="{% url 'core:shop_rate_order' order.id %}" class="stack small-gap">
+              {% csrf_token %}
+              <label>Rate the rider (1-5)
+                <input type="number" name="store_rating" min="1" max="5" required />
+              </label>
+              <label>Review
+                <textarea name="store_review" rows="2"></textarea>
+              </label>
+              <button class="button small primary" type="submit">Save Rider Rating</button>
+            </form>
+          {% elif order.store_rating %}
+            <p class="muted">You rated the rider {{ order.store_rating }}/5. {{ order.store_review }}</p>
+          {% endif %}
+
+          {% if order.status == 'out_for_delivery' %}
+            <p class="utility-note">Customer handoff OTP: <code>{{ order.customer_otp }}</code></p>
+          {% endif %}
+        </div>
+      {% empty %}
+        <div class="nested-panel">
+          <strong>No orders yet</strong>
+          <p>Once customers start placing orders, this becomes your main packaging and dispatch page.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

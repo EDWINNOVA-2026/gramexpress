@@ -23,6 +23,23 @@
         <span class="soft-pill">1. Request code</span>
         <span class="soft-pill">2. Verify</span>
       </div>
+      {% if pending_email_otp %}
+        <section class="auth-otp-card auth-otp-card-register">
+          <div>
+            <strong>OTP sent</strong>
+            <p>We sent a 6 digit OTP to {{ pending_email_otp_masked_email }}. Enter the same email below to complete passwordless sign-in.</p>
+            <div class="auth-step-strip auth-step-strip-compact">
+              {% if pending_email_otp_role_label %}<span class="soft-pill">{{ pending_email_otp_role_label }}</span>{% endif %}
+              <span class="soft-pill">Expires in {{ otp_expiry_minutes }} min</span>
+            </div>
+          </div>
+          <form method="post" class="auth-inline-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="resend" />
+            <button class="auth-link-button" type="submit">Resend OTP</button>
+          </form>
+        </section>
+      {% endif %}
       <form class="form-card auth-form-compact auth-pane auth-subsection" method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="request" />
@@ -41,7 +58,7 @@
         </div>
       </form>
       <div class="auth-note-panel">
-        <strong>Demo tip</strong>
+        <strong>Quick tip</strong>
         <p>If email is not configured yet, Django prints the OTP in the server console for quick testing.</p>
       </div>
     </article>

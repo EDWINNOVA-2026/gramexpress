@@ -8,10 +8,14 @@
           <span class="eyebrow">Notifications</span>
           <h1 class="page-title">Notification Centre</h1>
           <p>Order updates, rider activity, approval alerts, and account messages all live here.</p>
+          <div class="hero-inline-facts top-gap-sm">
+            <span class="soft-pill">{{ total_count }} total</span>
+            <span class="soft-pill">{{ unread_count }} unread</span>
+          </div>
         </div>
         <form method="post" action="{% url 'core:notifications_mark_all_read' %}">
           {% csrf_token %}
-          <button class="button secondary" type="submit">Mark All Read</button>
+          <button class="button secondary" type="submit" {% if not unread_count %}disabled{% endif %}>Mark All Read</button>
         </form>
       </div>
     </article>
@@ -24,21 +28,41 @@
         </div>
         <div class="stack">
           {% for note in items %}
-            <a class="notification-item{% if not note.is_read %} notification-item-unread{% endif %}" href="{% url 'core:notification_open' note.id %}">
-              <div class="notification-copy">
-                <strong>{{ note.title }}</strong>
-                <p>{{ note.body }}</p>
-                {% if note.order_id %}
-                  <span class="soft-pill">Order #{{ note.order_id }}</span>
-                {% endif %}
+            <article class="notification-item {{ note.accent_class }}{% if not note.is_read %} notification-item-unread{% endif %}">
+              <div class="notification-shell">
+                <a class="notification-main" href="{% url 'core:notification_open' note.id %}">
+                  <div class="notification-icon" aria-hidden="true">{{ note.glyph }}</div>
+                  <div class="notification-copy">
+                    <div class="notification-header">
+                      <strong>{{ note.title }}</strong>
+                      <span class="soft-pill">{{ note.get_notification_type_display }}</span>
+                    </div>
+                    <p>{{ note.body }}</p>
+                    {% if note.order_id %}
+                      <span class="soft-pill">Order #{{ note.order_id }}</span>
+                    {% endif %}
+                  </div>
+                </a>
+                <div class="notification-meta">
+                  <span class="tiny muted">{{ note.created_at|date:"M d, H:i" }}</span>
+                  {% if not note.is_read %}
+                    <span class="notification-dot" aria-hidden="true"></span>
+                  {% endif %}
+                </div>
               </div>
-              <div class="notification-meta">
-                <span class="tiny muted">{{ note.created_at|date:"M d, H:i" }}</span>
+              <div class="notification-actions">
                 {% if not note.is_read %}
-                  <span class="notification-dot" aria-hidden="true"></span>
+                  <form method="post" action="{% url 'core:notification_mark_read' note.id %}">
+                    {% csrf_token %}
+                    <button class="button small secondary" type="submit">Mark Read</button>
+                  </form>
                 {% endif %}
+                <form method="post" action="{% url 'core:notification_delete' note.id %}">
+                  {% csrf_token %}
+                  <button class="button small danger" type="submit">Delete</button>
+                </form>
               </div>
-            </a>
+            </article>
           {% endfor %}
         </div>
       </section>

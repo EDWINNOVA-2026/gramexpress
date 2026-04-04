@@ -1,4 +1,8 @@
 from decimal import Decimal
+import hashlib
+import hmac
+import json
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.core import mail
@@ -10,18 +14,23 @@ from .admin import approve_riders, approve_stores
 from .models import (
     ApprovalStatus,
     AuthOtpToken,
+    CheckoutSession,
     CustomerProfile,
     Notification,
+    NotificationType,
     Order,
     OrderItem,
     OrderStatus,
     OtpPurpose,
+    PaymentMethod,
+    PaymentStatus,
     Product,
     RiderProfile,
     RoleType,
     Shop,
     ShopOwnerProfile,
 )
+from .views import reverse_geocode_location
 
 
 class CoreFlowTests(TestCase):
@@ -120,6 +129,7 @@ class CoreFlowTests(TestCase):
             order=cls.demo_order,
             title='Rider is nearby',
             body='Suresh is bringing your order now.',
+            notification_type=NotificationType.RIDER,
         )
 
         cls.admin_user = User.objects.create_superuser(
@@ -136,6 +146,7 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Sign in to your local delivery workspace')
         self.assertContains(response, 'Continue with Google')
+        self.assertContains(response, 'Use passwordless email OTP instead')
 
     def test_register_route_renders(self):
         response = self.client.get(reverse('core:register'))
@@ -143,9 +154,11 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, 'Create Account')
         self.assertContains(response, 'Send Mobile OTP')
 
-    def test_root_redirects_to_login_for_anonymous_users(self):
+    def test_root_renders_landing_page_for_anonymous_users(self):
         response = self.client.get(reverse('core:home'))
-        self.assertRedirects(response, reverse('core:login'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Hyperlocal delivery with proper customer, store, and rider workspaces')
+        self.assertContains(response, 'Separate feature pages')
 
     def test_root_redirects_to_role_dashboard_for_signed_in_user(self):
         self.client.force_login(self.customer_user)
@@ -189,10 +202,143 @@ class CoreFlowTests(TestCase):
         self.product.stock = 1
         self.product.save(update_fields=['stock'])
 
-        response = self.client.get(reverse('core:customer_dashboard'))
+        response = self.client.get(reverse('core:customer_cart'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Checkout is blocked until these issues are fixed')
         self.assertContains(response, 'Only 1 unit(s) are available right now.')
+
+    def test_customer_can_update_cart_quantity_inline(self):
+        self.client.force_login(self.customer_user)
+        self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '1'})
+
+        response = self.client.post(
+            reverse('core:cart_update', args=[self.product.id]),
+            {'quantity': '3'},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.client.session.get('customer_cart', {}).get(str(self.product.id)), 3)
+        self.assertContains(response, 'Cart updated.')
+
+    def test_customer_store_detail_page_lists_products(self):
+        self.client.force_login(self.customer_user)
+        self.client.post(
+            reverse('core:customer_update_location'),
+            {'latitude': '12.920000', 'longitude': '76.650000'},
+        )
+
+        response = self.client.get(reverse('core:customer_store_detail', args=[self.shop.slug]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.shop.name)
+        self.assertContains(response, self.product.name)
+
+    def test_customer_dashboard_requires_live_location_before_listing_stores(self):
+        self.client.force_login(self.customer_user)
+
+        response = self.client.get(reverse('core:customer_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Location needed before we show stores')
+        self.assertNotContains(response, self.shop.name)
+
+    def test_customer_can_update_location_from_dashboard(self):
+        self.client.force_login(self.customer_user)
+
+        with patch(
+            'core.views.reverse_geocode_location',
+            return_value={
+                'formatted_address': 'Conservency Road, Basavanahalli, Chikkamagaluru, Karnataka 577101, India',
+                'address_line_1': 'Conservency Road',
+                'locality': 'Basavanahalli',
+                'city': 'Chikkamagaluru',
+                'district': 'Chikkamagaluru',
+                'pincode': '577101',
+            },
+        ):
+            response = self.client.post(
+                reverse('core:customer_update_location'),
+                {'latitude': '12.920000', 'longitude': '76.650000'},
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.customer.refresh_from_db()
+        self.assertEqual(str(self.customer.latitude), '12.920000')
+        self.assertEqual(str(self.customer.longitude), '76.650000')
+        self.assertTrue(self.client.session.get('customer_live_location_confirmed'))
+        self.assertEqual(
+            self.client.session.get('customer_live_location_label'),
+            'Conservency Road, Basavanahalli, Chikkamagaluru, Karnataka 577101, India',
+        )
+        self.assertEqual(self.client.session.get('customer_live_location_heading'), 'Basavanahalli')
+        self.assertContains(response, 'Basavanahalli')
+        self.assertContains(response, 'Chikkamagaluru')
+        self.assertContains(response, self.shop.name)
+
+    def test_customer_dashboard_shows_dynamic_store_rating_details(self):
+        self.client.force_login(self.customer_user)
+        self.client.post(
+            reverse('core:customer_update_location'),
+            {'latitude': '12.920000', 'longitude': '76.650000'},
+        )
+        self.demo_order.status = OrderStatus.DELIVERED
+        self.demo_order.customer_rating = 4
+        self.demo_order.save(update_fields=['status', 'customer_rating', 'updated_at'])
+
+        response = self.client.get(reverse('core:customer_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '4.0')
+        self.assertContains(response, '1 rating')
+
+    @override_settings(GOOGLE_MAPS_BROWSER_API_KEY='')
+    def test_reverse_geocode_location_uses_openstreetmap_fallback_without_google_key(self):
+        payload = {
+            'display_name': 'Conservency Road, Basavanahalli, Chikkamagaluru, Karnataka 577101, India',
+            'address': {
+                'road': 'Conservency Road',
+                'suburb': 'Basavanahalli',
+                'city': 'Chikkamagaluru',
+                'postcode': '577101',
+            },
+        }
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps(payload).encode('utf-8')
+        mock_context = MagicMock()
+        mock_context.__enter__.return_value = mock_response
+        mock_context.__exit__.return_value = False
+
+        with patch('core.views.urllib_request.urlopen', return_value=mock_context) as mock_urlopen:
+            details = reverse_geocode_location(Decimal('13.024161'), Decimal('74.966951'))
+
+        request = mock_urlopen.call_args[0][0]
+        self.assertIn('nominatim.openstreetmap.org/reverse?', request.full_url)
+        self.assertEqual(
+            details,
+            {
+                'formatted_address': 'Conservency Road, Basavanahalli, Chikkamagaluru, Karnataka 577101, India',
+                'address_line_1': 'Conservency Road',
+                'locality': 'Basavanahalli',
+                'city': 'Chikkamagaluru',
+                'district': 'Basavanahalli',
+                'pincode': '577101',
+            },
+        )
+
+    def test_customer_can_remove_cart_item_inline(self):
+        self.client.force_login(self.customer_user)
+        self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '2'})
+
+        response = self.client.post(
+            reverse('core:cart_update', args=[self.product.id]),
+            {'quantity': '0'},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(str(self.product.id), self.client.session.get('customer_cart', {}))
 
     def test_customer_can_open_notifications_center(self):
         self.client.force_login(self.customer_user)
@@ -200,6 +346,7 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Notification Centre')
         self.assertContains(response, 'Rider is nearby')
+        self.assertContains(response, 'Rider')
 
     def test_customer_can_open_order_detail_and_tracking(self):
         self.client.force_login(self.customer_user)
@@ -209,6 +356,102 @@ class CoreFlowTests(TestCase):
         self.assertEqual(tracking_response.status_code, 200)
         self.assertContains(detail_response, self.demo_order.display_id)
         self.assertContains(tracking_response, 'Live Tracking')
+        self.assertContains(detail_response, 'Rider is approaching')
+        self.assertContains(tracking_response, '8-15 min')
+
+    def test_rider_can_accept_available_order(self):
+        available_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            status=OrderStatus.CONFIRMED,
+            total_amount=Decimal('48.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+        )
+        OrderItem.objects.create(order=available_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+
+        self.client.force_login(self.rider_user)
+        response = self.client.post(reverse('core:rider_accept_order', args=[available_order.id]), follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        available_order.refresh_from_db()
+        self.rider.refresh_from_db()
+        self.assertEqual(available_order.rider, self.rider)
+        self.assertEqual(available_order.status, OrderStatus.PACKED)
+        self.assertFalse(self.rider.is_available)
+
+    def test_rider_must_be_near_store_to_mark_pickup(self):
+        pickup_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            status=OrderStatus.PACKED,
+            total_amount=Decimal('48.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+        )
+        OrderItem.objects.create(order=pickup_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+        self.rider.latitude = Decimal('13.100000')
+        self.rider.longitude = Decimal('76.900000')
+        self.rider.save(update_fields=['latitude', 'longitude'])
+
+        self.client.force_login(self.rider_user)
+        response = self.client.post(
+            reverse('core:rider_update_order_status', args=[pickup_order.id]),
+            {'status': OrderStatus.OUT_FOR_DELIVERY},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        pickup_order.refresh_from_db()
+        self.assertEqual(pickup_order.status, OrderStatus.PACKED)
+        self.assertContains(response, 'Get closer to the store to mark pickup.')
+
+    def test_store_can_mark_confirmed_order_packed(self):
+        pack_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            status=OrderStatus.CONFIRMED,
+            total_amount=Decimal('48.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+        )
+        OrderItem.objects.create(order=pack_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+
+        self.client.force_login(self.shop_user)
+        response = self.client.post(
+            reverse('core:shop_update_order_status', args=[pack_order.id]),
+            {'status': OrderStatus.PACKED},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        pack_order.refresh_from_db()
+        self.assertEqual(pack_order.status, OrderStatus.PACKED)
+
+    def test_store_cannot_cancel_out_for_delivery_order(self):
+        transit_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            status=OrderStatus.OUT_FOR_DELIVERY,
+            total_amount=Decimal('48.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+        )
+        OrderItem.objects.create(order=transit_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+
+        self.client.force_login(self.shop_user)
+        response = self.client.post(
+            reverse('core:shop_update_order_status', args=[transit_order.id]),
+            {'status': OrderStatus.CANCELLED, 'cancellation_reason': 'Too late to prepare'},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        transit_order.refresh_from_db()
+        self.assertEqual(transit_order.status, OrderStatus.OUT_FOR_DELIVERY)
+        self.assertContains(response, 'Cannot move an order from Out For Delivery to Cancelled.')
 
     def test_customer_can_cancel_confirmed_order_and_restore_stock(self):
         product = Product.objects.create(
@@ -246,6 +489,26 @@ class CoreFlowTests(TestCase):
         self.assertEqual(product.stock, 3)
         self.assertTrue(self.rider.is_available)
 
+    def test_cancelled_order_detail_shows_cancellation_summary(self):
+        cancelled_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            status=OrderStatus.CANCELLED,
+            total_amount=Decimal('50.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            cancellation_reason='Store was offline',
+            cancelled_by_role=RoleType.SHOP,
+        )
+
+        self.client.force_login(self.customer_user)
+        response = self.client.get(reverse('core:order_detail', args=[cancelled_order.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Order cancelled')
+        self.assertContains(response, 'Cancelled by store owner.')
+        self.assertContains(response, 'Store was offline')
+
     def test_customer_can_reorder_delivered_items(self):
         reorder_product = Product.objects.create(
             shop=self.shop,
@@ -271,6 +534,177 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         session_cart = self.client.session.get('customer_cart', {})
         self.assertEqual(session_cart[str(reorder_product.id)], 2)
+
+    def test_customer_can_mark_notification_read(self):
+        self.client.force_login(self.customer_user)
+        note = self.customer.notifications.filter(is_read=False).latest('created_at')
+
+        response = self.client.post(reverse('core:notification_mark_read', args=[note.id]), follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        note.refresh_from_db()
+        self.assertTrue(note.is_read)
+
+    def test_customer_can_delete_notification(self):
+        self.client.force_login(self.customer_user)
+        note = Notification.objects.create(
+            customer=self.customer,
+            title='Temporary alert',
+            body='Delete me after review.',
+            notification_type=NotificationType.SYSTEM,
+        )
+
+        response = self.client.post(reverse('core:notification_delete', args=[note.id]), follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Notification.objects.filter(pk=note.id).exists())
+
+    def test_checkout_creates_typed_notifications(self):
+        self.client.force_login(self.customer_user)
+        self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '1'})
+
+        self.client.post(
+            reverse('core:customer_checkout'),
+            {'action': 'review', 'payment_method': 'cod', 'customer_notes': 'Ring the bell'},
+            follow=True,
+        )
+        self.client.post(
+            reverse('core:customer_checkout'),
+            {'action': 'confirm'},
+            follow=True,
+        )
+
+        order = Order.objects.latest('id')
+        self.assertTrue(
+            Notification.objects.filter(
+                customer=self.customer,
+                order=order,
+                title='Order confirmed',
+                notification_type=NotificationType.ORDER,
+            ).exists()
+        )
+        self.assertTrue(
+            Notification.objects.filter(
+                shop_owner=self.owner,
+                order=order,
+                title='New order placed',
+                notification_type=NotificationType.ORDER,
+            ).exists()
+        )
+
+    @override_settings(RAZORPAY_KEY_ID='rzp_test_123', RAZORPAY_KEY_SECRET='secret_123')
+    def test_razorpay_checkout_creates_orders_after_verified_callback(self):
+        self.client.force_login(self.customer_user)
+        self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '2'})
+
+        def fake_create_razorpay_order(checkout_session):
+            checkout_session.razorpay_order_id = 'order_test_123'
+            checkout_session.save(update_fields=['razorpay_order_id', 'updated_at'])
+            return {'id': 'order_test_123'}
+
+        with patch('core.views.create_razorpay_order_for_checkout', side_effect=fake_create_razorpay_order):
+            self.client.post(
+                reverse('core:customer_checkout'),
+                {'action': 'review', 'payment_method': 'razorpay', 'customer_notes': 'Leave at gate'},
+            )
+            review_response = self.client.get(reverse('core:customer_checkout'))
+
+        self.assertEqual(review_response.status_code, 200)
+        self.assertContains(review_response, 'Pay Rs.')
+
+        checkout_session = CheckoutSession.objects.latest('id')
+        signature = hmac.new(
+            b'secret_123',
+            b'order_test_123|pay_test_123',
+            hashlib.sha256,
+        ).hexdigest()
+
+        with patch('core.views.fetch_razorpay_payment', return_value={'id': 'pay_test_123', 'order_id': 'order_test_123', 'amount': 7600, 'status': 'captured'}), patch(
+            'core.views.fetch_razorpay_order',
+            return_value={'id': 'order_test_123', 'amount': 7600},
+        ):
+            complete_response = self.client.post(
+                reverse('core:customer_razorpay_complete'),
+                {
+                    'checkout_session_id': checkout_session.id,
+                    'razorpay_payment_id': 'pay_test_123',
+                    'razorpay_order_id': 'order_test_123',
+                    'razorpay_signature': signature,
+                },
+                follow=True,
+            )
+
+        self.assertEqual(complete_response.status_code, 200)
+        self.assertContains(complete_response, 'Order placed')
+        checkout_session.refresh_from_db()
+        self.assertEqual(checkout_session.payment_status, PaymentStatus.PAID)
+        self.assertTrue(checkout_session.is_completed)
+        order = Order.objects.latest('id')
+        self.assertEqual(order.payment_method, PaymentMethod.RAZORPAY)
+        self.assertEqual(order.payment_status, PaymentStatus.PAID)
+        self.assertEqual(order.checkout_session_id, checkout_session.id)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 18)
+
+    @override_settings(RAZORPAY_WEBHOOK_SECRET='webhook_secret_123')
+    def test_razorpay_webhook_can_finalize_paid_checkout(self):
+        snapshot = {
+            'item_count': 1,
+            'subtotal': '28.00',
+            'groups': [
+                {
+                    'shop_id': self.shop.id,
+                    'delivery_fee': '20.00',
+                    'subtotal': '28.00',
+                    'total': '48.00',
+                    'items': [
+                        {
+                            'product_id': self.product.id,
+                            'product_name': self.product.name,
+                            'quantity': 1,
+                            'unit_price': '28.00',
+                        }
+                    ],
+                }
+            ],
+        }
+        checkout_session = CheckoutSession.objects.create(
+            customer=self.customer,
+            payment_method=PaymentMethod.RAZORPAY,
+            payment_status=PaymentStatus.PENDING,
+            amount=Decimal('48.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            customer_notes='',
+            cart_snapshot=snapshot,
+            cart_signature='snapshot-signature',
+            receipt='grx-webhook-1',
+            razorpay_order_id='order_webhook_123',
+        )
+        payload = {
+            'event': 'order.paid',
+            'payload': {
+                'payment': {
+                    'entity': {
+                        'id': 'pay_webhook_123',
+                        'order_id': 'order_webhook_123',
+                    }
+                }
+            },
+        }
+        raw_body = json.dumps(payload).encode('utf-8')
+        signature = hmac.new(b'webhook_secret_123', raw_body, hashlib.sha256).hexdigest()
+
+        response = self.client.post(
+            reverse('core:razorpay_webhook'),
+            data=raw_body,
+            content_type='application/json',
+            HTTP_X_RAZORPAY_SIGNATURE=signature,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        checkout_session.refresh_from_db()
+        self.assertEqual(checkout_session.payment_status, PaymentStatus.PAID)
+        self.assertTrue(Order.objects.filter(checkout_session=checkout_session).exists())
 
     def test_registration_flow_sends_mobile_otp_and_creates_customer(self):
         register_payload = {
@@ -332,6 +766,43 @@ class CoreFlowTests(TestCase):
         )
         self.assertEqual(second_response.status_code, 200)
         self.assertContains(second_response, 'Ananya')
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_passwordless_email_otp_flow_signs_user_in(self):
+        request_response = self.client.post(
+            reverse('core:email_otp'),
+            {
+                'action': 'request',
+                'email': 'ananya@example.com',
+            },
+            follow=True,
+        )
+        self.assertEqual(request_response.status_code, 200)
+        self.assertContains(request_response, 'We sent a 6 digit OTP to your email address.')
+        self.assertEqual(len(mail.outbox), 1)
+
+        otp = AuthOtpToken.objects.filter(
+            purpose=OtpPurpose.LOGIN_EMAIL,
+            email='ananya@example.com',
+        ).latest('created_at')
+        verify_response = self.client.post(
+            reverse('core:email_otp'),
+            {
+                'action': 'verify',
+                'email': 'ananya@example.com',
+                'code': otp.code,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(verify_response.status_code, 200)
+        self.assertContains(verify_response, 'Ananya')
+
+    def test_email_otp_route_renders(self):
+        response = self.client.get(reverse('core:email_otp'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Continue with Email OTP')
+        self.assertContains(response, 'Step 1')
 
     def test_admin_actions_can_approve_pending_entities(self):
         pending_user = get_user_model().objects.create_user(

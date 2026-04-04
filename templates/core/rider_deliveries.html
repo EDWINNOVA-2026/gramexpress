@@ -1,0 +1,124 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="feature-nav card" data-appear>
+    {% for item in page_nav %}
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+    {% endfor %}
+  </section>
+
+  <section class="layout-two" id="workspace">
+    <article class="card" data-appear>
+      <span class="eyebrow">Nearby Pickups</span>
+      <h2 class="section-title">Orders inside your dispatch radius</h2>
+      <div class="stack">
+        {% for order in available_orders %}
+          <div class="nested-panel order-card">
+            <div class="split-row">
+              <div>
+                <strong>Order #{{ order.id }}</strong>
+                <p>{{ order.shop.name }} to {{ order.customer.full_name }}</p>
+                <p class="utility-note">Pickup {{ order.pickup_distance_km }} km away | Delivery {{ order.delivery_distance_km }} km</p>
+              </div>
+              <span class="status-chip info">{{ order.item_count }} item{{ order.item_count|pluralize }}</span>
+            </div>
+            <div class="compact-list">
+              {% for item in order.items.all %}
+                <div class="list-item compact-item compact-item-tight">
+                  <div>
+                    <strong>{{ item.product.name }}</strong>
+                    <p>{{ item.quantity }} x Rs. {{ item.unit_price }}</p>
+                  </div>
+                  <span class="muted">Rs. {{ item.line_total }}</span>
+                </div>
+              {% endfor %}
+            </div>
+            <div class="inline-actions">
+              <a class="button small secondary" href="{{ order.pickup_route_url }}" target="_blank" rel="noreferrer">Route To Store</a>
+              <a class="button small secondary" href="{{ order.delivery_route_url }}" target="_blank" rel="noreferrer">Preview Drop</a>
+            </div>
+            <form method="post" action="{% url 'core:rider_accept_order' order.id %}">
+              {% csrf_token %}
+              <button class="button small primary" type="submit">Accept Order</button>
+            </form>
+          </div>
+        {% empty %}
+          <div class="nested-panel">
+            <strong>No nearby orders yet</strong>
+            <p>Stay available and keep your location fresh to pick up the next delivery request.</p>
+          </div>
+        {% endfor %}
+      </div>
+    </article>
+
+    <article class="card" data-appear>
+      <span class="eyebrow">Active Deliveries</span>
+      <h2 class="section-title">Pickup, travel, OTP, complete</h2>
+      <div class="stack">
+        {% for order in active_orders %}
+          <div class="nested-panel order-card">
+            <div class="split-row">
+              <div>
+                <strong>Order #{{ order.id }}</strong>
+                <p>{{ order.shop.name }} -> {{ order.customer.full_name }} | {{ order.get_status_display }}</p>
+                <p class="utility-note">{{ order.dispatch_title }}</p>
+                <p class="utility-note">{{ order.dispatch_hint }}</p>
+              </div>
+              <span class="pill">{{ order.pickup_distance_km }} km pickup</span>
+            </div>
+            <div class="hero-inline-facts">
+              <span class="soft-pill">{{ order.item_count }} item{{ order.item_count|pluralize }}</span>
+              <span class="soft-pill">Drop {{ order.delivery_distance_km }} km</span>
+              {% if order.pickup_gate_open or order.status == 'out_for_delivery' %}
+                <span class="status-chip success">Pickup gate open</span>
+              {% else %}
+                <span class="status-chip warn">Move closer to store</span>
+              {% endif %}
+            </div>
+            <div class="compact-list">
+              {% for item in order.items.all %}
+                <div class="list-item compact-item compact-item-tight">
+                  <div>
+                    <strong>{{ item.product.name }}</strong>
+                    <p>{{ item.quantity }} x Rs. {{ item.unit_price }}</p>
+                  </div>
+                  <span class="muted">Rs. {{ item.line_total }}</span>
+                </div>
+              {% endfor %}
+            </div>
+            <div class="inline-actions">
+              <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
+              <a class="button small secondary" href="{{ order.pickup_route_url }}" target="_blank" rel="noreferrer">Store Route</a>
+              <a class="button small secondary" href="{{ order.customer_route_url }}" target="_blank" rel="noreferrer">Customer Route</a>
+            </div>
+
+            {% if order.status != 'out_for_delivery' and order.status != 'delivered' %}
+              <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="out_for_delivery" />
+                <p class="utility-note">Pickup only unlocks when you are within 200 meters of the store.</p>
+                <button class="button small primary" type="submit">Picked Up</button>
+              </form>
+            {% endif %}
+
+            {% if order.status == 'out_for_delivery' %}
+              <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="delivered" />
+                <label>Customer OTP
+                  <input type="text" name="customer_otp" placeholder="Enter OTP" required />
+                </label>
+                <button class="button small primary" type="submit">Complete Delivery</button>
+              </form>
+            {% endif %}
+          </div>
+        {% empty %}
+          <div class="nested-panel">
+            <strong>No active deliveries</strong>
+            <p>Accept a nearby pickup to see the full rider flow populate here.</p>
+          </div>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+{% endblock %}

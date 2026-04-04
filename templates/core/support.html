@@ -1,0 +1,61 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="page-stack" id="top">
+    <article class="hero-card glass-card" data-appear>
+      <span class="eyebrow">Support</span>
+      <h1>{{ support_title }}</h1>
+      <p class="hero-lead">{{ support_copy }}</p>
+      <div class="hero-inline-facts">
+        <span class="soft-pill">{{ support_name }}</span>
+        <span class="soft-pill">{{ support_email }}</span>
+      </div>
+    </article>
+
+    <section class="layout-two" id="workspace">
+      <article class="card" data-appear>
+        <span class="eyebrow">Contact Options</span>
+        <h2 class="section-title">Reach the team</h2>
+        <div class="compact-list">
+          <a class="list-item compact-item" href="mailto:{{ support_email }}">
+            <div>
+              <strong>Email support</strong>
+              <p>{{ support_email }}</p>
+            </div>
+          </a>
+          <a class="list-item compact-item" href="tel:{{ support_phone }}">
+            <div>
+              <strong>Call support</strong>
+              <p>{{ support_phone }}</p>
+            </div>
+          </a>
+          <a class="list-item compact-item" href="{% url 'core:notifications' %}">
+            <div>
+              <strong>Check alerts</strong>
+              <p>Open the notification center for the latest account and order updates.</p>
+            </div>
+          </a>
+        </div>
+      </article>
+
+      <article class="card" data-appear>
+        <span class="eyebrow">Quick Help</span>
+        <h2 class="section-title">Common issues</h2>
+        <div class="stack">
+          <div class="nested-panel">
+            <strong>Orders and delivery</strong>
+            <p>Use the orders page to review status, rider progress, and previous delivery history before contacting support.</p>
+          </div>
+          <div class="nested-panel">
+            <strong>Payment help</strong>
+            <p>If a payment succeeds but the order does not appear immediately, support can trace it using the payment reference from the order screen.</p>
+          </div>
+          <div class="nested-panel">
+            <strong>Profile updates</strong>
+            <p>Keep your address, phone, and location updated so routing and notifications stay accurate.</p>
+          </div>
+        </div>
+      </article>
+    </section>
+  </section>
+{% endblock %}

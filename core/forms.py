@@ -218,6 +218,15 @@ class CustomerProfileForm(forms.ModelForm, BaseStyledForm):
         self.fields['email'].widget.attrs['autocomplete'] = 'email'
 
 
+class CustomerLocationForm(forms.Form, BaseStyledForm):
+    latitude = forms.DecimalField(max_digits=9, decimal_places=6)
+    longitude = forms.DecimalField(max_digits=9, decimal_places=6)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._style_fields()
+
+
 class ShopOwnerOnboardingForm(forms.Form, BaseStyledForm):
     full_name = forms.CharField(max_length=120)
     phone = forms.CharField(max_length=20)
@@ -330,7 +339,12 @@ class CustomerOrderMetaForm(forms.Form, BaseStyledForm):
     customer_notes = forms.CharField(max_length=200, required=False)
 
     def __init__(self, *args, **kwargs):
+        enable_razorpay = kwargs.pop('enable_razorpay', True)
         super().__init__(*args, **kwargs)
+        if not enable_razorpay:
+            self.fields['payment_method'].choices = [
+                choice for choice in PaymentMethod.choices if choice[0] != PaymentMethod.RAZORPAY
+            ]
         self._style_fields()
 
 

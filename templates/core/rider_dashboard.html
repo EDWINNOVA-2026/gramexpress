@@ -3,10 +3,10 @@
 {% block content %}
   <section class="dashboard-top" id="top">
     <article class="hero-card glass-card hero-card-rider" data-appear>
-      <span class="eyebrow">Rider Dashboard</span>
+      <span class="eyebrow">Rider Overview</span>
       <h1>{{ rider.full_name }}</h1>
       <p class="hero-lead">
-        {{ rider.get_vehicle_type_display }} rider with a dispatch radius of {{ dispatch_radius }} km and a current rating of {{ rider.rating }}. Keep location live, accept nearby orders, and complete deliveries with OTP confirmation.
+        Deliveries and profile controls now sit on separate pages so dispatch work feels less cramped and more deliberate.
       </p>
       <div class="hero-inline-facts">
         <span class="soft-pill">{{ rider.get_vehicle_type_display }}</span>
@@ -14,25 +14,29 @@
         <span class="soft-pill">Radius {{ dispatch_radius }} km</span>
       </div>
       <div class="hero-actions">
-        <a class="button primary" href="{{ rider.google_maps_url }}" target="_blank" rel="noreferrer">Open Live Location</a>
-        <a class="button secondary" href="/admin/core/riderprofile/{{ rider.id }}/change/">Review In Admin</a>
+        <a class="button primary" href="{% url 'core:rider_deliveries' %}">Open Deliveries</a>
+        <a class="button secondary" href="{% url 'core:rider_profile' %}">Open Profile</a>
       </div>
     </article>
 
-    <aside class="hero-visual glass-card floating" data-appear>
-      <div class="visual-shell">
-        <dotlottie-wc
-          class="lottie-hero"
-          src="https://lottie.host/4db68bbd-31f6-4cd8-84eb-189de081159a/IGmMCqhzpt.lottie"
-          autoplay
-          loop>
-        </dotlottie-wc>
-        <div class="visual-caption">
-          <strong>Pickup to delivery, clearly staged</strong>
-          <p>The rider flow now has the same polished dashboard language as customer and store surfaces.</p>
-        </div>
-      </div>
+    <aside class="stack" data-appear>
+      <article class="metric-card">
+        <span class="metric-label">Availability</span>
+        <strong class="metric-value">{% if rider.is_available %}Online{% else %}Offline{% endif %}</strong>
+        <p>{{ available_orders|length }} nearby pickup opportunities within your current dispatch radius.</p>
+      </article>
+      <article class="card quick-card">
+        <span class="eyebrow">Route Focus</span>
+        <h2 class="section-title">Dispatch without clutter</h2>
+        <p>The rider workspace now surfaces real dispatch data instead of tracking screenshots inside the app.</p>
+      </article>
     </aside>
+  </section>
+
+  <section class="feature-nav card" data-appear>
+    {% for item in page_nav %}
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+    {% endfor %}
   </section>
 
   <section class="stats-grid" data-appear>
@@ -54,163 +58,40 @@
     </article>
   </section>
 
-  <section class="role-banner card" data-appear>
-    <div>
-      <span class="eyebrow">Rider Flow</span>
-      <h2 class="section-title">Availability, pickup radius, OTP delivery, and live travel updates</h2>
-      <p>The rider screen now reads like a proper delivery console, with clearer staging for accepting, picking up, and completing trips.</p>
-    </div>
-    <dotlottie-wc
-      class="mini-lottie"
-      src="https://lottie.host/6ad44b53-bc4d-4ae1-84b6-c73ac521d9f8/jYe31kYqfC.lottie"
-      autoplay
-      loop>
-    </dotlottie-wc>
-  </section>
-
   <section class="layout-two" id="workspace">
-    <div class="stack">
-      {% if rider.approval_status != 'approved' %}
-        <article class="card" data-appear>
-          <span class="eyebrow">Approval Required</span>
-          <h2 class="section-title">Rider dispatch stays locked until admin approval</h2>
-          <p>
-            You can still update profile and location details here, but pickup offers only unlock after the rider profile is approved in Django admin.
-          </p>
-        </article>
-      {% endif %}
-
-      <article class="card profile-card" data-appear id="account">
-        <span class="eyebrow">Availability</span>
-        <h2 class="section-title">Status and live location</h2>
-        <div class="profile-summary">
-          <div class="avatar-badge">{{ rider.full_name|first|upper }}</div>
-          <div class="profile-copy">
-            <strong>{{ rider.full_name }}</strong>
-            <p>{{ rider.phone }}{% if rider.email %} | {{ rider.email }}{% endif %}</p>
-            <div class="profile-meta">
-              <span class="soft-pill">{{ rider.get_vehicle_type_display }}</span>
-              <span class="soft-pill">Age {{ rider.age }}</span>
-              <span class="soft-pill">{{ rider.get_approval_status_display }}</span>
+    <article class="card" data-appear>
+      <span class="eyebrow">Notifications</span>
+      <h2 class="section-title">Dispatch feed</h2>
+      <div class="compact-list">
+        {% for note in notifications %}
+          <a class="list-item compact-item compact-item-notification{% if not note.is_read %} compact-item-notification-unread{% endif %}" href="{% url 'core:notification_open' note.id %}">
+            <span class="compact-glyph">{{ note.glyph }}</span>
+            <div>
+              <strong>{{ note.title }}</strong>
+              <p>{{ note.body }}</p>
+              <span class="tiny muted">{{ note.get_notification_type_display }}</span>
             </div>
-          </div>
-        </div>
-        <form method="post" class="stack small-gap">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="toggle_availability" />
-          <label class="checkbox-row">
-            <input type="checkbox" name="is_available" {% if rider.is_available %}checked{% endif %} />
-            Available for demo dispatch
-          </label>
-          <button class="button primary" type="submit">Update Availability</button>
-        </form>
+            <span class="tiny muted">{{ note.created_at|date:"M d, H:i" }}</span>
+          </a>
+        {% empty %}
+          <p>No rider notifications yet.</p>
+        {% endfor %}
+      </div>
+    </article>
 
-        <form method="post" action="{% url 'core:rider_update_location' %}" class="stack small-gap top-gap">
-          {% csrf_token %}
-          {{ location_form.as_p }}
-          <div class="helper-actions">
-            <button class="button secondary" type="button" data-location-trigger>Use Current Location</button>
-            <span class="muted tiny" data-location-status>Capture the rider location from the browser.</span>
-          </div>
-          <button class="button primary" type="submit">Update Live Location</button>
-        </form>
+    <section class="quick-grid">
+      <article class="card quick-card">
+        <span class="eyebrow">Deliveries</span>
+        <h2 class="section-title">Nearby pickups and active drops</h2>
+        <p>All route acceptance, pickup, and OTP completion live on the deliveries page now.</p>
+        <a class="button primary" href="{% url 'core:rider_deliveries' %}">Go To Deliveries</a>
       </article>
-
-      <article class="card" data-appear>
-        <span class="eyebrow">Notifications</span>
-        <h2 class="section-title">Dispatch feed</h2>
-        <div class="compact-list">
-          {% for note in notifications %}
-            <a class="list-item compact-item" href="{% url 'core:notification_open' note.id %}">
-              <div>
-                <strong>{{ note.title }}</strong>
-                <p>{{ note.body }}</p>
-              </div>
-              <span class="tiny muted">{{ note.created_at|date:"M d, H:i" }}</span>
-            </a>
-          {% empty %}
-            <p>No rider notifications yet.</p>
-          {% endfor %}
-        </div>
-        <a class="button small secondary" href="{% url 'core:notifications' %}">View All Notifications</a>
+      <article class="card quick-card">
+        <span class="eyebrow">Profile</span>
+        <h2 class="section-title">Availability and live location</h2>
+        <p>Update your availability and location from the dedicated profile page.</p>
+        <a class="button primary" href="{% url 'core:rider_profile' %}">Go To Profile</a>
       </article>
-    </div>
-
-    <div class="stack">
-      <article class="card" data-appear>
-        <span class="eyebrow">Nearby Pickups</span>
-        <h2 class="section-title">Orders inside your dispatch radius</h2>
-        <div class="stack">
-          {% for order in available_orders %}
-            <div class="nested-panel order-card">
-              <div class="split-row">
-                <div>
-                  <strong>Order #{{ order.id }}</strong>
-                  <p>{{ order.shop.name }} to {{ order.customer.full_name }}</p>
-                  <p class="utility-note">Pickup {{ order.pickup_distance_km }} km away | Delivery {{ order.delivery_distance_km }} km</p>
-                </div>
-                <span class="status-chip info">Ready</span>
-              </div>
-              <form method="post" action="{% url 'core:rider_accept_order' order.id %}">
-                {% csrf_token %}
-                <button class="button small primary" type="submit">Accept Order</button>
-              </form>
-            </div>
-          {% empty %}
-            <div class="nested-panel">
-              <strong>No nearby orders yet</strong>
-              <p>Stay available and keep your location fresh to pick up the next delivery request.</p>
-            </div>
-          {% endfor %}
-        </div>
-      </article>
-
-      <article class="card" data-appear>
-        <span class="eyebrow">Active Deliveries</span>
-        <h2 class="section-title">Pickup, travel, OTP, complete</h2>
-        <div class="stack">
-          {% for order in active_orders %}
-            <div class="nested-panel order-card">
-              <div class="split-row">
-                <div>
-                  <strong>Order #{{ order.id }}</strong>
-                  <p>{{ order.shop.name }} -> {{ order.customer.full_name }} | {{ order.get_status_display }}</p>
-                </div>
-                <span class="pill">{{ order.pickup_distance_km }} km pickup</span>
-              </div>
-              <div class="inline-actions">
-                <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
-                <a class="button small secondary" href="{{ order.shop.google_maps_url }}" target="_blank" rel="noreferrer">Store</a>
-                <a class="button small secondary" href="{{ order.customer.google_maps_url }}" target="_blank" rel="noreferrer">Customer</a>
-              </div>
-
-              {% if order.status != 'out_for_delivery' and order.status != 'delivered' %}
-                <form method="post" action="{% url 'core:rider_update_order_status' order.id %}">
-                  {% csrf_token %}
-                  <input type="hidden" name="status" value="out_for_delivery" />
-                  <button class="button small primary" type="submit">Picked Up</button>
-                </form>
-              {% endif %}
-
-              {% if order.status == 'out_for_delivery' %}
-                <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap">
-                  {% csrf_token %}
-                  <input type="hidden" name="status" value="delivered" />
-                  <label>Customer OTP
-                    <input type="text" name="customer_otp" placeholder="Enter OTP" required />
-                  </label>
-                  <button class="button small primary" type="submit">Complete Delivery</button>
-                </form>
-              {% endif %}
-            </div>
-          {% empty %}
-            <div class="nested-panel">
-              <strong>No active deliveries</strong>
-              <p>Accept a nearby pickup to see the full rider flow populate here.</p>
-            </div>
-          {% endfor %}
-        </div>
-      </article>
-    </div>
+    </section>
   </section>
 {% endblock %}

@@ -1,0 +1,87 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="dashboard-top" id="top">
+    <article class="hero-card glass-card hero-card-customer" data-appear>
+      <span class="eyebrow">Profile</span>
+      <h1>{{ customer.full_name }}</h1>
+      <p class="hero-lead">Keep your address, language, and live location accurate so delivery and discovery work properly.</p>
+      <div class="hero-inline-facts">
+        <span class="soft-pill">{{ customer.phone }}</span>
+        <span class="soft-pill">{{ customer.email|default:"No email" }}</span>
+      </div>
+    </article>
+    <aside class="stack" data-appear>
+      <article class="metric-card">
+        <span class="metric-label">Language</span>
+        <strong class="metric-value">{{ customer.preferred_language|upper }}</strong>
+        <p>Keep contact details and live coordinates updated for better store discovery and handoff accuracy.</p>
+      </article>
+      <article class="card quick-card">
+        <span class="eyebrow">Account Health</span>
+        <h2 class="section-title">Delivery-ready profile</h2>
+        <p>Your address, phone, email, and location are all managed from this dedicated profile page.</p>
+      </article>
+    </aside>
+  </section>
+
+  <section class="layout-two" id="workspace">
+    <article class="card profile-card" data-appear id="account">
+      <div class="split-row">
+        <div>
+          <span class="eyebrow">Account</span>
+          <h2 class="section-title">Profile, address, and live location</h2>
+        </div>
+        <span class="status-chip info">{{ customer.preferred_language|upper }}</span>
+      </div>
+      <div class="profile-summary">
+        <div class="avatar-badge">{{ customer.full_name|first|upper }}</div>
+        <div class="profile-copy">
+          <strong>{{ customer.full_name }}</strong>
+          <p>{{ customer.address_line_1 }}{% if customer.address_line_2 %}, {{ customer.address_line_2 }}{% endif %}, {{ customer.district }} {{ customer.pincode }}</p>
+          <div class="profile-meta">
+            <span class="soft-pill">{{ customer.phone }}</span>
+            <span class="soft-pill">{{ customer.email|default:"No email" }}</span>
+          </div>
+        </div>
+      </div>
+      <form method="post" class="stack">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_profile" />
+        {{ profile_form.as_p }}
+        <div class="helper-actions">
+          <button class="button secondary" type="button" data-location-trigger>Use Current Location</button>
+          <span class="muted tiny" data-location-status>Refresh the customer location before checking nearby stores.</span>
+        </div>
+        <button class="button primary" type="submit">Save Customer Profile</button>
+      </form>
+    </article>
+
+    <div class="stack">
+      <article class="card" data-appear>
+        <span class="eyebrow">Quick Access</span>
+        <h2 class="section-title">Customer workspace</h2>
+        <div class="compact-list">
+          <a class="list-item compact-item" href="{% url 'core:customer_dashboard' %}">
+            <div>
+              <strong>Back to home</strong>
+              <p>Discover nearby stores and browse products.</p>
+            </div>
+          </a>
+          <a class="list-item compact-item" href="{% url 'core:customer_cart' %}">
+            <div>
+              <strong>Open cart</strong>
+              <p>Review grouped items and checkout.</p>
+            </div>
+          </a>
+          <a class="list-item compact-item" href="{% url 'core:customer_orders' %}">
+            <div>
+              <strong>View orders</strong>
+              <p>Track, reorder, and rate past deliveries.</p>
+            </div>
+          </a>
+        </div>
+      </article>
+    </div>
+  </section>
+{% endblock %}

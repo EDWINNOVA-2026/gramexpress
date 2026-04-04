@@ -1,0 +1,45 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="feature-nav card" data-appear>
+    {% for item in page_nav %}
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+    {% endfor %}
+  </section>
+
+  <section class="layout-two" id="workspace">
+    <article class="card profile-card" data-appear id="account">
+      <span class="eyebrow">Store Profile</span>
+      <h2 class="section-title">Update storefront details</h2>
+      <div class="profile-summary">
+        <div class="avatar-badge">{{ shop.name|first|upper }}</div>
+        <div class="profile-copy">
+          <strong>{{ shop.name }}</strong>
+          <p>{{ shop.address_line_1 }}{% if shop.address_line_2 %}, {{ shop.address_line_2 }}{% endif %}, {{ shop.district }} {{ shop.pincode }}</p>
+          <div class="profile-meta">
+            <span class="soft-pill">{{ shop.owner.full_name }}</span>
+            <span class="soft-pill">{{ shop.owner.phone }}</span>
+          </div>
+        </div>
+      </div>
+      <form method="post" enctype="multipart/form-data" class="stack">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_shop" />
+        {{ shop_form.as_p }}
+        <button class="button primary" type="submit">Save Shop</button>
+      </form>
+    </article>
+
+    <div class="stack">
+      <article class="card" data-appear>
+        <span class="eyebrow">Approval</span>
+        <h2 class="section-title">Current state</h2>
+        <div class="metric-card">
+          <span class="metric-label">Approval status</span>
+          <strong class="metric-value">{{ shop.get_approval_status_display }}</strong>
+          <p>Editing core storefront details may move the store back into review so customers only see approved profiles.</p>
+        </div>
+      </article>
+    </div>
+  </section>
+{% endblock %}

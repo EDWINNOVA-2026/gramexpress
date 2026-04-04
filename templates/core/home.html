@@ -1,0 +1,59 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="landing-hero-grid" id="top">
+    <article class="hero-card glass-card landing-hero-card" data-appear>
+      <span class="eyebrow">GramExpress</span>
+      <h1>Hyperlocal delivery with proper customer, store, and rider workspaces</h1>
+      <p class="hero-lead">
+        Browse nearby stores, manage real cart and order pages, run store operations from dedicated views, and move riders through focused dispatch screens.
+      </p>
+      <div class="hero-actions">
+        <a class="button primary" href="{% url 'core:login' %}">Sign In</a>
+        <a class="button secondary" href="{% url 'core:register' %}">Create Account</a>
+      </div>
+      <div class="hero-inline-facts">
+        <span class="soft-pill">Customer home, cart, orders, profile</span>
+        <span class="soft-pill">Store overview, orders, catalog, settings</span>
+        <span class="soft-pill">Rider overview, deliveries, profile</span>
+      </div>
+    </article>
+
+    <aside class="stack" data-appear>
+      <article class="card quick-card">
+        <span class="eyebrow">Customer Flow</span>
+        <h2 class="section-title">Storefront first</h2>
+        <p>Discover nearby stores, add products, review grouped carts, and complete payment from dedicated screens.</p>
+        <div class="hero-inline-facts">
+          <span class="soft-pill">Home</span>
+          <span class="soft-pill">Cart</span>
+          <span class="soft-pill">Orders</span>
+          <span class="soft-pill">Profile</span>
+        </div>
+      </article>
+      <article class="card quick-card">
+        <span class="eyebrow">Operations</span>
+        <h2 class="section-title">Separate store and rider consoles</h2>
+        <p>Stores handle packaging and catalog updates away from dispatch, while riders keep deliveries and profile controls split cleanly.</p>
+      </article>
+    </aside>
+  </section>
+
+  <section class="quick-grid" data-appear>
+    <article class="card quick-card">
+      <span class="eyebrow">Customer</span>
+      <h2 class="section-title">Separate feature pages</h2>
+      <p>Discovery, cart, orders, and profile are no longer stacked into a single scroll-heavy page.</p>
+    </article>
+    <article class="card quick-card">
+      <span class="eyebrow">Store</span>
+      <h2 class="section-title">Operations-first layout</h2>
+      <p>Catalog, order queue, and settings now have dedicated screens so the shop flow feels closer to a real console.</p>
+    </article>
+    <article class="card quick-card">
+      <span class="eyebrow">Rider</span>
+      <h2 class="section-title">Focused dispatch workflow</h2>
+      <p>Overview, deliveries, and profile pages separate route work from account actions and live location updates.</p>
+    </article>
+  </section>
+{% endblock %}

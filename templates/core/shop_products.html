@@ -1,0 +1,60 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="feature-nav card" data-appear>
+    {% for item in page_nav %}
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+    {% endfor %}
+  </section>
+
+  <section class="layout-two" id="workspace">
+    <article class="card" data-appear>
+      <span class="eyebrow">Product Composer</span>
+      <h2 class="section-title">{% if editing_product %}Edit product{% else %}Add product{% endif %}</h2>
+      <form method="post" class="stack">
+        {% csrf_token %}
+        {% if editing_product %}
+          <input type="hidden" name="product_id" value="{{ editing_product.id }}" />
+        {% endif %}
+        {{ product_form.as_p }}
+        <button class="button primary" type="submit">Save Product</button>
+      </form>
+    </article>
+
+    <article class="card" data-appear>
+      <span class="eyebrow">Catalog</span>
+      <h2 class="section-title">Products on the shelf</h2>
+      <div class="store-grid store-grid-catalog">
+        {% for product in shop.products.all %}
+          <div class="store-card product-showcase-card">
+            <div class="store-card-media product-card-media" style="background: linear-gradient(135deg, {{ product.color }}, #fff4ee);">
+              {% if product.image_url %}
+                <img src="{{ product.image_url }}" alt="{{ product.name }}" />
+              {% else %}
+                <div class="store-card-placeholder">{{ product.name|first|upper }}</div>
+              {% endif %}
+            </div>
+            <div class="store-card-body">
+              <strong>{{ product.name }}</strong>
+              <p>{{ product.subtitle }}</p>
+              <div class="store-card-meta">
+                <span>Rs. {{ product.price }}</span>
+                <span>{{ product.unit }}</span>
+                <span>Stock {{ product.stock }}</span>
+              </div>
+            </div>
+            <div class="inline-actions">
+              <a class="button small secondary" href="?edit_product={{ product.id }}">Edit</a>
+              <form method="post" action="{% url 'core:shop_delete_product' product.id %}">
+                {% csrf_token %}
+                <button class="button small danger" type="submit">Delete</button>
+              </form>
+            </div>
+          </div>
+        {% empty %}
+          <p>No products yet.</p>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+{% endblock %}

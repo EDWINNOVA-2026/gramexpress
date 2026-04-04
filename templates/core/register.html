@@ -24,6 +24,10 @@
           <div>
             <strong>Verify your mobile number</strong>
             <p>We sent a 6 digit OTP to {{ pending_registration_phone }}. Complete verification to finish account creation.</p>
+            <div class="auth-step-strip auth-step-strip-compact">
+              {% if pending_registration_role_label %}<span class="soft-pill">{{ pending_registration_role_label }}</span>{% endif %}
+              <span class="soft-pill">Expires in {{ otp_expiry_minutes }} min</span>
+            </div>
           </div>
 
           <form class="auth-form auth-form-tight" method="post">
@@ -44,6 +48,12 @@
           </form>
         </section>
       {% endif %}
+
+      <div class="auth-step-strip">
+        <span class="soft-pill">1. Choose role</span>
+        <span class="soft-pill">2. Fill profile</span>
+        <span class="soft-pill">3. Verify mobile OTP</span>
+      </div>
 
       <form class="auth-form auth-register-form" method="post">
         {% csrf_token %}

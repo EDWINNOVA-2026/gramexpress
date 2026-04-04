@@ -1,0 +1,128 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="dashboard-top" id="top">
+    <article class="hero-card glass-card hero-card-customer" data-appear>
+      <span class="eyebrow">Orders</span>
+      <h1>Track and manage orders</h1>
+      <p class="hero-lead">Live tracking, reorder, cancellation, and ratings now live on a dedicated orders page.</p>
+      <div class="hero-inline-facts">
+        <span class="soft-pill">{{ active_order_count }} active</span>
+        <span class="soft-pill">{{ delivered_order_count }} delivered</span>
+      </div>
+    </article>
+    <aside class="stack" data-appear>
+      <article class="metric-card">
+        <span class="metric-label">Latest status</span>
+        <strong class="metric-value">{% if orders %}{{ orders.0.get_status_display }}{% else %}No orders yet{% endif %}</strong>
+        <p>{% if orders %}{{ orders.0.shop.name }} is your most recent order.{% else %}Place your first order from the home page to start tracking here.{% endif %}</p>
+      </article>
+      <article class="card quick-card">
+        <span class="eyebrow">Order Actions</span>
+        <h2 class="section-title">Track, reorder, and rate</h2>
+        <p>Use this page for the full post-checkout journey instead of mixing it with storefront browsing.</p>
+      </article>
+    </aside>
+  </section>
+
+  <section class="card" data-appear>
+    <span class="eyebrow">Active Orders</span>
+    <h2 class="section-title">Track riders, review line items, and rate deliveries</h2>
+
+    <div class="stack">
+      {% for order in active_orders %}
+        <div class="nested-panel order-card">
+          <div class="split-row">
+            <div>
+              <strong>Order #{{ order.id }}</strong>
+              <p>{{ order.shop.name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
+              <p class="utility-note">{{ order.tracking_label }}</p>
+              {% if order.status == 'out_for_delivery' %}
+                <p class="utility-note">Delivery OTP for handoff: <code>{{ order.customer_otp }}</code></p>
+              {% endif %}
+            </div>
+            <div class="inline-actions">
+              <span class="pill">Rs. {{ order.total_amount }}</span>
+              <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
+              <a class="button small primary" href="{% url 'core:order_tracking' order.id %}">Track Live</a>
+              {% if order.can_be_reordered %}
+                <form method="post" action="{% url 'core:customer_reorder' order.id %}">
+                  {% csrf_token %}
+                  <button class="button small secondary" type="submit">Order Again</button>
+                </form>
+              {% endif %}
+              {% if order.rider %}
+                <a class="button small secondary" href="{{ order.rider.google_maps_url }}" target="_blank" rel="noreferrer">Rider Live</a>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="compact-list">
+            {% for item in order.items.all %}
+              <div class="list-item compact-item">
+                <div>
+                  <strong>{{ item.product.name }}</strong>
+                  <p>{{ item.quantity }} x Rs. {{ item.unit_price }}</p>
+                </div>
+                <span class="muted">Rs. {{ item.line_total }}</span>
+              </div>
+            {% endfor %}
+          </div>
+
+          {% if order.can_be_rated_by_customer %}
+            <form method="post" action="{% url 'core:customer_rate_order' order.id %}" class="stack small-gap">
+              {% csrf_token %}
+              <label>Rate this order (1-5)
+                <input type="number" name="customer_rating" min="1" max="5" required />
+              </label>
+              <label>Review
+                <textarea name="customer_review" rows="2"></textarea>
+              </label>
+              <button class="button small primary" type="submit">Submit Rating</button>
+            </form>
+          {% elif order.customer_rating %}
+            <p class="muted">You rated this order {{ order.customer_rating }}/5. {{ order.customer_review }}</p>
+          {% endif %}
+        </div>
+      {% empty %}
+        <div class="nested-panel">
+          <strong>No active orders right now</strong>
+          <p>Your in-progress deliveries will appear here as soon as you place an order.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card" data-appear id="history">
+    <span class="eyebrow">Previous Orders</span>
+    <h2 class="section-title">Delivered and cancelled history</h2>
+
+    <div class="stack">
+      {% for order in previous_orders %}
+        <div class="nested-panel order-card">
+          <div class="split-row">
+            <div>
+              <strong>Order #{{ order.id }}</strong>
+              <p>{{ order.shop.name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
+            </div>
+            <div class="inline-actions">
+              <span class="pill">Rs. {{ order.total_amount }}</span>
+              <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
+              {% if order.can_be_reordered %}
+                <form method="post" action="{% url 'core:customer_reorder' order.id %}">
+                  {% csrf_token %}
+                  <button class="button small primary" type="submit">Order Again</button>
+                </form>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% empty %}
+        <div class="nested-panel">
+          <strong>No previous orders yet</strong>
+          <p>Your delivered and cancelled orders will be grouped here for quick reordering.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

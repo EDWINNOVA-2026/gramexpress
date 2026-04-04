@@ -7,9 +7,25 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / '.env')
 
+
+def _build_asset_version() -> str:
+    watched_files = [
+        BASE_DIR / 'static/core/styles.css',
+        BASE_DIR / 'templates/core/base.html',
+        BASE_DIR / 'templates/core/customer_dashboard.html',
+        BASE_DIR / 'core/views.py',
+    ]
+    mtimes = [int(path.stat().st_mtime) for path in watched_files if path.exists()]
+    return str(max(mtimes, default=1))
+
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-&_se6_auy0et=4uclcg+yb2w#*eaw2+e+v8b#^ba2vb%99%a5z')
 DEBUG = os.getenv('DEBUG', 'true').lower() == 'true'
 ALLOWED_HOSTS = ['*']
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -92,12 +108,15 @@ LOGIN_URL = '/auth/login/'
 LOGIN_REDIRECT_URL = '/'
 
 GRAMEXPRESS_APP_NAME = os.getenv('GRAMEXPRESS_APP_NAME', 'GramExpress')
+APP_ASSET_VERSION = os.getenv('APP_ASSET_VERSION', _build_asset_version())
+PWA_ENABLED = os.getenv('PWA_ENABLED', 'false' if DEBUG else 'true').lower() == 'true'
 GOOGLE_MAPS_BROWSER_API_KEY = os.getenv('GOOGLE_MAPS_BROWSER_API_KEY', '')
 GOOGLE_MAPS_EMBED_API_KEY = os.getenv('GOOGLE_MAPS_EMBED_API_KEY', '')
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
 RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', '')
 RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET', '')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@gramexpress.demo')
+RAZORPAY_WEBHOOK_SECRET = os.getenv('RAZORPAY_WEBHOOK_SECRET', '')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@gramexpress.local')
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 EMAIL_HOST = os.getenv('EMAIL_HOST', '')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))

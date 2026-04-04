@@ -11,25 +11,35 @@
         </div>
         <div class="hero-inline-facts">
           <span class="soft-pill">{{ eta_label }}</span>
-          <span class="status-chip info">{{ order.get_status_display }}</span>
+          <span class="status-chip {{ status_summary.chip_class }}">{{ order.get_status_display }}</span>
         </div>
       </div>
     </article>
 
     <section class="layout-two" id="workspace">
       <article class="card tracking-map-card" data-appear>
-        <div class="tracking-map-scene">
-          <div class="tracking-map-copy">
-            <strong>Delivery route overview</strong>
-            <p>Store pickup, rider handoff, and customer destination stay visible in one place.</p>
+        {% if maps_embed_url %}
+          <iframe
+            class="tracking-map-embed tracking-map-embed-tall"
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+            src="{{ maps_embed_url }}"
+            title="Live tracking map">
+          </iframe>
+        {% else %}
+          <div class="tracking-map-scene">
+            <div class="tracking-map-copy">
+              <strong>Delivery route overview</strong>
+              <p>Store pickup, rider handoff, and customer destination stay visible in one place.</p>
+            </div>
+            <div class="tracking-route-line"></div>
+            <div class="tracking-pin tracking-pin-store">Store</div>
+            {% if order.rider %}
+              <div class="tracking-pin tracking-pin-rider">Rider</div>
+            {% endif %}
+            <div class="tracking-pin tracking-pin-home">Home</div>
           </div>
-          <div class="tracking-route-line"></div>
-          <div class="tracking-pin tracking-pin-store">Store</div>
-          {% if order.rider %}
-            <div class="tracking-pin tracking-pin-rider">Rider</div>
-          {% endif %}
-          <div class="tracking-pin tracking-pin-home">Home</div>
-        </div>
+        {% endif %}
         <div class="inline-actions">
           <a class="button small primary" href="{{ route_url }}" target="_blank" rel="noreferrer">Open Route In Maps</a>
           {% if order.rider %}
@@ -41,11 +51,19 @@
       <div class="stack">
         <article class="card" data-appear>
           <span class="eyebrow">ETA</span>
-          <h2 class="section-title">Arrival summary</h2>
+          <h2 class="section-title">{{ status_summary.title }}</h2>
           <div class="metric-card tracking-metric-card">
             <span class="metric-label">Estimated arrival</span>
             <strong class="metric-value">{{ eta_label }}</strong>
-            <p>{{ order.delivery_address }}</p>
+            <p>{{ status_summary.detail }}</p>
+          </div>
+          <div class="compact-item top-gap-sm">
+            <strong>{{ payment_summary.label }}</strong>
+            <p>{{ payment_summary.detail }}</p>
+            <span class="status-chip {{ payment_summary.chip_class }}">{{ order.get_payment_status_display }}</span>
+            {% if order.checkout_session and order.checkout_session.razorpay_payment_id %}
+              <p class="utility-note">Payment reference: {{ order.checkout_session.razorpay_payment_id }}</p>
+            {% endif %}
           </div>
         </article>
 

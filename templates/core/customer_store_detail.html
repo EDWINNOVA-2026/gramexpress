@@ -1,0 +1,77 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="page-stack" id="top">
+    <article class="hero-card glass-card hero-card-customer" data-appear>
+      <span class="eyebrow">Store</span>
+      <h1>{{ shop.name }}</h1>
+      <p class="hero-lead">{{ shop.description }}</p>
+      <div class="hero-inline-facts">
+        <span class="soft-pill">{{ shop.get_shop_type_display }}</span>
+        <span class="soft-pill">{{ shop.area }}</span>
+        <span class="soft-pill">{{ shop.distance_km }} km away</span>
+        <span class="soft-pill">Rating {{ shop.rating }}</span>
+      </div>
+      <div class="hero-actions">
+        <a class="button secondary" href="{% url 'core:customer_dashboard' %}">Back To Stores</a>
+        <a class="button primary" href="{% url 'core:customer_cart' %}">Open Cart</a>
+      </div>
+    </article>
+
+    <article class="card" data-appear>
+      <form method="get" class="stack small-gap">
+        <label for="product-search" class="tiny muted">Search products in {{ shop.name }}</label>
+        <div class="split-row split-row-inline">
+          <input id="product-search" class="input" type="search" name="q" value="{{ product_query }}" placeholder="Search by product, category, or tag" />
+          <button class="button primary" type="submit">Search</button>
+        </div>
+      </form>
+    </article>
+
+    <section class="card" data-appear>
+      <div class="split-row">
+        <div>
+          <span class="eyebrow">Products</span>
+          <h2 class="section-title">Available items</h2>
+        </div>
+        <span class="status-chip info">{{ products|length }} product{{ products|length|pluralize }}</span>
+      </div>
+
+      <div class="product-grid">
+        {% for product in products %}
+          <div class="product-card product-card-rich">
+            <div class="product-media" style="background: linear-gradient(135deg, {{ product.color }}, #fff4ee);">
+              {% if product.image_url %}
+                <img src="{{ product.image_url }}" alt="{{ product.name }}" />
+              {% else %}
+                <span>{{ product.name|first|upper }}</span>
+              {% endif %}
+            </div>
+            <div class="product-copy">
+              <strong>{{ product.name }}</strong>
+              <p>{{ product.subtitle }}</p>
+              <div class="product-meta-row">
+                <span class="soft-pill">{{ product.unit }}</span>
+                <span class="soft-pill">Stock {{ product.stock }}</span>
+                {% if product.tag %}<span class="soft-pill">{{ product.tag }}</span>{% endif %}
+              </div>
+            </div>
+            <form method="post" action="{% url 'core:cart_add' product.id %}" class="inline-actions">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+              <input type="number" min="1" max="{{ product.stock }}" name="quantity" value="1" class="tiny-input" />
+              <button class="button small primary" type="submit" {% if product.stock <= 0 or not shop.is_open %}disabled{% endif %}>
+                {% if product.stock <= 0 %}Out Of Stock{% else %}Add for Rs. {{ product.price }}{% endif %}
+              </button>
+            </form>
+          </div>
+        {% empty %}
+          <div class="nested-panel">
+            <strong>No matching products</strong>
+            <p>Try another search term or return to the store listing to explore more shops.</p>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  </section>
+{% endblock %}

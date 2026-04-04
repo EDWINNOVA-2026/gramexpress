@@ -1,0 +1,59 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="feature-nav card" data-appear>
+    {% for item in page_nav %}
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+    {% endfor %}
+  </section>
+
+  <section class="layout-two" id="workspace">
+    <article class="card profile-card" data-appear id="account">
+      <span class="eyebrow">Availability</span>
+      <h2 class="section-title">Status and live location</h2>
+      <div class="profile-summary">
+        <div class="avatar-badge">{{ rider.full_name|first|upper }}</div>
+        <div class="profile-copy">
+          <strong>{{ rider.full_name }}</strong>
+          <p>{{ rider.phone }}{% if rider.email %} | {{ rider.email }}{% endif %}</p>
+          <div class="profile-meta">
+            <span class="soft-pill">{{ rider.get_vehicle_type_display }}</span>
+            <span class="soft-pill">Age {{ rider.age }}</span>
+            <span class="soft-pill">{{ rider.get_approval_status_display }}</span>
+          </div>
+        </div>
+      </div>
+      <form method="post" class="stack small-gap">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="toggle_availability" />
+        <label class="checkbox-row">
+          <input type="checkbox" name="is_available" {% if rider.is_available %}checked{% endif %} />
+          Available for dispatch
+        </label>
+        <button class="button primary" type="submit">Update Availability</button>
+      </form>
+
+      <form method="post" action="{% url 'core:rider_update_location' %}" class="stack small-gap top-gap">
+        {% csrf_token %}
+        {{ location_form.as_p }}
+        <div class="helper-actions">
+          <button class="button secondary" type="button" data-location-trigger>Use Current Location</button>
+          <span class="muted tiny" data-location-status>Capture the rider location from the browser.</span>
+        </div>
+        <button class="button primary" type="submit">Update Live Location</button>
+      </form>
+    </article>
+
+    <div class="stack">
+      <article class="card" data-appear>
+        <span class="eyebrow">Performance</span>
+        <h2 class="section-title">Delivery profile</h2>
+        <div class="metric-card">
+          <span class="metric-label">Completed deliveries</span>
+          <strong class="metric-value">{{ completed_delivery_count }}</strong>
+          <p>Keep your availability on and your live location fresh to qualify for more nearby pickups.</p>
+        </div>
+      </article>
+    </div>
+  </section>
+{% endblock %}
