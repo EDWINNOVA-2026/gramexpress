@@ -183,8 +183,18 @@
             {% csrf_token %}
             <input type="hidden" name="action" value="review" />
             {{ order_form.as_p }}
+            {% if cart.has_blocking_issues %}
+              <div class="checkout-alert checkout-alert-error">
+                <strong>Checkout is blocked until these issues are fixed.</strong>
+                <ul class="checkout-checklist">
+                  {% for issue in cart.validation_errors %}
+                    <li>{{ issue }}</li>
+                  {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
             {% for group in cart.groups %}
-              <div class="nested-panel">
+              <div class="nested-panel{% if group.has_blocking_issue %} nested-panel-warning{% endif %}">
                 <div class="split-row">
                   <div>
                     <strong>{{ group.shop.name }}</strong>
@@ -193,17 +203,24 @@
                   <span class="pill">{{ group.items|length }} item{{ group.items|length|pluralize }}</span>
                 </div>
                 {% for item in group.items %}
-                  <div class="list-item compact-item">
+                  <div class="list-item compact-item{% if item.has_blocking_issue %} compact-item-warning{% endif %}">
                     <div>
                       <strong>{{ item.product.name }}</strong>
                       <p>{{ item.quantity }} x Rs. {{ item.product.price }}</p>
+                      {% if item.issues %}
+                        <ul class="checkout-checklist checkout-checklist-tight">
+                          {% for issue in item.issues %}
+                            <li>{{ issue }}</li>
+                          {% endfor %}
+                        </ul>
+                      {% endif %}
                     </div>
                     <span class="pill">Rs. {{ item.line_total }}</span>
                   </div>
                 {% endfor %}
               </div>
             {% endfor %}
-            <button class="button primary" type="submit">Review Checkout</button>
+            <button class="button primary" type="submit" {% if cart.has_blocking_issues %}disabled{% endif %}>Review Checkout</button>
           </form>
         {% else %}
           <p>Your cart is empty. Add products from one or more stores below.</p>
@@ -251,7 +268,9 @@
                 <form method="post" action="{% url 'core:cart_add' product.id %}" class="inline-actions">
                   {% csrf_token %}
                   <input type="number" min="1" max="{{ product.stock }}" name="quantity" value="1" class="tiny-input" />
-                  <button class="button small primary" type="submit">Add for Rs. {{ product.price }}</button>
+                  <button class="button small primary" type="submit" {% if product.stock <= 0 or not selected_shop.is_open %}disabled{% endif %}>
+                    {% if product.stock <= 0 %}Out Of Stock{% else %}Add for Rs. {{ product.price }}{% endif %}
+                  </button>
                 </form>
               </div>
             {% empty %}

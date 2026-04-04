@@ -94,6 +94,10 @@ SERIALIZABLE_REGISTRATION_FIELDS = [
 ]
 
 
+class CheckoutValidationError(Exception):
+    pass
+
+
 def normalize_phone(phone: str) -> str:
     phone = PHONE_SANITIZER.sub('', (phone or '').strip())
     if phone.startswith('++'):
@@ -454,20 +458,33 @@ def build_cart_context(request: HttpRequest):
     items = []
     grouped = defaultdict(list)
     subtotal = Decimal('0.00')
+    validation_errors = []
 
     for product_id, quantity in cart.items():
         product = product_map.get(int(product_id))
         if not product or quantity <= 0:
             continue
+        issues = []
+        if product.shop.approval_status != ApprovalStatus.APPROVED or not product.shop.is_open:
+            issues.append('This store is currently unavailable for checkout.')
+        if product.stock <= 0:
+            issues.append('This item is out of stock.')
+        elif quantity > product.stock:
+            issues.append(f'Only {product.stock} unit(s) are available right now.')
         line_total = product.price * quantity
         item = {
             'product': product,
             'quantity': quantity,
             'line_total': line_total,
+            'issues': issues,
+            'has_blocking_issue': bool(issues),
         }
         items.append(item)
         grouped[product.shop].append(item)
         subtotal += line_total
+        validation_errors.extend(
+            [f'{product.name}: {issue}' for issue in issues]
+        )
 
     groups = []
     for shop, shop_items in grouped.items():
@@ -476,6 +493,7 @@ def build_cart_context(request: HttpRequest):
                 'shop': shop,
                 'items': shop_items,
                 'subtotal': sum(item['line_total'] for item in shop_items),
+                'has_blocking_issue': any(item['has_blocking_issue'] for item in shop_items),
             }
         )
     return {
@@ -483,6 +501,8 @@ def build_cart_context(request: HttpRequest):
         'groups': groups,
         'item_count': sum(item['quantity'] for item in items),
         'subtotal': subtotal,
+        'validation_errors': validation_errors,
+        'has_blocking_issues': bool(validation_errors),
     }
 
 
@@ -545,6 +565,13 @@ def build_checkout_context(*, customer: CustomerProfile, cart: dict[str, Any], c
         'estimated_eta': '40-55 min',
         'is_cod': payment_method == PaymentMethod.COD,
     }
+
+
+def validate_checkout_cart(cart: dict[str, Any]) -> None:
+    if not cart['items']:
+        raise CheckoutValidationError('Your cart is empty. Add items before checkout.')
+    if cart['has_blocking_issues']:
+        raise CheckoutValidationError('Please fix the cart issues before continuing to checkout.')
 
 
 def create_notification(*, customer=None, shop_owner=None, rider=None, order=None, title: str, body: str) -> None:
@@ -1198,11 +1225,20 @@ def customer_dashboard(request: HttpRequest) -> HttpResponse:
 @require_POST
 def cart_add(request: HttpRequest, product_id: int) -> HttpResponse:
     product = get_object_or_404(Product.objects.select_related('shop'), pk=product_id, shop__approval_status=ApprovalStatus.APPROVED)
+    if not product.shop.is_open:
+        messages.error(request, f'{product.shop.name} is currently closed for checkout.')
+        return redirect(f"{reverse('core:customer_dashboard')}?shop={product.shop.slug}")
+    if product.stock <= 0:
+        messages.error(request, f'{product.name} is currently out of stock.')
+        return redirect(f"{reverse('core:customer_dashboard')}?shop={product.shop.slug}")
     quantity = max(1, int(request.POST.get('quantity', 1)))
     cart = cart_from_session(request)
     cart[str(product.id)] = min(product.stock, cart.get(str(product.id), 0) + quantity)
     save_cart(request, cart)
-    messages.success(request, f'{product.name} added to your cart.')
+    if quantity > product.stock:
+        messages.info(request, f'{product.name} was capped to the available stock of {product.stock}.')
+    else:
+        messages.success(request, f'{product.name} added to your cart.')
     return redirect(f"{reverse('core:customer_dashboard')}?shop={product.shop.slug}")
 
 
@@ -1215,7 +1251,14 @@ def cart_update(request: HttpRequest, product_id: int) -> HttpResponse:
     if quantity == 0:
         cart.pop(key, None)
     else:
-        cart[key] = quantity
+        product = Product.objects.filter(pk=product_id).first()
+        if not product:
+            cart.pop(key, None)
+            messages.error(request, 'That product is no longer available.')
+        else:
+            cart[key] = min(quantity, product.stock)
+            if quantity > product.stock:
+                messages.info(request, f'{product.name} was reduced to the available stock of {product.stock}.')
     save_cart(request, cart)
     messages.success(request, 'Cart updated.')
     return redirect('core:customer_dashboard')
@@ -1233,8 +1276,10 @@ def cart_clear(request: HttpRequest) -> HttpResponse:
 def customer_checkout(request: HttpRequest) -> HttpResponse:
     customer = request.role_profile
     cart = build_cart_context(request)
-    if not cart['items']:
-        messages.error(request, 'Add items from at least one store before checkout.')
+    try:
+        validate_checkout_cart(cart)
+    except CheckoutValidationError as error:
+        messages.error(request, str(error))
         return redirect('core:customer_dashboard')
     if request.method == 'POST':
         action = request.POST.get('action', 'review')
@@ -1256,50 +1301,70 @@ def customer_checkout(request: HttpRequest) -> HttpResponse:
                 return redirect('core:customer_dashboard')
 
             created_orders = []
-            with transaction.atomic():
-                for group in cart['groups']:
-                    rider = nearest_available_rider(group['shop'])
-                    payment_method = checkout_data['payment_method']
-                    order = Order.objects.create(
-                        customer=customer,
-                        shop=group['shop'],
-                        rider=rider,
-                        status=OrderStatus.CONFIRMED,
-                        payment_method=payment_method,
-                        payment_status=PaymentStatus.PAID if payment_method == PaymentMethod.RAZORPAY else PaymentStatus.PENDING,
-                        delivery_address=build_delivery_address(customer),
-                        customer_notes=checkout_data.get('customer_notes', ''),
-                        total_amount=group['subtotal'] + Decimal('20.00'),
-                    )
-                    for item in group['items']:
-                        OrderItem.objects.create(
-                            order=order,
-                            product=item['product'],
-                            quantity=item['quantity'],
-                            unit_price=item['product'].price,
-                        )
-                    created_orders.append(order)
-                    create_notification(
-                        shop_owner=group['shop'].owner,
-                        order=order,
-                        title='New order placed',
-                        body=f'Order #{order.id} is waiting for packaging at {group["shop"].name}.',
-                    )
-                    create_notification(
-                        customer=customer,
-                        order=order,
-                        title='Order confirmed',
-                        body=f'Order #{order.id} from {group["shop"].name} was created successfully.',
-                    )
-                    if rider:
-                        rider.is_available = False
-                        rider.save(update_fields=['is_available', 'updated_at'])
-                        create_notification(
+            try:
+                with transaction.atomic():
+                    for group in cart['groups']:
+                        locked_items = []
+                        for item in group['items']:
+                            locked_product = Product.objects.select_for_update().select_related('shop').get(pk=item['product'].pk)
+                            if locked_product.shop.approval_status != ApprovalStatus.APPROVED or not locked_product.shop.is_open:
+                                raise CheckoutValidationError(f'{locked_product.name} is no longer available because the store is offline.')
+                            if locked_product.stock < item['quantity']:
+                                raise CheckoutValidationError(
+                                    f'{locked_product.name} only has {locked_product.stock} unit(s) left. Update your cart and try again.'
+                                )
+                            locked_items.append((locked_product, item['quantity']))
+
+                        rider = nearest_available_rider(group['shop'])
+                        payment_method = checkout_data['payment_method']
+                        order = Order.objects.create(
+                            customer=customer,
+                            shop=group['shop'],
                             rider=rider,
-                            order=order,
-                            title='New delivery request',
-                            body=f'Order #{order.id} is ready around {group["shop"].area}.',
+                            status=OrderStatus.CONFIRMED,
+                            payment_method=payment_method,
+                            payment_status=PaymentStatus.PAID if payment_method == PaymentMethod.RAZORPAY else PaymentStatus.PENDING,
+                            delivery_address=build_delivery_address(customer),
+                            customer_notes=checkout_data.get('customer_notes', ''),
+                            total_amount=group['subtotal'] + Decimal('20.00'),
                         )
+                        for locked_product, quantity in locked_items:
+                            OrderItem.objects.create(
+                                order=order,
+                                product=locked_product,
+                                quantity=quantity,
+                                unit_price=locked_product.price,
+                            )
+                            locked_product.stock -= quantity
+                            locked_product.save(update_fields=['stock', 'updated_at'])
+                        created_orders.append(order)
+                        create_notification(
+                            shop_owner=group['shop'].owner,
+                            order=order,
+                            title='New order placed',
+                            body=f'Order #{order.id} is waiting for packaging at {group["shop"].name}.',
+                        )
+                        create_notification(
+                            customer=customer,
+                            order=order,
+                            title='Order confirmed',
+                            body=f'Order #{order.id} from {group["shop"].name} was created successfully.',
+                        )
+                        if rider:
+                            rider.is_available = False
+                            rider.save(update_fields=['is_available', 'updated_at'])
+                            create_notification(
+                                rider=rider,
+                                order=order,
+                                title='New delivery request',
+                                body=f'Order #{order.id} is ready around {group["shop"].area}.',
+                            )
+            except CheckoutValidationError as error:
+                messages.error(request, str(error))
+                refreshed_cart = build_cart_context(request)
+                context = build_checkout_context(customer=customer, cart=refreshed_cart, checkout_data=checkout_data)
+                context['order_form'] = CustomerOrderMetaForm(initial=checkout_data)
+                return render(request, 'core/checkout_review.html', context)
 
             save_cart(request, {})
             request.session[LAST_CHECKOUT_SESSION_KEY] = {

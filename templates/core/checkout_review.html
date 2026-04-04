@@ -22,6 +22,16 @@
         <article class="card" data-appear>
           <span class="eyebrow">Delivery</span>
           <h2 class="section-title">Address and notes</h2>
+          {% if cart.has_blocking_issues %}
+            <div class="checkout-alert checkout-alert-error">
+              <strong>Checkout is blocked right now.</strong>
+              <ul class="checkout-checklist">
+                {% for issue in cart.validation_errors %}
+                  <li>{{ issue }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
           <div class="compact-item">
             <strong>{{ customer.full_name }}</strong>
             <p>{{ delivery_address }}</p>
@@ -36,7 +46,7 @@
           <h2 class="section-title">Grouped checkout summary</h2>
           <div class="stack">
             {% for group in group_totals %}
-              <div class="compact-item">
+              <div class="compact-item{% if group.shop.approval_status != 'approved' or not group.shop.is_open %} compact-item-warning{% endif %}">
                 <div class="split-row">
                   <div>
                     <strong>{{ group.shop.name }}</strong>
@@ -84,7 +94,7 @@
           <form method="post" action="{% url 'core:customer_checkout' %}" class="stack">
             {% csrf_token %}
             <input type="hidden" name="action" value="confirm" />
-            <button class="button primary" type="submit">
+            <button class="button primary" type="submit" {% if cart.has_blocking_issues %}disabled{% endif %}>
               {% if is_cod %}Yes, Place COD Order{% else %}Place Order{% endif %}
             </button>
             <a class="button secondary" href="{% url 'core:customer_dashboard' %}">Back To Cart</a>

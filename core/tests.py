@@ -180,6 +180,19 @@ class CoreFlowTests(TestCase):
         self.assertEqual(order.rider, self.rider)
         self.assertEqual(order.status, OrderStatus.CONFIRMED)
         self.assertEqual(order.items.get().quantity, 2)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 18)
+
+    def test_checkout_blocks_when_stock_changes_after_cart_add(self):
+        self.client.force_login(self.customer_user)
+        self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '2'})
+        self.product.stock = 1
+        self.product.save(update_fields=['stock'])
+
+        response = self.client.get(reverse('core:customer_dashboard'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Checkout is blocked until these issues are fixed')
+        self.assertContains(response, 'Only 1 unit(s) are available right now.')
 
     def test_customer_can_open_notifications_center(self):
         self.client.force_login(self.customer_user)
