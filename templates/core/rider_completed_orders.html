@@ -1,0 +1,82 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="feature-nav card rider-segmented-nav" data-appear>
+    {% for item in page_nav %}
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+    {% endfor %}
+  </section>
+
+  <section class="dashboard-top" id="top">
+    <article class="hero-card glass-card hero-card-rider" data-appear>
+      <span class="eyebrow">Completed Orders</span>
+      <h1>Closed deliveries</h1>
+      <p class="hero-lead">Review finished deliveries, confirm what you earned, and reopen the order detail screen only when you need more context.</p>
+      <div class="hero-inline-facts">
+        <span class="soft-pill">{{ completed_delivery_count }} delivered</span>
+        <span class="soft-pill">Total Rs. {{ total_earnings }}</span>
+        <span class="soft-pill">Avg Rs. {{ average_earnings }}</span>
+      </div>
+    </article>
+
+    <aside class="stack" data-appear>
+      <article class="metric-card">
+        <span class="metric-label">Today</span>
+        <strong class="metric-value">Rs. {{ today_earnings }}</strong>
+        <p>Your completed deliveries automatically move here after you mark them as delivered.</p>
+      </article>
+    </aside>
+  </section>
+
+  <section class="card" data-appear>
+    <div class="split-row">
+      <div>
+        <span class="eyebrow">History</span>
+        <h2 class="section-title">Recently completed deliveries</h2>
+      </div>
+      <span class="status-chip info">{{ completed_delivery_count }} total</span>
+    </div>
+
+    <div class="stack">
+      {% for order in completed_orders %}
+        <article class="nested-panel order-card rider-order-card">
+          <div class="split-row">
+            <div>
+              <strong>{{ order.display_id }}</strong>
+              <p>{{ order.shop.name }} to {{ order.customer.full_name }}</p>
+              {% if order.delivered_at %}
+                <p class="utility-note">Delivered {{ order.delivered_at|date:"M d, H:i" }}</p>
+              {% endif %}
+            </div>
+            <div class="hero-inline-facts">
+              <span class="status-chip success">Delivered</span>
+              <span class="soft-pill">Earned Rs. {{ order.delivery_fee }}</span>
+            </div>
+          </div>
+
+          <div class="rider-stop-grid">
+            <div class="compact-item rider-stop-card">
+              <strong>Pickup</strong>
+              <p>{{ order.shop.name }}</p>
+              <p class="utility-note">{{ order.pickup_address }}</p>
+            </div>
+            <div class="compact-item rider-stop-card">
+              <strong>Drop-off</strong>
+              <p>{{ order.customer.full_name }}</p>
+              <p class="utility-note">{{ order.dropoff_address }}</p>
+            </div>
+          </div>
+
+          <div class="inline-actions">
+            <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
+          </div>
+        </article>
+      {% empty %}
+        <div class="nested-panel">
+          <strong>No completed deliveries yet</strong>
+          <p>Your finished drop-offs will land here automatically as you complete them.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

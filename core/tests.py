@@ -348,18 +348,19 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, 'Rider is nearby')
         self.assertContains(response, 'Rider')
 
-    def test_customer_can_open_order_detail_and_tracking(self):
+    def test_customer_order_detail_uses_email_updates_and_tracking_route_redirects(self):
         self.client.force_login(self.customer_user)
         detail_response = self.client.get(reverse('core:order_detail', args=[self.demo_order.id]))
-        tracking_response = self.client.get(reverse('core:order_tracking', args=[self.demo_order.id]))
+        tracking_response = self.client.get(reverse('core:order_tracking', args=[self.demo_order.id]), follow=True)
         self.assertEqual(detail_response.status_code, 200)
         self.assertEqual(tracking_response.status_code, 200)
         self.assertContains(detail_response, self.demo_order.display_id)
-        self.assertContains(tracking_response, 'Live Tracking')
+        self.assertContains(detail_response, 'Email updates')
         self.assertContains(detail_response, 'Rider is approaching')
-        self.assertContains(tracking_response, '8-15 min')
+        self.assertContains(tracking_response, 'Use order details and email updates instead.')
 
-    def test_rider_can_accept_available_order(self):
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_rider_can_accept_available_order_and_email_customer(self):
         available_order = Order.objects.create(
             customer=self.customer,
             shop=self.shop,
@@ -379,6 +380,11 @@ class CoreFlowTests(TestCase):
         self.assertEqual(available_order.rider, self.rider)
         self.assertEqual(available_order.status, OrderStatus.PACKED)
         self.assertFalse(self.rider.is_available)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(available_order.display_id, mail.outbox[0].subject)
+        self.assertIn(self.rider.full_name, mail.outbox[0].body)
+        self.assertIn('Invoice', mail.outbox[0].body)
+        self.assertIn(self.rider.phone, mail.outbox[0].body)
 
     def test_rider_must_be_near_store_to_mark_pickup(self):
         pickup_order = Order.objects.create(
@@ -406,6 +412,104 @@ class CoreFlowTests(TestCase):
         pickup_order.refresh_from_db()
         self.assertEqual(pickup_order.status, OrderStatus.PACKED)
         self.assertContains(response, 'Get closer to the store to mark pickup.')
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_rider_pickup_email_includes_delivery_otp(self):
+        pickup_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            status=OrderStatus.PACKED,
+            total_amount=Decimal('48.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            customer_otp='456789',
+        )
+        OrderItem.objects.create(order=pickup_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+
+        self.client.force_login(self.rider_user)
+        response = self.client.post(
+            reverse('core:rider_update_order_status', args=[pickup_order.id]),
+            {'status': OrderStatus.OUT_FOR_DELIVERY},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        pickup_order.refresh_from_db()
+        self.assertEqual(pickup_order.status, OrderStatus.OUT_FOR_DELIVERY)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('has been picked up', mail.outbox[0].subject)
+        self.assertIn('Delivery OTP', mail.outbox[0].body)
+        self.assertIn('456789', mail.outbox[0].body)
+        pickup_note = self.customer.notifications.filter(order=pickup_order).latest('created_at')
+        self.assertIn('456789', pickup_note.body)
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_rider_can_mark_delivered_and_email_customer(self):
+        delivery_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            status=OrderStatus.OUT_FOR_DELIVERY,
+            total_amount=Decimal('48.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            customer_otp='654321',
+        )
+        OrderItem.objects.create(order=delivery_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+
+        self.client.force_login(self.rider_user)
+        response = self.client.post(
+            reverse('core:rider_update_order_status', args=[delivery_order.id]),
+            {'status': OrderStatus.DELIVERED, 'customer_otp': '654321'},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delivery_order.refresh_from_db()
+        self.rider.refresh_from_db()
+        self.assertEqual(delivery_order.status, OrderStatus.DELIVERED)
+        self.assertTrue(self.rider.is_available)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('was delivered', mail.outbox[0].subject)
+        self.assertIn('delivered successfully', mail.outbox[0].body)
+
+    def test_rider_completed_and_earnings_pages_render(self):
+        self.client.force_login(self.rider_user)
+
+        completed_response = self.client.get(reverse('core:rider_completed_orders'))
+        earnings_response = self.client.get(reverse('core:rider_earnings'))
+
+        self.assertEqual(completed_response.status_code, 200)
+        self.assertEqual(earnings_response.status_code, 200)
+        self.assertContains(completed_response, 'Completed Orders')
+        self.assertContains(earnings_response, 'Delivery earnings summary')
+
+    def test_rider_can_toggle_availability_from_shared_menu(self):
+        self.client.force_login(self.rider_user)
+        self.rider.is_available = False
+        self.rider.save(update_fields=['is_available', 'updated_at'])
+
+        response = self.client.post(
+            reverse('core:rider_toggle_availability'),
+            {'is_available': 'on', 'next': reverse('core:rider_deliveries')},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.rider.refresh_from_db()
+        self.assertTrue(self.rider.is_available)
+        self.assertEqual(response.request['PATH_INFO'], reverse('core:rider_deliveries'))
+
+    def test_rider_menu_shows_availability_control(self):
+        self.client.force_login(self.rider_user)
+
+        response = self.client.get(reverse('core:rider_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Availability')
+        self.assertContains(response, 'You can receive new orders')
+        self.assertContains(response, reverse('core:rider_toggle_availability'))
 
     def test_store_can_mark_confirmed_order_packed(self):
         pack_order = Order.objects.create(

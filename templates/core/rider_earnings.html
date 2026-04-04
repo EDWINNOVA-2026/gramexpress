@@ -1,0 +1,65 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="feature-nav card rider-segmented-nav" data-appear>
+    {% for item in page_nav %}
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+    {% endfor %}
+  </section>
+
+  <section class="page-stack" id="top">
+    <article class="card" data-appear>
+      <span class="eyebrow">Earnings</span>
+      <h1 class="page-title">Delivery earnings summary</h1>
+      <p>Keep this screen focused on money only: total delivery fees earned, today's earnings, and the completed orders that produced them.</p>
+    </article>
+
+    <section class="card-grid" data-appear>
+      <article class="metric-card">
+        <span class="metric-label">Total earnings</span>
+        <strong class="metric-value">Rs. {{ total_earnings }}</strong>
+        <p>Based on completed delivery fees in this workspace.</p>
+      </article>
+      <article class="metric-card">
+        <span class="metric-label">Today</span>
+        <strong class="metric-value">Rs. {{ today_earnings }}</strong>
+        <p>Completed today only.</p>
+      </article>
+      <article class="metric-card">
+        <span class="metric-label">Completed deliveries</span>
+        <strong class="metric-value">{{ completed_delivery_count }}</strong>
+        <p>Total orders you have closed.</p>
+      </article>
+    </section>
+
+    <section class="card" data-appear>
+      <div class="split-row">
+        <div>
+          <span class="eyebrow">Recent Earnings</span>
+          <h2 class="section-title">Completed delivery payouts</h2>
+        </div>
+        <span class="soft-pill">Average Rs. {{ average_earnings }}</span>
+      </div>
+
+      <div class="stack">
+        {% for order in completed_orders %}
+          <div class="list-item compact-item">
+            <div>
+              <strong>{{ order.display_id }}</strong>
+              <p>{{ order.shop.name }} to {{ order.customer.full_name }}</p>
+              {% if order.delivered_at %}
+                <span class="tiny muted">{{ order.delivered_at|date:"M d, H:i" }}</span>
+              {% endif %}
+            </div>
+            <span class="pill">Rs. {{ order.delivery_fee }}</span>
+          </div>
+        {% empty %}
+          <div class="nested-panel">
+            <strong>No earnings yet</strong>
+            <p>Complete your first delivery to start building your rider earnings summary.</p>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  </section>
+{% endblock %}

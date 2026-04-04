@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>{{ request.resolver_match.url_name|default:'GramExpress'|title }} | GramExpress</title>
     <meta name="theme-color" content="#1a1a2e" />
-    <meta name="description" content="GramExpress mobile-first delivery workspace with OTP auth, tracking, and multi-role local commerce dashboards." />
+    <meta name="description" content="GramExpress mobile-first delivery workspace with OTP auth, email order updates, and multi-role local commerce dashboards." />
     {% if shell_pwa_enabled %}
       <link rel="manifest" href="{% url 'core:manifest' %}?v={{ shell_asset_version }}" />
     {% endif %}
@@ -74,6 +74,34 @@
                       {% for link in shell_menu_links %}
                         <a href="{{ link.url }}" class="menu-link{% if request.path == link.url %} menu-link-active{% endif %}">{{ link.label }}</a>
                       {% endfor %}
+                      {% if shell_active_role == 'rider' and shell_rider_menu_state %}
+                        <form method="post" action="{% url 'core:rider_toggle_availability' %}" class="menu-status-form">
+                          {% csrf_token %}
+                          <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+                          <label class="menu-status-card">
+                            <span class="menu-status-copy">
+                              <strong>Availability</strong>
+                              {% if shell_rider_menu_state.approval_status == 'approved' %}
+                                <small>{% if shell_rider_menu_state.is_available %}You can receive new orders{% else %}You are hidden from dispatching{% endif %}</small>
+                              {% else %}
+                                <small>Waiting for admin approval before going online</small>
+                              {% endif %}
+                            </span>
+                            <span class="rider-status-switch rider-status-switch-compact{% if shell_rider_menu_state.approval_status != 'approved' %} rider-status-switch-disabled{% endif %}">
+                              <input
+                                type="checkbox"
+                                name="is_available"
+                                value="on"
+                                {% if shell_rider_menu_state.is_available %}checked{% endif %}
+                                {% if shell_rider_menu_state.approval_status != 'approved' %}disabled{% endif %}
+                                onchange="this.form.submit()"
+                              />
+                              <span class="rider-status-slider"></span>
+                              <span class="rider-status-text">{% if shell_rider_menu_state.is_available %}Online{% else %}Offline{% endif %}</span>
+                            </span>
+                          </label>
+                        </form>
+                      {% endif %}
                       <a href="{% url 'core:notifications' %}" class="menu-link menu-link-alerts{% if route_name == 'notifications' %} menu-link-active{% endif %}">
                         Alerts
                         {% if shell_unread_notification_count %}

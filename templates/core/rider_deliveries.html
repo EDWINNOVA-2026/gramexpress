@@ -1,124 +1,120 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
-  <section class="feature-nav card" data-appear>
+  <section class="feature-nav card rider-segmented-nav" data-appear>
     {% for item in page_nav %}
       <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
     {% endfor %}
   </section>
 
-  <section class="layout-two" id="workspace">
-    <article class="card" data-appear>
-      <span class="eyebrow">Nearby Pickups</span>
-      <h2 class="section-title">Orders inside your dispatch radius</h2>
-      <div class="stack">
-        {% for order in available_orders %}
-          <div class="nested-panel order-card">
-            <div class="split-row">
-              <div>
-                <strong>Order #{{ order.id }}</strong>
-                <p>{{ order.shop.name }} to {{ order.customer.full_name }}</p>
-                <p class="utility-note">Pickup {{ order.pickup_distance_km }} km away | Delivery {{ order.delivery_distance_km }} km</p>
-              </div>
-              <span class="status-chip info">{{ order.item_count }} item{{ order.item_count|pluralize }}</span>
-            </div>
-            <div class="compact-list">
-              {% for item in order.items.all %}
-                <div class="list-item compact-item compact-item-tight">
-                  <div>
-                    <strong>{{ item.product.name }}</strong>
-                    <p>{{ item.quantity }} x Rs. {{ item.unit_price }}</p>
-                  </div>
-                  <span class="muted">Rs. {{ item.line_total }}</span>
-                </div>
-              {% endfor %}
-            </div>
-            <div class="inline-actions">
-              <a class="button small secondary" href="{{ order.pickup_route_url }}" target="_blank" rel="noreferrer">Route To Store</a>
-              <a class="button small secondary" href="{{ order.delivery_route_url }}" target="_blank" rel="noreferrer">Preview Drop</a>
-            </div>
-            <form method="post" action="{% url 'core:rider_accept_order' order.id %}">
-              {% csrf_token %}
-              <button class="button small primary" type="submit">Accept Order</button>
-            </form>
-          </div>
-        {% empty %}
-          <div class="nested-panel">
-            <strong>No nearby orders yet</strong>
-            <p>Stay available and keep your location fresh to pick up the next delivery request.</p>
-          </div>
-        {% endfor %}
+  <section class="dashboard-top" id="top">
+    <article class="hero-card glass-card hero-card-rider" data-appear>
+      <span class="eyebrow">Active Orders</span>
+      <h1>Pickup to drop-off</h1>
+      <p class="hero-lead">This screen stays focused on only the orders you are currently handling, with clear map actions and status buttons.</p>
+      <div class="hero-inline-facts">
+        <span class="soft-pill">{{ active_order_count }} active</span>
+        <span class="soft-pill">Today Rs. {{ today_earnings }}</span>
+        <span class="soft-pill">Email updates only</span>
       </div>
     </article>
 
-    <article class="card" data-appear>
-      <span class="eyebrow">Active Deliveries</span>
-      <h2 class="section-title">Pickup, travel, OTP, complete</h2>
-      <div class="stack">
-        {% for order in active_orders %}
-          <div class="nested-panel order-card">
-            <div class="split-row">
-              <div>
-                <strong>Order #{{ order.id }}</strong>
-                <p>{{ order.shop.name }} -> {{ order.customer.full_name }} | {{ order.get_status_display }}</p>
-                <p class="utility-note">{{ order.dispatch_title }}</p>
-                <p class="utility-note">{{ order.dispatch_hint }}</p>
-              </div>
-              <span class="pill">{{ order.pickup_distance_km }} km pickup</span>
+    <aside class="stack" data-appear>
+      <article class="metric-card">
+        <span class="metric-label">Completed</span>
+        <strong class="metric-value">{{ completed_delivery_count }}</strong>
+        <p>{{ rider.full_name }} can finish pickup and drop-off from here without leaving the flow.</p>
+      </article>
+      <article class="card quick-card">
+        <span class="eyebrow">Map Actions</span>
+        <h2 class="section-title">Pinned locations only</h2>
+        <p>Use exact pickup and drop-off pins for navigation. Live tracking has been removed from the current version.</p>
+      </article>
+    </aside>
+  </section>
+
+  <section class="card" data-appear>
+    <div class="split-row">
+      <div>
+        <span class="eyebrow">Current Deliveries</span>
+        <h2 class="section-title">Act on the next step only</h2>
+        <p class="subtle">Confirm pickup when you arrive at the store, then finish the drop-off with the customer OTP.</p>
+      </div>
+      <span class="status-chip info">{{ active_order_count }} active</span>
+    </div>
+
+    <div class="stack">
+      {% for order in active_orders %}
+        <article class="nested-panel order-card rider-order-card">
+          <div class="split-row">
+            <div>
+              <strong>{{ order.display_id }}</strong>
+              <p>{{ order.shop.name }} to {{ order.customer.full_name }}</p>
+              <p class="utility-note">{{ order.status_hint }}</p>
             </div>
             <div class="hero-inline-facts">
-              <span class="soft-pill">{{ order.item_count }} item{{ order.item_count|pluralize }}</span>
-              <span class="soft-pill">Drop {{ order.delivery_distance_km }} km</span>
-              {% if order.pickup_gate_open or order.status == 'out_for_delivery' %}
-                <span class="status-chip success">Pickup gate open</span>
-              {% else %}
-                <span class="status-chip warn">Move closer to store</span>
-              {% endif %}
+              <span class="status-chip {{ order.status_chip }}">{{ order.get_status_display }}</span>
+              <span class="soft-pill">Earn Rs. {{ order.delivery_fee }}</span>
             </div>
-            <div class="compact-list">
-              {% for item in order.items.all %}
-                <div class="list-item compact-item compact-item-tight">
-                  <div>
-                    <strong>{{ item.product.name }}</strong>
-                    <p>{{ item.quantity }} x Rs. {{ item.unit_price }}</p>
-                  </div>
-                  <span class="muted">Rs. {{ item.line_total }}</span>
-                </div>
-              {% endfor %}
-            </div>
-            <div class="inline-actions">
-              <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
-              <a class="button small secondary" href="{{ order.pickup_route_url }}" target="_blank" rel="noreferrer">Store Route</a>
-              <a class="button small secondary" href="{{ order.customer_route_url }}" target="_blank" rel="noreferrer">Customer Route</a>
-            </div>
-
-            {% if order.status != 'out_for_delivery' and order.status != 'delivered' %}
-              <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap">
-                {% csrf_token %}
-                <input type="hidden" name="status" value="out_for_delivery" />
-                <p class="utility-note">Pickup only unlocks when you are within 200 meters of the store.</p>
-                <button class="button small primary" type="submit">Picked Up</button>
-              </form>
-            {% endif %}
-
-            {% if order.status == 'out_for_delivery' %}
-              <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap">
-                {% csrf_token %}
-                <input type="hidden" name="status" value="delivered" />
-                <label>Customer OTP
-                  <input type="text" name="customer_otp" placeholder="Enter OTP" required />
-                </label>
-                <button class="button small primary" type="submit">Complete Delivery</button>
-              </form>
-            {% endif %}
           </div>
-        {% empty %}
-          <div class="nested-panel">
-            <strong>No active deliveries</strong>
-            <p>Accept a nearby pickup to see the full rider flow populate here.</p>
+
+          <div class="rider-stop-grid">
+            <div class="compact-item rider-stop-card">
+              <strong>Pickup</strong>
+              <p>{{ order.shop.name }}</p>
+              <p class="utility-note">{{ order.pickup_address }}</p>
+              <div class="hero-inline-facts">
+                <span class="soft-pill">{{ order.pickup_distance_km }} km away</span>
+                {% if order.pickup_gate_open or order.status == 'out_for_delivery' %}
+                  <span class="status-chip success">Ready for pickup</span>
+                {% else %}
+                  <span class="status-chip warn">Move closer</span>
+                {% endif %}
+              </div>
+              <a class="button small secondary" href="{{ order.pickup_map_url }}" target="_blank" rel="noreferrer">Open Pickup Pin</a>
+            </div>
+            <div class="compact-item rider-stop-card">
+              <strong>Drop-off</strong>
+              <p>{{ order.customer.full_name }}</p>
+              <p class="utility-note">{{ order.dropoff_address }}</p>
+              <div class="hero-inline-facts">
+                <span class="soft-pill">{{ order.delivery_distance_km }} km route</span>
+                <span class="soft-pill">{{ order.item_count }} item{{ order.item_count|pluralize }}</span>
+              </div>
+              <a class="button small secondary" href="{{ order.dropoff_map_url }}" target="_blank" rel="noreferrer">Open Drop-off Pin</a>
+            </div>
           </div>
-        {% endfor %}
-      </div>
-    </article>
+
+          <div class="inline-actions">
+            <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
+          </div>
+
+          {% if order.status != 'out_for_delivery' and order.status != 'delivered' %}
+            <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap rider-action-form">
+              {% csrf_token %}
+              <input type="hidden" name="status" value="out_for_delivery" />
+              <p class="utility-note">Pickup confirmation only works when you are close to the store.</p>
+              <button class="button primary" type="submit">Arrived at Pickup</button>
+            </form>
+          {% endif %}
+
+          {% if order.status == 'out_for_delivery' %}
+            <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap rider-action-form">
+              {% csrf_token %}
+              <input type="hidden" name="status" value="delivered" />
+              <label>Customer OTP
+                <input type="text" name="customer_otp" placeholder="Enter OTP before handoff" required />
+              </label>
+              <button class="button primary" type="submit">Delivered</button>
+            </form>
+          {% endif %}
+        </article>
+      {% empty %}
+        <div class="nested-panel">
+          <strong>No active orders</strong>
+          <p>Accept a new order to move it here immediately and start the pickup flow.</p>
+        </div>
+      {% endfor %}
+    </div>
   </section>
 {% endblock %}

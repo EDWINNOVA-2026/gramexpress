@@ -312,8 +312,8 @@ class Order(TimeStampedModel):
     @property
     def tracking_label(self) -> str:
         if self.rider:
-            return f'{self.rider.full_name} at {self.rider.short_coordinates}'
-        return 'Waiting for rider'
+            return f'Assigned to {self.rider.full_name}. Updates are shared by email.'
+        return 'Waiting for rider assignment'
 
     @property
     def can_be_cancelled_by_customer(self) -> bool:

@@ -15,6 +15,7 @@ def shell_navigation(request):
     menu_links = []
     user_label = ''
     user_initial = 'G'
+    rider_menu_state = None
 
     if user.is_authenticated:
         if user.is_staff:
@@ -74,14 +75,22 @@ def shell_navigation(request):
             unread_notification_count = user.rider_profile.notifications.filter(is_read=False).count()
             user_label = user.rider_profile.full_name
             user_initial = (user_label[:1] or 'R').upper()
+            rider_menu_state = {
+                'is_available': user.rider_profile.is_available,
+                'approval_status': user.rider_profile.approval_status,
+            }
             role_links = [
-                {'label': 'Overview', 'url': reverse('core:rider_dashboard')},
-                {'label': 'Deliveries', 'url': reverse('core:rider_deliveries')},
+                {'label': 'New', 'url': reverse('core:rider_dashboard')},
+                {'label': 'Active', 'url': reverse('core:rider_deliveries')},
+                {'label': 'Done', 'url': reverse('core:rider_completed_orders')},
+                {'label': 'Earn', 'url': reverse('core:rider_earnings')},
                 {'label': 'Profile', 'url': reverse('core:rider_profile')},
             ]
-            primary_links = role_links[:3]
+            primary_links = role_links
             menu_links = [
                 {'label': 'Edit Profile', 'url': reverse('core:rider_profile')},
+                {'label': 'Completed Orders', 'url': reverse('core:rider_completed_orders')},
+                {'label': 'Earnings', 'url': reverse('core:rider_earnings')},
                 {'label': 'Customer Support', 'url': reverse('core:support')},
             ]
 
@@ -95,6 +104,7 @@ def shell_navigation(request):
         'shell_menu_links': menu_links,
         'shell_user_label': user_label,
         'shell_user_initial': user_initial,
+        'shell_rider_menu_state': rider_menu_state,
         'shell_asset_version': getattr(settings, 'APP_ASSET_VERSION', '1'),
         'shell_pwa_enabled': getattr(settings, 'PWA_ENABLED', False),
     }

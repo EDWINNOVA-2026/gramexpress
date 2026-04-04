@@ -681,10 +681,165 @@ def shop_page_nav() -> list[dict[str, str]]:
 
 def rider_page_nav() -> list[dict[str, str]]:
     return [
-        {'label': 'Overview', 'url': reverse('core:rider_dashboard')},
-        {'label': 'Deliveries', 'url': reverse('core:rider_deliveries')},
+        {'label': 'New', 'url': reverse('core:rider_dashboard')},
+        {'label': 'Active', 'url': reverse('core:rider_deliveries')},
+        {'label': 'Done', 'url': reverse('core:rider_completed_orders')},
+        {'label': 'Earn', 'url': reverse('core:rider_earnings')},
         {'label': 'Profile', 'url': reverse('core:rider_profile')},
     ]
+
+
+def handle_rider_availability_toggle(request: HttpRequest, rider: RiderProfile) -> HttpResponse | None:
+    if request.method == 'POST' and request.POST.get('action') == 'toggle_availability':
+        if rider.approval_status != ApprovalStatus.APPROVED:
+            messages.error(request, 'Admin approval is required before you can go live for dispatch.')
+            return redirect(request.path)
+        rider.is_available = request.POST.get('is_available') == 'on'
+        rider.save(update_fields=['is_available', 'updated_at'])
+        messages.success(request, 'Rider availability updated.')
+        return redirect(request.path)
+    return None
+
+
+def rider_availability_redirect_target(request: HttpRequest) -> str:
+    next_url = (request.POST.get('next') or '').strip()
+    if next_url:
+        parsed_url = urllib_parse.urlparse(next_url)
+        if not parsed_url.scheme and not parsed_url.netloc and next_url.startswith('/'):
+            return next_url
+    return reverse('core:rider_dashboard')
+
+
+def format_shop_address(shop: Shop) -> str:
+    address_parts = [
+        shop.address_line_1,
+        shop.address_line_2,
+        shop.area,
+        shop.district,
+        shop.pincode,
+    ]
+    return ', '.join(part for part in address_parts if part)
+
+
+def build_map_pin_url(latitude: Decimal, longitude: Decimal) -> str:
+    return f'https://www.google.com/maps/search/?api=1&query={latitude},{longitude}'
+
+
+def build_order_item_summary(order: Order) -> tuple[list[str], Decimal]:
+    item_lines = []
+    subtotal = Decimal('0.00')
+    for item in order.items.select_related('product'):
+        line_total = item.line_total
+        subtotal += line_total
+        item_lines.append(
+            f'- {item.product.name}: {item.quantity} x Rs. {item.unit_price} = Rs. {line_total}'
+        )
+    return item_lines, subtotal
+
+
+def send_order_status_email(
+    *,
+    order: Order,
+    subject: str,
+    headline: str,
+    detail: str,
+) -> tuple[bool, str]:
+    recipient = (order.customer.email or '').strip()
+    if not recipient:
+        return False, 'No customer email is available for this order.'
+
+    item_lines, subtotal = build_order_item_summary(order)
+    rider_name = order.rider.full_name if order.rider else 'Pending rider assignment'
+    rider_phone = order.rider.phone if order.rider else 'Unavailable'
+    rider_email = order.rider.email if order.rider and order.rider.email else 'Unavailable'
+    payment_reference = ''
+    if order.checkout_session and order.checkout_session.razorpay_payment_id:
+        payment_reference = order.checkout_session.razorpay_payment_id
+
+    otp_lines = []
+    if order.status == OrderStatus.OUT_FOR_DELIVERY:
+        otp_lines = [
+            '',
+            'Delivery OTP',
+            f'Share this OTP only at handoff: {order.customer_otp}',
+        ]
+
+    message = '\n'.join(
+        [
+            headline,
+            '',
+            detail,
+            *otp_lines,
+            '',
+            'Invoice',
+            f'Order: {order.display_id}',
+            f'Store: {order.shop.name}',
+            f'Status: {order.get_status_display()}',
+            f'Payment: {order.get_payment_method_display()} ({order.get_payment_status_display()})',
+            f'Item total: Rs. {subtotal}',
+            f'Delivery fee: Rs. {order.delivery_fee}',
+            f'Total: Rs. {order.total_amount}',
+            *( [f'Payment reference: {payment_reference}'] if payment_reference else [] ),
+            '',
+            'Order Summary',
+            *item_lines,
+            '',
+            'Rider Contact',
+            f'Name: {rider_name}',
+            f'Phone: {rider_phone}',
+            f'Email: {rider_email}',
+            '',
+            'Delivery Details',
+            f'Pickup: {order.shop.name}, {format_shop_address(order.shop)}',
+            f'Drop-off: {order.delivery_address}',
+            f'Customer note: {order.customer_notes or "None"}',
+        ]
+    )
+    try:
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@gramexpress.local'),
+            recipient_list=[recipient],
+            fail_silently=False,
+        )
+        return True, 'Customer email update sent successfully.'
+    except Exception:
+        return False, 'Customer email update could not be sent with the current mail settings.'
+
+
+def rider_status_chip(order: Order) -> str:
+    if order.status == OrderStatus.OUT_FOR_DELIVERY:
+        return 'success'
+    if order.status == OrderStatus.DELIVERED:
+        return 'success'
+    if order.status == OrderStatus.CANCELLED:
+        return 'warn'
+    return 'info'
+
+
+def rider_status_hint(order: Order, *, pickup_gate_open: bool) -> str:
+    if order.status == OrderStatus.OUT_FOR_DELIVERY:
+        return 'Picked up and moving to the drop-off location. Delivery updates go out by email.'
+    if order.status == OrderStatus.DELIVERED:
+        return 'Delivered successfully. This order is now part of your completed history.'
+    if pickup_gate_open:
+        return 'You are close enough to confirm pickup and move this order into delivery.'
+    return 'Head to the pickup point first. You can only confirm pickup when you are close to the store.'
+
+
+def enrich_rider_order(order: Order, rider: RiderProfile) -> Order:
+    order.pickup_distance_km = kilometers_between(rider.latitude, rider.longitude, order.shop.latitude, order.shop.longitude)
+    order.delivery_distance_km = kilometers_between(order.shop.latitude, order.shop.longitude, order.customer.latitude, order.customer.longitude)
+    order.item_count = sum(item.quantity for item in order.items.all())
+    order.pickup_map_url = order.shop.google_maps_url
+    order.dropoff_map_url = order.customer.google_maps_url
+    order.pickup_address = format_shop_address(order.shop)
+    order.dropoff_address = order.delivery_address
+    order.pickup_gate_open = order.pickup_distance_km <= PICKUP_GEOFENCE_KM
+    order.status_chip = rider_status_chip(order)
+    order.status_hint = rider_status_hint(order, pickup_gate_open=order.pickup_gate_open)
+    return order
 
 
 def role_required(role: str):
@@ -1377,9 +1532,6 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
             order.fulfillment_title = 'Awaiting store confirmation'
             order.fulfillment_hint = 'Confirm the order before you begin packing.'
             order.fulfillment_chip = 'info'
-        if order.rider:
-            order.rider_tracking_url = order.rider.google_maps_url
-
     return {
         'shop': shop,
         'orders': orders,
@@ -1408,39 +1560,60 @@ def rider_workspace_context(request: HttpRequest) -> dict[str, Any]:
     )
     available_orders = []
     active_orders = []
+    completed_orders = []
     if rider.approval_status == ApprovalStatus.APPROVED:
         for order in order_candidates:
-            order.pickup_distance_km = kilometers_between(rider.latitude, rider.longitude, order.shop.latitude, order.shop.longitude)
-            order.delivery_distance_km = kilometers_between(order.shop.latitude, order.shop.longitude, order.customer.latitude, order.customer.longitude)
-            order.item_count = sum(item.quantity for item in order.items.all())
-            order.pickup_route_url = build_google_route_url(rider.latitude, rider.longitude, order.shop.latitude, order.shop.longitude)
-            order.delivery_route_url = build_google_route_url(order.shop.latitude, order.shop.longitude, order.customer.latitude, order.customer.longitude)
-            order.customer_route_url = build_google_route_url(rider.latitude, rider.longitude, order.customer.latitude, order.customer.longitude)
-            order.pickup_gate_open = order.pickup_distance_km <= PICKUP_GEOFENCE_KM
-            if order.status == OrderStatus.OUT_FOR_DELIVERY:
-                order.dispatch_title = 'Complete the last-mile drop'
-                order.dispatch_hint = 'Ask the customer for the OTP before you mark the order as delivered.'
-            else:
-                order.dispatch_title = 'Reach the store and confirm pickup'
-                order.dispatch_hint = (
-                    'You are close enough to mark pickup.'
-                    if order.pickup_gate_open
-                    else f'Get closer to the store to mark pickup. You are {order.pickup_distance_km} km away.'
-                )
+            enrich_rider_order(order, rider)
             if order.rider_id == rider.id:
                 active_orders.append(order)
             elif order.rider_id is None and order.pickup_distance_km <= dispatch_radius:
                 available_orders.append(order)
     available_orders.sort(key=lambda order: (order.pickup_distance_km, order.id))
-    active_orders.sort(key=lambda order: (order.status, order.id))
+    active_status_rank = {
+        OrderStatus.CONFIRMED: 0,
+        OrderStatus.PACKED: 0,
+        OrderStatus.OUT_FOR_DELIVERY: 1,
+    }
+    active_orders.sort(key=lambda order: (active_status_rank.get(order.status, 9), order.id))
+    completed_queryset = (
+        rider.orders.filter(status=OrderStatus.DELIVERED)
+        .select_related('customer', 'shop', 'checkout_session')
+        .prefetch_related('items__product')
+        .order_by('-delivered_at', '-updated_at')
+    )
+    for order in completed_queryset:
+        enrich_rider_order(order, rider)
+        completed_orders.append(order)
+
+    today = timezone.localdate()
+    total_earnings = sum((order.delivery_fee for order in completed_orders), Decimal('0.00'))
+    today_earnings = sum(
+        (
+            order.delivery_fee
+            for order in completed_orders
+            if order.delivered_at and timezone.localtime(order.delivered_at).date() == today
+        ),
+        Decimal('0.00'),
+    )
+    average_earnings = (
+        (total_earnings / len(completed_orders)).quantize(Decimal('0.01'))
+        if completed_orders
+        else Decimal('0.00')
+    )
     return {
         'rider': rider,
         'available_orders': available_orders,
         'active_orders': active_orders,
+        'completed_orders': completed_orders,
         'location_form': RiderLocationForm(initial={'latitude': rider.latitude, 'longitude': rider.longitude}),
         'notifications': user_notifications(request.user),
         'dispatch_radius': dispatch_radius,
-        'completed_delivery_count': sum(1 for order in rider.orders.all() if order.status == OrderStatus.DELIVERED),
+        'completed_delivery_count': len(completed_orders),
+        'new_order_count': len(available_orders),
+        'active_order_count': len(active_orders),
+        'today_earnings': today_earnings,
+        'total_earnings': total_earnings,
+        'average_earnings': average_earnings,
         'dashboard_role': RoleType.RIDER,
         'page_nav': rider_page_nav(),
     }
@@ -1588,7 +1761,7 @@ def build_order_status_summary(order: Order) -> dict[str, str]:
         return {
             'title': 'Rider is approaching',
             'caption': 'Keep your phone nearby and share the OTP only during handoff.',
-            'detail': 'Tracking, rider location, and final OTP verification are active now.',
+            'detail': 'Live tracking is unavailable in this version. Delivery updates are sent to your registered email.',
             'chip_class': 'info',
         }
     if order.status == OrderStatus.PACKED:
@@ -2221,25 +2394,16 @@ def notification_open(request: HttpRequest, notification_id: int) -> HttpRespons
 @login_required
 def order_detail_view(request: HttpRequest, order_id: int) -> HttpResponse:
     order = get_order_for_user(request.user, order_id)
+    active_role, active_profile = get_role_profile(request.user)
     order.subtotal_amount = order.total_amount - order.delivery_fee
     related_notifications = order.notifications.order_by('-created_at')[:6]
     timeline = build_order_timeline(order)
     status_summary = build_order_status_summary(order)
     payment_summary = build_payment_summary(order)
-    route_url = build_google_route_url(
-        order.shop.latitude,
-        order.shop.longitude,
-        order.customer.latitude,
-        order.customer.longitude,
-    )
-    maps_embed_url = build_google_embed_route_url(
-        order.shop.latitude,
-        order.shop.longitude,
-        order.customer.latitude,
-        order.customer.longitude,
-    )
-    if order.rider:
-        order.rider_route_url = route_url
+    shop_map_url = order.shop.google_maps_url
+    customer_map_url = order.customer.google_maps_url
+    if active_role == RoleType.RIDER:
+        enrich_rider_order(order, active_profile)
     return render(
         request,
         'core/order_detail.html',
@@ -2247,47 +2411,21 @@ def order_detail_view(request: HttpRequest, order_id: int) -> HttpResponse:
             'order': order,
             'timeline': timeline,
             'related_notifications': related_notifications,
-            'show_customer_actions': get_role_profile(request.user)[0] == RoleType.CUSTOMER,
+            'active_role': active_role,
+            'show_customer_actions': active_role == RoleType.CUSTOMER,
             'status_summary': status_summary,
             'payment_summary': payment_summary,
             'eta_label': build_order_eta_label(order),
-            'route_url': route_url,
-            'maps_embed_url': maps_embed_url,
+            'shop_map_url': shop_map_url,
+            'customer_map_url': customer_map_url,
         },
     )
 
 
 @login_required
 def order_tracking_view(request: HttpRequest, order_id: int) -> HttpResponse:
-    order = get_order_for_user(request.user, order_id)
-    order.subtotal_amount = order.total_amount - order.delivery_fee
-    timeline = build_order_timeline(order)
-    eta_label = build_order_eta_label(order)
-    route_url = build_google_route_url(
-        order.shop.latitude,
-        order.shop.longitude,
-        order.customer.latitude,
-        order.customer.longitude,
-    )
-    maps_embed_url = build_google_embed_route_url(
-        order.shop.latitude,
-        order.shop.longitude,
-        order.customer.latitude,
-        order.customer.longitude,
-    )
-    return render(
-        request,
-        'core/order_tracking.html',
-        {
-            'order': order,
-            'timeline': timeline,
-            'eta_label': eta_label,
-            'route_url': route_url,
-            'maps_embed_url': maps_embed_url,
-            'status_summary': build_order_status_summary(order),
-            'payment_summary': build_payment_summary(order),
-        },
-    )
+    messages.info(request, 'Live tracking is unavailable in this version. Use order details and email updates instead.')
+    return redirect('core:order_detail', order_id=order_id)
 
 
 def customer_start(request: HttpRequest) -> HttpResponse:
@@ -3031,6 +3169,9 @@ def shop_rate_order(request: HttpRequest, order_id: int) -> HttpResponse:
 
 @role_required(RoleType.RIDER)
 def rider_dashboard(request: HttpRequest) -> HttpResponse:
+    redirect_response = handle_rider_availability_toggle(request, request.role_profile)
+    if redirect_response:
+        return redirect_response
     context = rider_workspace_context(request)
     return render(request, 'core/rider_dashboard.html', context)
 
@@ -3042,19 +3183,42 @@ def rider_deliveries_view(request: HttpRequest) -> HttpResponse:
 
 
 @role_required(RoleType.RIDER)
+def rider_completed_orders_view(request: HttpRequest) -> HttpResponse:
+    context = rider_workspace_context(request)
+    return render(request, 'core/rider_completed_orders.html', context)
+
+
+@role_required(RoleType.RIDER)
+def rider_earnings_view(request: HttpRequest) -> HttpResponse:
+    context = rider_workspace_context(request)
+    return render(request, 'core/rider_earnings.html', context)
+
+
+@role_required(RoleType.RIDER)
 def rider_profile_view(request: HttpRequest) -> HttpResponse:
     rider = request.role_profile
-    if request.method == 'POST' and request.POST.get('action') == 'toggle_availability':
-        if rider.approval_status != ApprovalStatus.APPROVED:
-            messages.error(request, 'Admin approval is required before you can go live for dispatch.')
-            return redirect('core:rider_profile')
-        rider.is_available = request.POST.get('is_available') == 'on'
-        rider.save(update_fields=['is_available', 'updated_at'])
-        messages.success(request, 'Rider availability updated.')
-        return redirect('core:rider_profile')
+    redirect_response = handle_rider_availability_toggle(request, rider)
+    if redirect_response:
+        return redirect_response
 
     context = rider_workspace_context(request)
     return render(request, 'core/rider_profile.html', context)
+
+
+@role_required(RoleType.RIDER)
+@require_POST
+def rider_toggle_availability(request: HttpRequest) -> HttpResponse:
+    rider = request.role_profile
+    go_online = request.POST.get('is_available') == 'on'
+
+    if rider.approval_status != ApprovalStatus.APPROVED and go_online:
+        messages.error(request, 'Admin approval is required before you can go live for dispatch.')
+        return redirect(rider_availability_redirect_target(request))
+
+    rider.is_available = go_online
+    rider.save(update_fields=['is_available', 'updated_at'])
+    messages.success(request, 'Rider availability updated.')
+    return redirect(rider_availability_redirect_target(request))
 
 
 @role_required(RoleType.RIDER)
@@ -3066,7 +3230,7 @@ def rider_update_location(request: HttpRequest) -> HttpResponse:
         rider.latitude = form.cleaned_data['latitude']
         rider.longitude = form.cleaned_data['longitude']
         rider.save(update_fields=['latitude', 'longitude', 'updated_at'])
-        messages.success(request, 'Live location updated for your active delivery workspace.')
+        messages.success(request, 'Dispatch location updated for your rider workspace.')
     else:
         messages.error(request, 'Could not update location.')
     return redirect('core:rider_profile')
@@ -3115,7 +3279,23 @@ def rider_accept_order(request: HttpRequest, order_id: int) -> HttpResponse:
         body=f'{locked_rider.full_name} accepted order #{locked_order.id}.',
         notification_type=NotificationType.RIDER,
     )
-    messages.success(request, f'Order #{locked_order.id} assigned to {locked_rider.full_name}.')
+    delivered, _ = send_order_status_email(
+        order=locked_order,
+        subject=f'Your order {locked_order.display_id} now has a rider',
+        headline='A rider has accepted your order.',
+        detail=(
+            f'{locked_rider.full_name} is now handling your delivery. '
+            'Live tracking is disabled in this version, so order updates will arrive by email.'
+        ),
+    )
+    messages.success(
+        request,
+        (
+            f'Order #{locked_order.id} assigned to {locked_rider.full_name}. Customer emailed.'
+            if delivered
+            else f'Order #{locked_order.id} assigned to {locked_rider.full_name}.'
+        ),
+    )
     return redirect('core:rider_deliveries')
 
 
@@ -3161,8 +3341,18 @@ def rider_update_order_status(request: HttpRequest, order_id: int) -> HttpRespon
 
             locked_order.status = OrderStatus.OUT_FOR_DELIVERY
             locked_order.save(update_fields=['status', 'updated_at'])
-            status_message = 'picked up and is now out for delivery'
-            success_message = f'Order #{locked_order.id} marked as Out For Delivery.'
+            status_message = 'was picked up and is now moving to your address'
+            customer_status_message = (
+                f'Order #{locked_order.id} was picked up and is now moving to your address. '
+                f'Delivery OTP: {locked_order.customer_otp}.'
+            )
+            success_message = f'Pickup confirmed for order #{locked_order.id}.'
+            email_subject = f'Your order {locked_order.display_id} has been picked up'
+            email_headline = 'Your rider has arrived at pickup and collected the order.'
+            email_detail = (
+                'The order is now active in delivery. '
+                f'Your handoff OTP is {locked_order.customer_otp}. We will continue sending updates by email.'
+            )
         else:
             if locked_order.status != OrderStatus.OUT_FOR_DELIVERY:
                 messages.error(request, 'This order must be out for delivery before completion.')
@@ -3177,13 +3367,17 @@ def rider_update_order_status(request: HttpRequest, order_id: int) -> HttpRespon
             locked_rider.is_available = True
             locked_rider.save(update_fields=['is_available', 'updated_at'])
             status_message = 'was delivered successfully'
-            success_message = f'Order #{locked_order.id} moved to Delivered.'
+            customer_status_message = f'Order #{locked_order.id} was delivered successfully.'
+            success_message = f'Order #{locked_order.id} marked as delivered.'
+            email_subject = f'Your order {locked_order.display_id} was delivered'
+            email_headline = 'Your order has been delivered successfully.'
+            email_detail = 'Thank you for ordering with GramExpress. Your final invoice summary is included below.'
 
     create_notification(
         customer=locked_order.customer,
         order=locked_order,
         title='Delivery status updated',
-        body=f'Order #{locked_order.id} {status_message}.',
+        body=customer_status_message,
         notification_type=NotificationType.RIDER,
     )
     create_notification(
@@ -3193,7 +3387,18 @@ def rider_update_order_status(request: HttpRequest, order_id: int) -> HttpRespon
         body=f'Order #{locked_order.id} {status_message}.',
         notification_type=NotificationType.RIDER,
     )
-    messages.success(request, success_message)
+    delivered, _ = send_order_status_email(
+        order=locked_order,
+        subject=email_subject,
+        headline=email_headline,
+        detail=email_detail,
+    )
+    messages.success(
+        request,
+        f'{success_message}{" Customer emailed." if delivered else ""}',
+    )
+    if next_status == OrderStatus.DELIVERED:
+        return redirect('core:rider_completed_orders')
     return redirect('core:rider_deliveries')
 
 @require_GET

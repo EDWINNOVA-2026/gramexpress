@@ -55,9 +55,7 @@
                 <button class="button small primary" type="submit">Packed</button>
               </form>
             {% endif %}
-            {% if order.rider %}
-              <a class="button small secondary" href="{{ order.rider_tracking_url }}" target="_blank" rel="noreferrer">Track Rider</a>
-            {% endif %}
+            <a class="button small secondary" href="{{ order.customer.google_maps_url }}" target="_blank" rel="noreferrer">Open Drop-off Pin</a>
           </div>
 
           {% if order.can_cancel_from_store %}

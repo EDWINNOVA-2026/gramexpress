@@ -4,8 +4,8 @@
   <section class="dashboard-top" id="top">
     <article class="hero-card glass-card hero-card-customer" data-appear>
       <span class="eyebrow">Orders</span>
-      <h1>Track and manage orders</h1>
-      <p class="hero-lead">Live tracking, reorder, cancellation, and ratings now live on a dedicated orders page.</p>
+      <h1>Manage and review orders</h1>
+      <p class="hero-lead">Check order status, open delivery details, reorder past baskets, and rely on email updates instead of live tracking.</p>
       <div class="hero-inline-facts">
         <span class="soft-pill">{{ active_order_count }} active</span>
         <span class="soft-pill">{{ delivered_order_count }} delivered</span>
@@ -15,11 +15,11 @@
       <article class="metric-card">
         <span class="metric-label">Latest status</span>
         <strong class="metric-value">{% if orders %}{{ orders.0.get_status_display }}{% else %}No orders yet{% endif %}</strong>
-        <p>{% if orders %}{{ orders.0.shop.name }} is your most recent order.{% else %}Place your first order from the home page to start tracking here.{% endif %}</p>
+        <p>{% if orders %}{{ orders.0.shop.name }} is your most recent order.{% else %}Place your first order from the home page to start receiving order updates here.{% endif %}</p>
       </article>
       <article class="card quick-card">
         <span class="eyebrow">Order Actions</span>
-        <h2 class="section-title">Track, reorder, and rate</h2>
+        <h2 class="section-title">Details, reorder, and rate</h2>
         <p>Use this page for the full post-checkout journey instead of mixing it with storefront browsing.</p>
       </article>
     </aside>
@@ -27,7 +27,7 @@
 
   <section class="card" data-appear>
     <span class="eyebrow">Active Orders</span>
-    <h2 class="section-title">Track riders, review line items, and rate deliveries</h2>
+    <h2 class="section-title">Review line items and watch status changes</h2>
 
     <div class="stack">
       {% for order in active_orders %}
@@ -44,15 +44,11 @@
             <div class="inline-actions">
               <span class="pill">Rs. {{ order.total_amount }}</span>
               <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
-              <a class="button small primary" href="{% url 'core:order_tracking' order.id %}">Track Live</a>
               {% if order.can_be_reordered %}
                 <form method="post" action="{% url 'core:customer_reorder' order.id %}">
                   {% csrf_token %}
                   <button class="button small secondary" type="submit">Order Again</button>
                 </form>
-              {% endif %}
-              {% if order.rider %}
-                <a class="button small secondary" href="{{ order.rider.google_maps_url }}" target="_blank" rel="noreferrer">Rider Live</a>
               {% endif %}
             </div>
           </div>

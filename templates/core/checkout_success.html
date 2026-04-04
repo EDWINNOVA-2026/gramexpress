@@ -5,7 +5,7 @@
     <article class="card success-hero-card" data-appear>
       <div class="success-badge">Success</div>
       <h1 class="page-title">Order placed</h1>
-      <p>Your checkout is complete. Delivery teams and stores have already received the order instructions.</p>
+      <p>Your checkout is complete. Delivery teams and stores have already received the order instructions, and status updates will arrive by email.</p>
       <div class="hero-inline-facts">
         <span class="soft-pill">ETA {{ estimated_eta }}</span>
         <span class="soft-pill">Rs. {{ estimated_total }}</span>
@@ -28,8 +28,8 @@
                 <span class="pill">Rs. {{ order.total_amount }}</span>
               </div>
               <div class="inline-actions">
-                <a class="button small primary" href="{% url 'core:order_tracking' order.id %}">Track</a>
-                <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Details</a>
+                <a class="button small primary" href="{% url 'core:order_detail' order.id %}">Details</a>
+                <a class="button small secondary" href="{% url 'core:customer_orders' %}">All Orders</a>
               </div>
             </div>
           {% endfor %}
@@ -54,7 +54,7 @@
           </div>
         {% endif %}
         <div class="stack small-gap">
-          <a class="button primary" href="{% if primary_order %}{% url 'core:order_tracking' primary_order.id %}{% else %}{% url 'core:customer_dashboard' %}{% endif %}">Track My Order</a>
+          <a class="button primary" href="{% if primary_order %}{% url 'core:order_detail' primary_order.id %}{% else %}{% url 'core:customer_dashboard' %}{% endif %}">Open Order Details</a>
           <a class="button secondary" href="{% url 'core:customer_dashboard' %}">Browse Stores</a>
         </div>
       </article>
