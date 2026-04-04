@@ -99,6 +99,16 @@
                 <li>Repeated delivery refusals can affect COD availability.</li>
               </ul>
             </div>
+          {% elif is_khatabook %}
+            <div class="checkout-cod-panel">
+              <strong>Added to KhataBook</strong>
+              <p>Your order will be placed immediately on a 7-day platform credit line instead of asking for payment now.</p>
+              <ul class="checkout-checklist">
+                <li>This full checkout total moves to your KhataBook weekly due.</li>
+                <li>Repayment stays visible in the app and is due next Monday, {{ khatabook_due_date|date:"M d" }}.</li>
+                <li>You can repay later through COD / UPI collection request or direct Razorpay UPI.</li>
+              </ul>
+            </div>
           {% elif razorpay_enabled %}
             <div class="checkout-cod-panel">
               <strong>Razorpay checkout enabled</strong>
@@ -120,6 +130,15 @@
               <input type="hidden" name="action" value="confirm" />
               <button class="button primary" type="submit" {% if cart.has_blocking_issues %}disabled{% endif %}>
                 Yes, Place COD Order
+              </button>
+              <a class="button secondary" href="{% url 'core:customer_cart' %}">Back To Cart</a>
+            </form>
+          {% elif is_khatabook %}
+            <form method="post" action="{% url 'core:customer_checkout' %}" class="stack">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="confirm" />
+              <button class="button primary" type="submit" {% if cart.has_blocking_issues %}disabled{% endif %}>
+                Yes, Add This To KhataBook
               </button>
               <a class="button secondary" href="{% url 'core:customer_cart' %}">Back To Cart</a>
             </form>

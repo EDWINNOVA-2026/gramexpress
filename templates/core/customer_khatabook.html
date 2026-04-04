@@ -1,0 +1,186 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="page-stack" id="top">
+    <article class="card success-hero-card" data-appear>
+      <div class="split-row">
+        <div>
+          <span class="eyebrow">KhataBook</span>
+          <h1 class="page-title">Your weekly credit line</h1>
+          <p>Order now, keep a visible 7-day platform credit balance, and settle the week’s due by the next Monday.</p>
+        </div>
+        <div class="hero-inline-facts">
+          <span class="soft-pill">Due {{ khatabook_summary.due_date|date:"M d" }}</span>
+          <span class="soft-pill">Rs. {{ khatabook_summary.outstanding_amount }}</span>
+          <span class="status-chip {{ khatabook_summary.badge_class }}">{{ khatabook_summary.status_label }}</span>
+        </div>
+      </div>
+    </article>
+
+    <section class="layout-two" id="workspace">
+      <div class="stack">
+        <article class="card" data-appear>
+          <span class="eyebrow">Weekly Due</span>
+          <h2 class="section-title">{{ khatabook_summary.headline }}</h2>
+          <div class="summary-grid">
+            <div class="metric-card checkout-summary-card">
+              <span class="metric-label">Outstanding this week</span>
+              <strong class="metric-value">Rs. {{ khatabook_summary.outstanding_amount }}</strong>
+              <p>Due on {{ khatabook_summary.due_date|date:"M d, Y" }}</p>
+            </div>
+            <div class="metric-card checkout-summary-card">
+              <span class="metric-label">Credit window</span>
+              <strong class="metric-value">7 Days</strong>
+              <p>Every KhataBook checkout rolls into one weekly due instead of immediate payment.</p>
+            </div>
+          </div>
+          <div class="checkout-cod-panel">
+            <strong>What this means</strong>
+            <p>{{ khatabook_summary.detail }}</p>
+          </div>
+        </article>
+
+        <article class="card" data-appear>
+          <span class="eyebrow">Covered Orders</span>
+          <h2 class="section-title">Orders in this KhataBook cycle</h2>
+          <div class="stack">
+            {% for order in khatabook_orders %}
+              <div class="compact-item">
+                <div class="split-row">
+                  <div>
+                    <strong>{{ order.display_id }}</strong>
+                    <p>{{ order.shop.name }} | {{ order.get_status_display }}</p>
+                  </div>
+                  <span class="pill">Rs. {{ order.total_amount }}</span>
+                </div>
+                <p class="utility-note">Added to KhataBook{% if order.credit_due_date %} | due {{ order.credit_due_date|date:"M d, Y" }}{% endif %}</p>
+                <div class="inline-actions">
+                  <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Open Order</a>
+                </div>
+              </div>
+            {% empty %}
+              <div class="empty-card">
+                <span class="eyebrow">No credit orders yet</span>
+                <h2 class="section-title">KhataBook is ready when you are</h2>
+                <p>Pick KhataBook at checkout to place an order without immediate payment.</p>
+                <a class="button primary" href="{% url 'core:customer_dashboard' %}">Browse Stores</a>
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
+
+      <div class="stack">
+        <article class="card" data-appear>
+          <span class="eyebrow">Repay Due</span>
+          <h2 class="section-title">Choose how to settle this week</h2>
+          {% if khatabook_collection_request %}
+            <div class="checkout-cod-panel">
+              <strong>Collection request status</strong>
+              <p>
+                {{ khatabook_collection_request.get_status_display }} for {{ khatabook_collection_request.display_id }}.
+                {% if khatabook_collection_request.rider %}
+                  {{ khatabook_collection_request.rider.full_name }} is assigned.
+                {% else %}
+                  Nearby riders are being notified.
+                {% endif %}
+              </p>
+              <p class="utility-note">Share OTP <code>{{ khatabook_collection_request.collection_otp }}</code> only when the rider arrives to collect the repayment.</p>
+            </div>
+          {% endif %}
+          {% if khatabook_summary.cycle and not khatabook_summary.is_paid %}
+            <div class="stack">
+              <form method="post" action="{% url 'core:customer_khatabook_request_collection' %}" class="checkout-cod-panel">
+                {% csrf_token %}
+                <strong>COD / UPI collection</strong>
+                <p>Ask GramExpress to collect the KhataBook due physically. A delivery agent might take time to arrive.</p>
+                <button class="button secondary" type="submit">Request COD / UPI Collection</button>
+              </form>
+
+              {% if khatabook_razorpay_checkout %}
+                <div class="checkout-cod-panel">
+                  <strong>Direct Razorpay UPI</strong>
+                  <p>Pay the weekly due now through Razorpay and close this credit cycle instantly.</p>
+                  <button class="button primary" type="button" id="khatabook-razorpay-button">Pay Rs. {{ khatabook_summary.outstanding_amount }} With Razorpay UPI</button>
+                </div>
+              {% elif razorpay_enabled %}
+                <div class="checkout-cod-panel">
+                  <strong>Razorpay is preparing</strong>
+                  <p>Refresh this page in a moment if the KhataBook payment button does not appear yet.</p>
+                </div>
+              {% else %}
+                <div class="checkout-cod-panel">
+                  <strong>Razorpay not configured</strong>
+                  <p>Direct UPI repayment will appear here after Razorpay keys are configured.</p>
+                </div>
+              {% endif %}
+            </div>
+          {% elif khatabook_summary.is_paid %}
+            <div class="checkout-cod-panel">
+              <strong>KhataBook is fully settled</strong>
+              <p>This weekly due is closed. New KhataBook orders will roll into the next cycle automatically.</p>
+            </div>
+          {% else %}
+            <div class="checkout-cod-panel">
+              <strong>No due amount yet</strong>
+              <p>Your KhataBook balance is empty right now. The section will start tracking dues after your first KhataBook checkout.</p>
+            </div>
+          {% endif %}
+          <a class="button secondary" href="{% url 'core:customer_dashboard' %}">Back To Stores</a>
+        </article>
+      </div>
+    </section>
+  </section>
+
+  {% if khatabook_razorpay_checkout %}
+    {{ khatabook_razorpay_checkout|json_script:"khatabook-razorpay-options" }}
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script>
+      (function () {
+        var payButton = document.getElementById('khatabook-razorpay-button');
+        var optionsNode = document.getElementById('khatabook-razorpay-options');
+        if (!payButton || !optionsNode || !window.Razorpay) {
+          return;
+        }
+
+        var options = JSON.parse(optionsNode.textContent);
+        options.handler = function (response) {
+          var form = document.createElement('form');
+          form.method = 'post';
+          form.action = '{% url "core:customer_khatabook_razorpay_complete" %}';
+          form.innerHTML = '<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">' +
+            '<input type="hidden" name="khatabook_cycle_id" value="' + (options.khatabook_cycle_id || '') + '">' +
+            '<input type="hidden" name="razorpay_payment_id" value="' + (response.razorpay_payment_id || '') + '">' +
+            '<input type="hidden" name="razorpay_order_id" value="' + (response.razorpay_order_id || '') + '">' +
+            '<input type="hidden" name="razorpay_signature" value="' + (response.razorpay_signature || '') + '">';
+          document.body.appendChild(form);
+          form.submit();
+        };
+        options.modal = {
+          ondismiss: function () {
+            payButton.disabled = false;
+          }
+        };
+
+        var razorpayCheckout = new window.Razorpay(options);
+        razorpayCheckout.on('payment.failed', function (response) {
+          var error = (response && response.error) || {};
+          var form = document.createElement('form');
+          form.method = 'post';
+          form.action = '{% url "core:customer_khatabook_razorpay_failed" %}';
+          form.innerHTML = '<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">' +
+            '<input type="hidden" name="khatabook_cycle_id" value="' + (options.khatabook_cycle_id || '') + '">' +
+            '<input type="hidden" name="error_description" value="' + (error.description || 'The KhataBook UPI payment was not completed.') + '">' +
+            '<input type="hidden" name="error_reason" value="' + (error.reason || '') + '">';
+          document.body.appendChild(form);
+          form.submit();
+        });
+
+        payButton.addEventListener('click', function () {
+          payButton.disabled = true;
+          razorpayCheckout.open();
+        });
+      })();
+    </script>
+  {% endif %}
+{% endblock %}

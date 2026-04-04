@@ -153,7 +153,7 @@ class Command(BaseCommand):
                 'status': OrderStatus.OUT_FOR_DELIVERY,
                 'payment_method': PaymentMethod.COD,
                 'payment_status': PaymentStatus.PENDING,
-                'delivery_fee': Decimal('20.00'),
+                'delivery_fee': Decimal('15.00'),
                 'total_amount': Decimal('150.00'),
                 'customer_notes': 'Deliver near bus stand gate.',
             },

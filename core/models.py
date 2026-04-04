@@ -5,6 +5,8 @@ from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
 
+DEFAULT_DELIVERY_FEE = Decimal('15.00')
+
 
 class ApprovalStatus(models.TextChoices):
     PENDING = 'pending', 'Pending'
@@ -35,6 +37,7 @@ class OrderStatus(models.TextChoices):
 class PaymentMethod(models.TextChoices):
     COD = 'cod', 'Cash On Delivery'
     RAZORPAY = 'razorpay', 'Razorpay'
+    KHATABOOK = 'khata', 'KhataBook Credit'
 
 
 class PaymentStatus(models.TextChoices):
@@ -53,6 +56,24 @@ class SettlementStatus(models.TextChoices):
     QR_READY = 'qr_ready', 'QR Ready'
     PAID = 'paid', 'Settled'
     FAILED = 'failed', 'Failed'
+
+
+class KhataBookCycleStatus(models.TextChoices):
+    OPEN = 'open', 'Open'
+    COLLECTION_REQUESTED = 'collection_requested', 'Collection Requested'
+    PAID = 'paid', 'Paid'
+
+
+class KhataBookSettlementMethod(models.TextChoices):
+    COD_UPI = 'cod_upi', 'COD / UPI Collection'
+    RAZORPAY_UPI = 'razorpay_upi', 'Razorpay UPI'
+
+
+class KhataBookCollectionStatus(models.TextChoices):
+    REQUESTED = 'requested', 'Requested'
+    ACCEPTED = 'accepted', 'Accepted'
+    COMPLETED = 'completed', 'Completed'
+    CANCELLED = 'cancelled', 'Cancelled'
 
 
 class RoleType(models.TextChoices):
@@ -270,6 +291,90 @@ class CheckoutSession(TimeStampedModel):
         return self.completed_at is not None
 
 
+class KhataBookCycle(TimeStampedModel):
+    customer = models.ForeignKey(
+        CustomerProfile,
+        on_delete=models.CASCADE,
+        related_name='khatabook_cycles',
+    )
+    week_start = models.DateField(db_index=True)
+    due_date = models.DateField(db_index=True)
+    status = models.CharField(
+        max_length=24,
+        choices=KhataBookCycleStatus.choices,
+        default=KhataBookCycleStatus.OPEN,
+    )
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    paid_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    settlement_method = models.CharField(
+        max_length=24,
+        choices=KhataBookSettlementMethod.choices,
+        blank=True,
+    )
+    collection_requested_at = models.DateTimeField(null=True, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    razorpay_order_id = models.CharField(max_length=80, blank=True, db_index=True)
+    razorpay_payment_id = models.CharField(max_length=80, blank=True)
+    razorpay_signature = models.CharField(max_length=160, blank=True)
+    failure_reason = models.CharField(max_length=240, blank=True)
+
+    class Meta:
+        ordering = ['-week_start']
+        constraints = [
+            models.UniqueConstraint(fields=['customer', 'week_start'], name='unique_khatabook_cycle_per_customer_week'),
+        ]
+
+    def __str__(self) -> str:
+        return f'KhataBook {self.customer.full_name} - {self.week_start}'
+
+    @property
+    def outstanding_amount(self) -> Decimal:
+        remaining = self.total_amount - self.paid_amount
+        return remaining if remaining > Decimal('0.00') else Decimal('0.00')
+
+
+class KhataBookCollectionRequest(TimeStampedModel, LocationMixin):
+    customer = models.ForeignKey(
+        CustomerProfile,
+        on_delete=models.CASCADE,
+        related_name='khatabook_collection_requests',
+    )
+    khata_cycle = models.ForeignKey(
+        KhataBookCycle,
+        on_delete=models.CASCADE,
+        related_name='collection_requests',
+    )
+    rider = models.ForeignKey(
+        RiderProfile,
+        on_delete=models.SET_NULL,
+        related_name='khatabook_collection_requests',
+        null=True,
+        blank=True,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=KhataBookCollectionStatus.choices,
+        default=KhataBookCollectionStatus.REQUESTED,
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    collection_address = models.CharField(max_length=240)
+    collection_notes = models.CharField(max_length=200, blank=True)
+    collection_otp = models.CharField(max_length=6, blank=True)
+    payment_reference = models.CharField(max_length=120, blank=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'Khata Collection #{self.id} - {self.customer.full_name}'
+
+    @property
+    def display_id(self) -> str:
+        return f'KHC-{1000 + self.id}'
+
+
 class Order(TimeStampedModel):
     customer = models.ForeignKey(
         CustomerProfile,
@@ -291,10 +396,19 @@ class Order(TimeStampedModel):
         null=True,
         blank=True,
     )
+    khata_cycle = models.ForeignKey(
+        KhataBookCycle,
+        on_delete=models.SET_NULL,
+        related_name='orders',
+        null=True,
+        blank=True,
+    )
     status = models.CharField(max_length=20, choices=OrderStatus.choices, default=OrderStatus.PENDING)
     payment_method = models.CharField(max_length=12, choices=PaymentMethod.choices, default=PaymentMethod.COD)
     payment_status = models.CharField(max_length=12, choices=PaymentStatus.choices, default=PaymentStatus.PENDING)
     payment_reference = models.CharField(max_length=120, blank=True)
+    credit_due_date = models.DateField(null=True, blank=True)
+    credit_paid_at = models.DateTimeField(null=True, blank=True)
     cod_collection_mode = models.CharField(max_length=12, choices=CodCollectionMode.choices, blank=True)
     cod_payment_link_id = models.CharField(max_length=80, blank=True, db_index=True)
     cod_payment_link_url = models.URLField(blank=True)
@@ -312,7 +426,7 @@ class Order(TimeStampedModel):
     settlement_generated_at = models.DateTimeField(null=True, blank=True)
     settlement_paid_at = models.DateTimeField(null=True, blank=True)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
-    delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('20.00'))
+    delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=DEFAULT_DELIVERY_FEE)
     delivery_address = models.CharField(max_length=240)
     customer_otp = models.CharField(max_length=6, default='123456')
     customer_notes = models.CharField(max_length=200, blank=True)

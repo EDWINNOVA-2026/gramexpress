@@ -27,6 +27,12 @@
         <h2 class="section-title">{% if cart.has_blocking_issues %}Needs review{% else %}Ready for review{% endif %}</h2>
         <p>{% if cart.has_blocking_issues %}Fix the flagged stock or store issues below before continuing.{% else %}Your grouped cart is ready for payment and delivery notes.{% endif %}</p>
       </article>
+      <article class="card quick-card">
+        <span class="eyebrow">KhataBook</span>
+        <h2 class="section-title">{{ khatabook_summary.status_label }}</h2>
+        <p>{{ khatabook_summary.headline }}</p>
+        <a class="button small secondary" href="{% url 'core:customer_khatabook' %}">Open KhataBook</a>
+      </article>
     </aside>
   </section>
 
@@ -130,6 +136,13 @@
                   <span class="soft-pill">Online</span>
                 </button>
               {% endif %}
+              <button class="payment-choice-button" type="submit" name="payment_method" value="khata" {% if cart.has_blocking_issues %}disabled{% endif %}>
+                <span class="payment-choice-copy">
+                  <strong>KhataBook</strong>
+                  <span>Place the order now on a 7-day credit line and repay next Monday.</span>
+                </span>
+                <span class="soft-pill">Credit</span>
+              </button>
               <button class="payment-choice-button" type="submit" name="payment_method" value="cod" {% if cart.has_blocking_issues %}disabled{% endif %}>
                 <span class="payment-choice-copy">
                   <strong>Cash/UPI on delivery</strong>
@@ -152,7 +165,7 @@
             {% if not razorpay_enabled %}
               <div class="checkout-cod-panel">
                 <strong>Razorpay is not configured yet</strong>
-                <p>Set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` in your environment to enable online payments. Until then, checkout uses Cash/UPI on delivery only.</p>
+                <p>Set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` in your environment to enable online payments. Until then, checkout uses Cash/UPI on delivery and KhataBook credit.</p>
               </div>
             {% endif %}
           </form>

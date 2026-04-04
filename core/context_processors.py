@@ -41,11 +41,13 @@ def shell_navigation(request):
             role_links = [
                 {'label': 'Home', 'url': reverse('core:customer_dashboard')},
                 {'label': 'Cart', 'url': reverse('core:customer_cart')},
+                {'label': 'KhataBook', 'url': reverse('core:customer_khatabook')},
                 {'label': 'Orders', 'url': reverse('core:customer_orders')},
                 {'label': 'Profile', 'url': reverse('core:customer_profile')},
             ]
             primary_links = role_links[:3]
             menu_links = [
+                {'label': 'KhataBook', 'url': reverse('core:customer_khatabook')},
                 {'label': 'Edit Profile', 'url': reverse('core:customer_profile')},
                 {'label': 'Previous Orders', 'url': f"{reverse('core:customer_orders')}#history"},
                 {'label': 'Customer Support', 'url': reverse('core:support')},

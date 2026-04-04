@@ -10,6 +10,9 @@
         <span class="soft-pill">ETA {{ estimated_eta }}</span>
         <span class="soft-pill">Rs. {{ estimated_total }}</span>
         <span class="soft-pill">{{ payment_method_label }}</span>
+        {% if payment_method == 'khata' %}
+          <span class="soft-pill">Added to KhataBook</span>
+        {% endif %}
       </div>
     </article>
 
@@ -44,6 +47,18 @@
             <strong>Cash on delivery selected</strong>
             <p>Pay the rider after checking the items. Keep the amount ready for a smooth handoff.</p>
           </div>
+        {% elif payment_method == 'khata' %}
+          <div class="checkout-cod-panel">
+            <strong>Added to KhataBook</strong>
+            <p>Your checkout total is now on a 7-day platform credit line.</p>
+            <p class="utility-note">
+              {% if khatabook_summary.cycle %}
+                Rs. {{ khatabook_summary.outstanding_amount }} is due by {{ khatabook_summary.due_date|date:"M d" }}.
+              {% else %}
+                The weekly KhataBook due will appear in your customer section immediately.
+              {% endif %}
+            </p>
+          </div>
         {% else %}
           <div class="checkout-cod-panel">
             <strong>Online payment recorded</strong>
@@ -54,7 +69,9 @@
           </div>
         {% endif %}
         <div class="stack small-gap">
-          <a class="button primary" href="{% if primary_order %}{% url 'core:order_detail' primary_order.id %}{% else %}{% url 'core:customer_dashboard' %}{% endif %}">Open Order Details</a>
+          <a class="button primary" href="{% if payment_method == 'khata' %}{% url 'core:customer_khatabook' %}{% elif primary_order %}{% url 'core:order_detail' primary_order.id %}{% else %}{% url 'core:customer_dashboard' %}{% endif %}">
+            {% if payment_method == 'khata' %}Open KhataBook{% else %}Open Order Details{% endif %}
+          </a>
           <a class="button secondary" href="{% url 'core:customer_dashboard' %}">Browse Stores</a>
         </div>
       </article>

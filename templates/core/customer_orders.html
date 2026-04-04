@@ -9,6 +9,7 @@
       <div class="hero-inline-facts">
         <span class="soft-pill">{{ active_order_count }} active</span>
         <span class="soft-pill">{{ delivered_order_count }} delivered</span>
+        <span class="soft-pill">KhataBook Rs. {{ khatabook_summary.outstanding_amount }}</span>
       </div>
     </article>
     <aside class="stack" data-appear>
@@ -70,6 +71,9 @@
               <p>{{ order.shop.name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
               <p class="utility-note">{{ order.tracking_label }}</p>
               <p class="utility-note">{{ order.payment_summary.label }} | {{ order.payment_summary.status_label }}</p>
+              {% if order.payment_method == 'khata' and order.credit_due_date %}
+                <p class="utility-note">KhataBook due on {{ order.credit_due_date|date:"M d, Y" }}</p>
+              {% endif %}
               {% if order.status == 'out_for_delivery' %}
                 <p class="utility-note">Delivery OTP for handoff: <code>{{ order.customer_otp }}</code></p>
                 {% if order.customer_otp_valid_until %}
@@ -85,6 +89,9 @@
                   {% csrf_token %}
                   <button class="button small secondary" type="submit">Order Again</button>
                 </form>
+              {% endif %}
+              {% if order.payment_method == 'khata' and order.payment_status != 'paid' %}
+                <a class="button small secondary" href="{% url 'core:customer_khatabook' %}">Open KhataBook</a>
               {% endif %}
               {% if order.payment_method == 'cod' %}
                 {% if order.status == 'out_for_delivery' or order.status == 'delivered' %}
@@ -176,10 +183,16 @@
               <strong>{{ order.display_id }}</strong>
               <p>{{ order.shop.name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
               <p class="utility-note">{{ order.payment_summary.label }} | {{ order.payment_summary.status_label }}</p>
+              {% if order.payment_method == 'khata' and order.credit_due_date %}
+                <p class="utility-note">KhataBook due on {{ order.credit_due_date|date:"M d, Y" }}</p>
+              {% endif %}
             </div>
             <div class="action-cluster">
               <span class="pill">Rs. {{ order.total_amount }}</span>
               <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
+              {% if order.payment_method == 'khata' and order.payment_status != 'paid' %}
+                <a class="button small secondary" href="{% url 'core:customer_khatabook' %}">Open KhataBook</a>
+              {% endif %}
               {% if order.can_be_reordered %}
                 <form method="post" action="{% url 'core:customer_reorder' order.id %}">
                   {% csrf_token %}
