@@ -9,6 +9,7 @@ from django.core import mail
 from django.test import Client, TestCase
 from django.test.utils import override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from .admin import approve_riders, approve_stores
 from .models import (
@@ -190,11 +191,35 @@ class CoreFlowTests(TestCase):
         order = Order.objects.latest('id')
         self.assertEqual(order.customer, self.customer)
         self.assertEqual(order.shop, self.shop)
-        self.assertEqual(order.rider, self.rider)
+        self.assertIsNone(order.rider)
         self.assertEqual(order.status, OrderStatus.CONFIRMED)
         self.assertEqual(order.items.get().quantity, 2)
         self.product.refresh_from_db()
         self.assertEqual(self.product.stock, 18)
+        self.rider.refresh_from_db()
+        self.assertTrue(self.rider.is_available)
+
+    def test_new_checkout_order_stays_in_rider_new_tab_until_acceptance(self):
+        pending_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            status=OrderStatus.CONFIRMED,
+            total_amount=Decimal('48.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+        )
+        OrderItem.objects.create(order=pending_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+
+        self.client.force_login(self.rider_user)
+        response = self.client.get(reverse('core:rider_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, pending_order.display_id)
+        self.assertContains(response, 'Accept Order')
+
+        active_response = self.client.get(reverse('core:rider_deliveries'))
+        self.assertEqual(active_response.status_code, 200)
+        self.assertNotContains(active_response, pending_order.display_id)
 
     def test_checkout_blocks_when_stock_changes_after_cart_add(self):
         self.client.force_login(self.customer_user)
@@ -356,7 +381,7 @@ class CoreFlowTests(TestCase):
         self.assertEqual(tracking_response.status_code, 200)
         self.assertContains(detail_response, self.demo_order.display_id)
         self.assertContains(detail_response, 'Email updates')
-        self.assertContains(detail_response, 'Rider is approaching')
+        self.assertContains(detail_response, 'Rider picked up your order')
         self.assertContains(tracking_response, 'Use order details and email updates instead.')
 
     @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
@@ -380,11 +405,12 @@ class CoreFlowTests(TestCase):
         self.assertEqual(available_order.rider, self.rider)
         self.assertEqual(available_order.status, OrderStatus.PACKED)
         self.assertFalse(self.rider.is_available)
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertIn(available_order.display_id, mail.outbox[0].subject)
-        self.assertIn(self.rider.full_name, mail.outbox[0].body)
-        self.assertIn('Invoice', mail.outbox[0].body)
-        self.assertIn(self.rider.phone, mail.outbox[0].body)
+        self.assertEqual(len(mail.outbox), 2)
+        subjects = {message.subject for message in mail.outbox}
+        self.assertIn(f'Your order {available_order.display_id} now has a rider', subjects)
+        self.assertIn(f'Rider assigned for {available_order.display_id}', subjects)
+        self.assertIn(self.rider.full_name, mail.outbox[0].body + mail.outbox[1].body)
+        self.assertIn(self.rider.phone, mail.outbox[0].body + mail.outbox[1].body)
 
     def test_rider_must_be_near_store_to_mark_pickup(self):
         pickup_order = Order.objects.create(
@@ -437,10 +463,12 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         pickup_order.refresh_from_db()
         self.assertEqual(pickup_order.status, OrderStatus.OUT_FOR_DELIVERY)
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertIn('has been picked up', mail.outbox[0].subject)
-        self.assertIn('Delivery OTP', mail.outbox[0].body)
-        self.assertIn('456789', mail.outbox[0].body)
+        self.assertEqual(len(mail.outbox), 2)
+        combined_mail = '\n'.join(message.subject + '\n' + message.body for message in mail.outbox)
+        self.assertIn('has been picked up', combined_mail)
+        self.assertIn('picked up by rider', combined_mail)
+        self.assertIn('Delivery OTP', combined_mail)
+        self.assertIn('456789', combined_mail)
         pickup_note = self.customer.notifications.filter(order=pickup_order).latest('created_at')
         self.assertIn('456789', pickup_note.body)
 
@@ -468,10 +496,81 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn('Delivery OTP reminder', mail.outbox[0].subject)
-        self.assertIn('777888', mail.outbox[0].body)
+        delivery_order.refresh_from_db()
+        self.assertNotEqual(delivery_order.customer_otp, '777888')
+        self.assertIn(delivery_order.customer_otp, mail.outbox[0].body)
         resend_note = self.customer.notifications.filter(order=delivery_order).latest('created_at')
-        self.assertIn('777888', resend_note.body)
+        self.assertIn(delivery_order.customer_otp, resend_note.body)
         self.assertEqual(response.request['PATH_INFO'], reverse('core:rider_deliveries'))
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_rider_cannot_resend_customer_otp_during_cooldown(self):
+        delivery_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            status=OrderStatus.OUT_FOR_DELIVERY,
+            total_amount=Decimal('48.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            customer_otp='777888',
+        )
+        OrderItem.objects.create(order=delivery_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+        Notification.objects.create(
+            customer=self.customer,
+            order=delivery_order,
+            title='Delivery OTP resent',
+            body='Cooldown test',
+            notification_type=NotificationType.RIDER,
+        )
+
+        self.client.force_login(self.rider_user)
+        response = self.client.post(
+            reverse('core:rider_resend_customer_otp', args=[delivery_order.id]),
+            {'next': reverse('core:rider_deliveries')},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Wait 45 seconds before resending the OTP again.')
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_rider_cannot_complete_delivery_with_expired_otp(self):
+        delivery_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            status=OrderStatus.OUT_FOR_DELIVERY,
+            total_amount=Decimal('48.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            customer_otp='654321',
+        )
+        OrderItem.objects.create(order=delivery_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+        note = Notification.objects.create(
+            customer=self.customer,
+            order=delivery_order,
+            title='Delivery status updated',
+            body='Pickup confirmed and delivery is now in progress.',
+            notification_type=NotificationType.RIDER,
+        )
+        Notification.objects.filter(pk=note.pk).update(
+            created_at=timezone.now() - timezone.timedelta(minutes=16),
+        )
+
+        self.client.force_login(self.rider_user)
+        response = self.client.post(
+            reverse('core:rider_update_order_status', args=[delivery_order.id]),
+            {'status': OrderStatus.DELIVERED, 'customer_otp': '654321'},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delivery_order.refresh_from_db()
+        self.assertEqual(delivery_order.status, OrderStatus.OUT_FOR_DELIVERY)
+        self.assertContains(response, 'Customer OTP expired. Resend a fresh OTP before completing delivery.')
+        self.assertEqual(len(mail.outbox), 0)
 
     @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
     def test_rider_can_mark_delivered_and_email_customer(self):
@@ -499,9 +598,11 @@ class CoreFlowTests(TestCase):
         self.rider.refresh_from_db()
         self.assertEqual(delivery_order.status, OrderStatus.DELIVERED)
         self.assertTrue(self.rider.is_available)
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertIn('was delivered', mail.outbox[0].subject)
-        self.assertIn('delivered successfully', mail.outbox[0].body)
+        self.assertEqual(len(mail.outbox), 2)
+        combined_mail = '\n'.join(message.subject + '\n' + message.body for message in mail.outbox)
+        self.assertIn('was delivered', combined_mail)
+        self.assertIn('delivered successfully', combined_mail)
+        self.assertIn('delivered successfully by', self.owner.notifications.filter(order=delivery_order).latest('created_at').body)
 
     def test_rider_completed_and_earnings_pages_render(self):
         self.client.force_login(self.rider_user)
@@ -513,6 +614,28 @@ class CoreFlowTests(TestCase):
         self.assertEqual(earnings_response.status_code, 200)
         self.assertContains(completed_response, 'Completed Orders')
         self.assertContains(earnings_response, 'Delivery earnings summary')
+
+    def test_rider_deliveries_highlight_current_mission(self):
+        pickup_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            status=OrderStatus.PACKED,
+            total_amount=Decimal('48.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            customer_otp='222333',
+        )
+        OrderItem.objects.create(order=pickup_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+        self.client.force_login(self.rider_user)
+
+        response = self.client.get(reverse('core:rider_deliveries'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Current mission')
+        self.assertContains(response, reverse('core:support'))
+        self.assertEqual(response['Cache-Control'], 'no-store, no-cache, must-revalidate, max-age=0')
+        self.assertContains(response, 'Picked Up From Store')
 
     def test_rider_can_toggle_availability_from_shared_menu(self):
         self.client.force_login(self.rider_user)
@@ -677,6 +800,32 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         note.refresh_from_db()
         self.assertTrue(note.is_read)
+
+    def test_customer_orders_show_last_update_and_help(self):
+        self.client.force_login(self.customer_user)
+
+        response = self.client.get(reverse('core:customer_orders'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Last update')
+        self.assertContains(response, reverse('core:support'))
+        self.assertEqual(response['Cache-Control'], 'no-store, no-cache, must-revalidate, max-age=0')
+
+    def test_order_detail_disables_html_cache(self):
+        self.client.force_login(self.customer_user)
+
+        response = self.client.get(reverse('core:order_detail', args=[self.demo_order.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Cache-Control'], 'no-store, no-cache, must-revalidate, max-age=0')
+
+    def test_shop_orders_show_queue_age_priority(self):
+        self.client.force_login(self.shop_user)
+
+        response = self.client.get(reverse('core:shop_orders'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Queue age')
 
     def test_customer_can_delete_notification(self):
         self.client.force_login(self.customer_user)
