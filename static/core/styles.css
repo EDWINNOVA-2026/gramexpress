@@ -819,6 +819,47 @@ textarea {
   gap: 0.6rem;
 }
 
+.checkout-summary-card,
+.checkout-cod-panel {
+  border-radius: 1.4rem;
+}
+
+.checkout-cod-panel {
+  display: grid;
+  gap: 0.55rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid rgba(255, 87, 51, 0.14);
+  background: rgba(255, 248, 246, 0.92);
+}
+
+.checkout-checklist {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-muted);
+}
+
+.checkout-checklist li + li {
+  margin-top: 0.35rem;
+}
+
+.success-hero-card {
+  text-align: center;
+}
+
+.success-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  margin: 0 auto 0.75rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(22, 163, 74, 0.12);
+  color: var(--success);
+  font-weight: 800;
+}
+
 .order-card {
   gap: 1rem;
 }

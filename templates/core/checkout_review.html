@@ -1,0 +1,96 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="page-stack" id="top">
+    <article class="card checkout-hero-card" data-appear>
+      <div class="split-row">
+        <div>
+          <span class="eyebrow">Checkout</span>
+          <h1 class="page-title">Review your order</h1>
+          <p>We validate the cart, address, payment mode, and delivery grouping before the final confirmation step.</p>
+        </div>
+        <div class="hero-inline-facts">
+          <span class="soft-pill">{{ cart.item_count }} items</span>
+          <span class="soft-pill">{{ cart.groups|length }} store{{ cart.groups|length|pluralize }}</span>
+          <span class="status-chip info">{{ estimated_eta }}</span>
+        </div>
+      </div>
+    </article>
+
+    <section class="layout-two" id="workspace">
+      <div class="stack">
+        <article class="card" data-appear>
+          <span class="eyebrow">Delivery</span>
+          <h2 class="section-title">Address and notes</h2>
+          <div class="compact-item">
+            <strong>{{ customer.full_name }}</strong>
+            <p>{{ delivery_address }}</p>
+            {% if customer_notes %}
+              <p class="utility-note">Notes: {{ customer_notes }}</p>
+            {% endif %}
+          </div>
+        </article>
+
+        <article class="card" data-appear>
+          <span class="eyebrow">Stores</span>
+          <h2 class="section-title">Grouped checkout summary</h2>
+          <div class="stack">
+            {% for group in group_totals %}
+              <div class="compact-item">
+                <div class="split-row">
+                  <div>
+                    <strong>{{ group.shop.name }}</strong>
+                    <p>{{ group.item_count }} item{{ group.item_count|pluralize }} | {{ group.shop.area }}</p>
+                  </div>
+                  <span class="pill">Rs. {{ group.total }}</span>
+                </div>
+                <div class="bill-grid">
+                  <div class="bill-row"><span>Items</span><strong>Rs. {{ group.subtotal }}</strong></div>
+                  <div class="bill-row"><span>Delivery</span><strong>Rs. {{ group.delivery_fee }}</strong></div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
+
+      <div class="stack">
+        <article class="card" data-appear>
+          <span class="eyebrow">Payment</span>
+          <h2 class="section-title">Final confirmation</h2>
+          <div class="metric-card checkout-summary-card">
+            <span class="metric-label">Estimated payable</span>
+            <strong class="metric-value">Rs. {{ estimated_total }}</strong>
+            <p>{{ payment_method_label }} | {{ estimated_eta }}</p>
+          </div>
+
+          {% if is_cod %}
+            <div class="checkout-cod-panel">
+              <strong>Confirm cash on delivery</strong>
+              <p>Keep the full amount ready, verify your items before payment, and share the delivery OTP only at handoff.</p>
+              <ul class="checkout-checklist">
+                <li>Pay only after receiving and checking the order.</li>
+                <li>Keep exact or near-exact cash ready for faster handoff.</li>
+                <li>Repeated delivery refusals can affect COD availability.</li>
+              </ul>
+            </div>
+          {% else %}
+            <div class="checkout-cod-panel">
+              <strong>Online payment demo</strong>
+              <p>This demo still marks Razorpay as paid immediately after confirmation until full payment JS is wired.</p>
+            </div>
+          {% endif %}
+
+          <form method="post" action="{% url 'core:customer_checkout' %}" class="stack">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="confirm" />
+            <button class="button primary" type="submit">
+              {% if is_cod %}Yes, Place COD Order{% else %}Place Order{% endif %}
+            </button>
+            <a class="button secondary" href="{% url 'core:customer_dashboard' %}">Back To Cart</a>
+          </form>
+        </article>
+      </div>
+    </section>
+  </section>
+{% endblock %}

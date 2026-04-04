@@ -1,0 +1,60 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="page-stack" id="top">
+    <article class="card success-hero-card" data-appear>
+      <div class="success-badge">Success</div>
+      <h1 class="page-title">Order placed</h1>
+      <p>Your checkout is complete. Delivery teams and stores have already received the order instructions.</p>
+      <div class="hero-inline-facts">
+        <span class="soft-pill">ETA {{ estimated_eta }}</span>
+        <span class="soft-pill">Rs. {{ estimated_total }}</span>
+        <span class="soft-pill">{{ payment_method_label }}</span>
+      </div>
+    </article>
+
+    <section class="layout-two" id="workspace">
+      <article class="card" data-appear>
+        <span class="eyebrow">Order Summary</span>
+        <h2 class="section-title">Confirmed stores</h2>
+        <div class="stack">
+          {% for order in orders %}
+            <div class="compact-item">
+              <div class="split-row">
+                <div>
+                  <strong>Order #{{ order.id }}</strong>
+                  <p>{{ order.shop.name }} | {{ order.get_status_display }}</p>
+                </div>
+                <span class="pill">Rs. {{ order.total_amount }}</span>
+              </div>
+              <div class="inline-actions">
+                <a class="button small primary" href="{% url 'core:order_tracking' order.id %}">Track</a>
+                <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Details</a>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="card" data-appear>
+        <span class="eyebrow">Payment</span>
+        <h2 class="section-title">What happens next</h2>
+        {% if payment_method == 'cod' %}
+          <div class="checkout-cod-panel">
+            <strong>Cash on delivery selected</strong>
+            <p>Pay the rider after checking the items. Keep the amount ready for a smooth handoff.</p>
+          </div>
+        {% else %}
+          <div class="checkout-cod-panel">
+            <strong>Online payment recorded</strong>
+            <p>The demo marked the order as paid and moved it into confirmation immediately.</p>
+          </div>
+        {% endif %}
+        <div class="stack small-gap">
+          <a class="button primary" href="{% if primary_order %}{% url 'core:order_tracking' primary_order.id %}{% else %}{% url 'core:customer_dashboard' %}{% endif %}">Track My Order</a>
+          <a class="button secondary" href="{% url 'core:customer_dashboard' %}">Continue Shopping</a>
+        </div>
+      </article>
+    </section>
+  </section>
+{% endblock %}

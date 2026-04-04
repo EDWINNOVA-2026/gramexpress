@@ -15,6 +15,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
 from django.core.mail import send_mail
+from django.db import transaction
 from django.db.models import Avg
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -61,6 +62,8 @@ from .models import (
 CART_SESSION_KEY = 'customer_cart'
 PENDING_LOGIN_SESSION_KEY = 'pending_email_login'
 PENDING_REGISTRATION_SESSION_KEY = 'pending_registration'
+PENDING_CHECKOUT_SESSION_KEY = 'pending_checkout'
+LAST_CHECKOUT_SESSION_KEY = 'last_checkout'
 DEFAULT_LATITUDE = Decimal('12.915300')
 DEFAULT_LONGITUDE = Decimal('76.643800')
 DEFAULT_DELIVERY_RADIUS_KM = 20
@@ -480,6 +483,67 @@ def build_cart_context(request: HttpRequest):
         'groups': groups,
         'item_count': sum(item['quantity'] for item in items),
         'subtotal': subtotal,
+    }
+
+
+def build_delivery_address(customer: CustomerProfile) -> str:
+    return ', '.join(
+        part
+        for part in [
+            customer.address_line_1,
+            customer.address_line_2,
+            customer.district,
+            customer.pincode,
+        ]
+        if part
+    )
+
+
+def save_pending_checkout(request: HttpRequest, *, payment_method: str, customer_notes: str) -> None:
+    request.session[PENDING_CHECKOUT_SESSION_KEY] = {
+        'payment_method': payment_method,
+        'customer_notes': customer_notes,
+    }
+    request.session.modified = True
+
+
+def pending_checkout_data(request: HttpRequest) -> dict[str, str]:
+    return request.session.get(PENDING_CHECKOUT_SESSION_KEY, {})
+
+
+def clear_pending_checkout(request: HttpRequest) -> None:
+    request.session.pop(PENDING_CHECKOUT_SESSION_KEY, None)
+
+
+def build_checkout_context(*, customer: CustomerProfile, cart: dict[str, Any], checkout_data: dict[str, str]) -> dict[str, Any]:
+    payment_method = checkout_data.get('payment_method', PaymentMethod.COD)
+    customer_notes = checkout_data.get('customer_notes', '')
+    totals = []
+    estimated_total = Decimal('0.00')
+    for group in cart['groups']:
+        group_total = group['subtotal'] + Decimal('20.00')
+        totals.append(
+            {
+                'shop': group['shop'],
+                'subtotal': group['subtotal'],
+                'delivery_fee': Decimal('20.00'),
+                'total': group_total,
+                'item_count': sum(item['quantity'] for item in group['items']),
+            }
+        )
+        estimated_total += group_total
+    return {
+        'customer': customer,
+        'cart': cart,
+        'checkout_data': checkout_data,
+        'payment_method': payment_method,
+        'payment_method_label': dict(PaymentMethod.choices).get(payment_method, payment_method),
+        'customer_notes': customer_notes,
+        'delivery_address': build_delivery_address(customer),
+        'group_totals': totals,
+        'estimated_total': estimated_total,
+        'estimated_eta': '40-55 min',
+        'is_cod': payment_method == PaymentMethod.COD,
     }
 
 
@@ -1166,76 +1230,125 @@ def cart_clear(request: HttpRequest) -> HttpResponse:
 
 
 @role_required(RoleType.CUSTOMER)
-@require_POST
 def customer_checkout(request: HttpRequest) -> HttpResponse:
     customer = request.role_profile
     cart = build_cart_context(request)
-    form = CustomerOrderMetaForm(request.POST)
-
     if not cart['items']:
         messages.error(request, 'Add items from at least one store before checkout.')
         return redirect('core:customer_dashboard')
-    if not form.is_valid():
-        messages.error(request, 'Choose a valid payment method before checkout.')
+    if request.method == 'POST':
+        action = request.POST.get('action', 'review')
+        if action == 'review':
+            form = CustomerOrderMetaForm(request.POST)
+            if form.is_valid():
+                save_pending_checkout(
+                    request,
+                    payment_method=form.cleaned_data['payment_method'],
+                    customer_notes=form.cleaned_data['customer_notes'],
+                )
+            else:
+                messages.error(request, 'Choose a valid payment method before checkout.')
+                return redirect('core:customer_dashboard')
+        elif action == 'confirm':
+            checkout_data = pending_checkout_data(request)
+            if not checkout_data:
+                messages.error(request, 'Your checkout session expired. Please review the cart again.')
+                return redirect('core:customer_dashboard')
+
+            created_orders = []
+            with transaction.atomic():
+                for group in cart['groups']:
+                    rider = nearest_available_rider(group['shop'])
+                    payment_method = checkout_data['payment_method']
+                    order = Order.objects.create(
+                        customer=customer,
+                        shop=group['shop'],
+                        rider=rider,
+                        status=OrderStatus.CONFIRMED,
+                        payment_method=payment_method,
+                        payment_status=PaymentStatus.PAID if payment_method == PaymentMethod.RAZORPAY else PaymentStatus.PENDING,
+                        delivery_address=build_delivery_address(customer),
+                        customer_notes=checkout_data.get('customer_notes', ''),
+                        total_amount=group['subtotal'] + Decimal('20.00'),
+                    )
+                    for item in group['items']:
+                        OrderItem.objects.create(
+                            order=order,
+                            product=item['product'],
+                            quantity=item['quantity'],
+                            unit_price=item['product'].price,
+                        )
+                    created_orders.append(order)
+                    create_notification(
+                        shop_owner=group['shop'].owner,
+                        order=order,
+                        title='New order placed',
+                        body=f'Order #{order.id} is waiting for packaging at {group["shop"].name}.',
+                    )
+                    create_notification(
+                        customer=customer,
+                        order=order,
+                        title='Order confirmed',
+                        body=f'Order #{order.id} from {group["shop"].name} was created successfully.',
+                    )
+                    if rider:
+                        rider.is_available = False
+                        rider.save(update_fields=['is_available', 'updated_at'])
+                        create_notification(
+                            rider=rider,
+                            order=order,
+                            title='New delivery request',
+                            body=f'Order #{order.id} is ready around {group["shop"].area}.',
+                        )
+
+            save_cart(request, {})
+            request.session[LAST_CHECKOUT_SESSION_KEY] = {
+                'order_ids': [order.id for order in created_orders],
+                'payment_method': checkout_data['payment_method'],
+                'estimated_total': format(sum(order.total_amount for order in created_orders), 'f'),
+            }
+            clear_pending_checkout(request)
+            messages.success(request, f'{len(created_orders)} order(s) placed across your selected stores.')
+            return redirect('core:customer_checkout_success')
+    checkout_data = pending_checkout_data(request)
+    if not checkout_data:
+        checkout_data = {
+            'payment_method': PaymentMethod.COD,
+            'customer_notes': '',
+        }
+
+    context = build_checkout_context(customer=customer, cart=cart, checkout_data=checkout_data)
+    context['order_form'] = CustomerOrderMetaForm(initial=checkout_data)
+    return render(request, 'core/checkout_review.html', context)
+
+
+@role_required(RoleType.CUSTOMER)
+def customer_checkout_success(request: HttpRequest) -> HttpResponse:
+    payload = request.session.get(LAST_CHECKOUT_SESSION_KEY)
+    if not payload:
+        messages.info(request, 'Place an order first to view the checkout success screen.')
         return redirect('core:customer_dashboard')
 
-    created_orders = []
-    for group in cart['groups']:
-        rider = nearest_available_rider(group['shop'])
-        payment_method = form.cleaned_data['payment_method']
-        order = Order.objects.create(
-            customer=customer,
-            shop=group['shop'],
-            rider=rider,
-            status=OrderStatus.CONFIRMED,
-            payment_method=payment_method,
-            payment_status=PaymentStatus.PAID if payment_method == PaymentMethod.RAZORPAY else PaymentStatus.PENDING,
-            delivery_address=', '.join(
-                part
-                for part in [
-                    customer.address_line_1,
-                    customer.address_line_2,
-                    customer.district,
-                    customer.pincode,
-                ]
-                if part
+    orders = list(
+        request.role_profile.orders.filter(pk__in=payload.get('order_ids', []))
+        .select_related('shop', 'rider')
+        .order_by('-created_at')
+    )
+    return render(
+        request,
+        'core/checkout_success.html',
+        {
+            'orders': orders,
+            'payment_method': payload.get('payment_method', PaymentMethod.COD),
+            'payment_method_label': dict(PaymentMethod.choices).get(
+                payload.get('payment_method', PaymentMethod.COD),
+                payload.get('payment_method', PaymentMethod.COD),
             ),
-            customer_notes=form.cleaned_data['customer_notes'],
-            total_amount=group['subtotal'] + Decimal('20.00'),
-        )
-        for item in group['items']:
-            OrderItem.objects.create(
-                order=order,
-                product=item['product'],
-                quantity=item['quantity'],
-                unit_price=item['product'].price,
-            )
-        created_orders.append(order)
-        create_notification(
-            shop_owner=group['shop'].owner,
-            order=order,
-            title='New order placed',
-            body=f'Order #{order.id} is waiting for packaging at {group["shop"].name}.',
-        )
-        create_notification(
-            customer=customer,
-            order=order,
-            title='Order confirmed',
-            body=f'Order #{order.id} from {group["shop"].name} was created successfully.',
-        )
-        if rider:
-            rider.is_available = False
-            rider.save(update_fields=['is_available', 'updated_at'])
-            create_notification(
-                rider=rider,
-                order=order,
-                title='New delivery request',
-                body=f'Order #{order.id} is ready around {group["shop"].area}.',
-            )
-
-    save_cart(request, {})
-    messages.success(request, f'{len(created_orders)} order(s) placed across your selected stores.')
-    return redirect('core:customer_dashboard')
+            'estimated_total': Decimal(payload.get('estimated_total', '0.00')),
+            'primary_order': orders[0] if orders else None,
+            'estimated_eta': '40-55 min',
+        },
+    )
 
 
 @role_required(RoleType.CUSTOMER)

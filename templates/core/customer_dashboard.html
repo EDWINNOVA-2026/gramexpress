@@ -181,6 +181,7 @@
         {% if cart.groups %}
           <form method="post" action="{% url 'core:customer_checkout' %}" class="stack">
             {% csrf_token %}
+            <input type="hidden" name="action" value="review" />
             {{ order_form.as_p }}
             {% for group in cart.groups %}
               <div class="nested-panel">
@@ -202,7 +203,7 @@
                 {% endfor %}
               </div>
             {% endfor %}
-            <button class="button primary" type="submit">Checkout Across Stores</button>
+            <button class="button primary" type="submit">Review Checkout</button>
           </form>
         {% else %}
           <p>Your cart is empty. Add products from one or more stores below.</p>

@@ -158,12 +158,21 @@ class CoreFlowTests(TestCase):
         add_response = self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '2'})
         self.assertEqual(add_response.status_code, 302)
 
+        review_response = self.client.post(
+            reverse('core:customer_checkout'),
+            {'action': 'review', 'payment_method': 'cod', 'customer_notes': 'Leave at gate'},
+            follow=True,
+        )
+        self.assertEqual(review_response.status_code, 200)
+        self.assertContains(review_response, 'Review your order')
+
         checkout_response = self.client.post(
             reverse('core:customer_checkout'),
-            {'payment_method': 'cod', 'customer_notes': 'Leave at gate'},
+            {'action': 'confirm'},
             follow=True,
         )
         self.assertEqual(checkout_response.status_code, 200)
+        self.assertContains(checkout_response, 'Order placed')
         self.assertEqual(Order.objects.count(), before_count + 1)
         order = Order.objects.latest('id')
         self.assertEqual(order.customer, self.customer)
