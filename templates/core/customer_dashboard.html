@@ -306,6 +306,12 @@
               <span class="pill">Rs. {{ order.total_amount }}</span>
               <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
               <a class="button small primary" href="{% url 'core:order_tracking' order.id %}">Track Live</a>
+              {% if order.can_be_reordered %}
+                <form method="post" action="{% url 'core:customer_reorder' order.id %}">
+                  {% csrf_token %}
+                  <button class="button small secondary" type="submit">Order Again</button>
+                </form>
+              {% endif %}
               {% if order.rider %}
                 <a class="button small secondary" href="{{ order.rider.google_maps_url }}" target="_blank" rel="noreferrer">Rider Live</a>
               {% endif %}

@@ -239,6 +239,8 @@ class Order(TimeStampedModel):
     delivery_address = models.CharField(max_length=240)
     customer_otp = models.CharField(max_length=6, default='123456')
     customer_notes = models.CharField(max_length=200, blank=True)
+    cancellation_reason = models.CharField(max_length=240, blank=True)
+    cancelled_by_role = models.CharField(max_length=12, choices=RoleType.choices, blank=True)
     customer_rating = models.PositiveSmallIntegerField(null=True, blank=True)
     customer_review = models.CharField(max_length=240, blank=True)
     store_rating = models.PositiveSmallIntegerField(null=True, blank=True)
@@ -256,10 +258,22 @@ class Order(TimeStampedModel):
         self.total_amount = subtotal + self.delivery_fee
 
     @property
+    def display_id(self) -> str:
+        return f'GRX-{1000 + self.id}'
+
+    @property
     def tracking_label(self) -> str:
         if self.rider:
             return f'{self.rider.full_name} at {self.rider.short_coordinates}'
         return 'Waiting for rider'
+
+    @property
+    def can_be_cancelled_by_customer(self) -> bool:
+        return self.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED]
+
+    @property
+    def can_be_reordered(self) -> bool:
+        return self.status in [OrderStatus.DELIVERED, OrderStatus.CANCELLED]
 
     @property
     def can_be_rated_by_customer(self) -> bool:

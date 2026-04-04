@@ -207,8 +207,70 @@ class CoreFlowTests(TestCase):
         tracking_response = self.client.get(reverse('core:order_tracking', args=[self.demo_order.id]))
         self.assertEqual(detail_response.status_code, 200)
         self.assertEqual(tracking_response.status_code, 200)
-        self.assertContains(detail_response, f'Order #{self.demo_order.id}')
+        self.assertContains(detail_response, self.demo_order.display_id)
         self.assertContains(tracking_response, 'Live Tracking')
+
+    def test_customer_can_cancel_confirmed_order_and_restore_stock(self):
+        product = Product.objects.create(
+            shop=self.shop,
+            name='Soap',
+            subtitle='Bath bar',
+            category='Personal Care',
+            unit='1 pack',
+            price=Decimal('30.00'),
+            stock=2,
+        )
+        cancellable_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            status=OrderStatus.CONFIRMED,
+            total_amount=Decimal('50.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+        )
+        OrderItem.objects.create(order=cancellable_order, product=product, quantity=1, unit_price=Decimal('30.00'))
+
+        self.client.force_login(self.customer_user)
+        response = self.client.post(
+            reverse('core:customer_cancel_order', args=[cancellable_order.id]),
+            {'cancellation_reason': 'Ordered by mistake'},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        cancellable_order.refresh_from_db()
+        product.refresh_from_db()
+        self.rider.refresh_from_db()
+        self.assertEqual(cancellable_order.status, OrderStatus.CANCELLED)
+        self.assertEqual(cancellable_order.cancellation_reason, 'Ordered by mistake')
+        self.assertEqual(product.stock, 3)
+        self.assertTrue(self.rider.is_available)
+
+    def test_customer_can_reorder_delivered_items(self):
+        reorder_product = Product.objects.create(
+            shop=self.shop,
+            name='Biscuits',
+            subtitle='Tea snack',
+            category='Snacks',
+            unit='2 packs',
+            price=Decimal('40.00'),
+            stock=4,
+        )
+        delivered_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            status=OrderStatus.DELIVERED,
+            total_amount=Decimal('60.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+        )
+        OrderItem.objects.create(order=delivered_order, product=reorder_product, quantity=2, unit_price=Decimal('20.00'))
+
+        self.client.force_login(self.customer_user)
+        response = self.client.post(reverse('core:customer_reorder', args=[delivered_order.id]), follow=True)
+        self.assertEqual(response.status_code, 200)
+        session_cart = self.client.session.get('customer_cart', {})
+        self.assertEqual(session_cart[str(reorder_product.id)], 2)
 
     def test_registration_flow_sends_mobile_otp_and_creates_customer(self):
         register_payload = {

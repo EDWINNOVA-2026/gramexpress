@@ -647,7 +647,7 @@ def build_order_timeline(order: Order) -> list[dict[str, Any]]:
         {
             'key': 'placed',
             'label': 'Order placed',
-            'caption': f'Order #{order.id} created successfully.',
+            'caption': f'{order.display_id} created successfully.',
             'completed': True,
             'current': order.status == OrderStatus.PENDING,
             'timestamp': order.created_at,
@@ -692,7 +692,7 @@ def build_order_timeline(order: Order) -> list[dict[str, Any]]:
             {
                 'key': 'cancelled',
                 'label': 'Cancelled',
-                'caption': 'This order was cancelled before delivery.',
+                'caption': order.cancellation_reason or 'This order was cancelled before delivery.',
                 'completed': True,
                 'current': True,
                 'timestamp': order.updated_at,
@@ -1111,6 +1111,7 @@ def order_detail_view(request: HttpRequest, order_id: int) -> HttpResponse:
             'order': order,
             'timeline': timeline,
             'related_notifications': related_notifications,
+            'show_customer_actions': get_role_profile(request.user)[0] == RoleType.CUSTOMER,
         },
     )
 
@@ -1443,6 +1444,86 @@ def customer_rate_order(request: HttpRequest, order_id: int) -> HttpResponse:
     return redirect('core:customer_dashboard')
 
 
+@role_required(RoleType.CUSTOMER)
+@require_POST
+def customer_cancel_order(request: HttpRequest, order_id: int) -> HttpResponse:
+    order = get_object_or_404(Order.objects.select_related('shop__owner', 'rider'), pk=order_id, customer=request.role_profile)
+    if not order.can_be_cancelled_by_customer:
+        messages.error(request, 'This order can no longer be cancelled from the customer side.')
+        return redirect('core:order_detail', order_id=order.id)
+
+    cancellation_reason = request.POST.get('cancellation_reason', '').strip() or 'Cancelled by the customer before dispatch.'
+    with transaction.atomic():
+        locked_order = Order.objects.select_for_update().select_related('rider', 'shop__owner').get(pk=order.pk)
+        if not locked_order.can_be_cancelled_by_customer:
+            messages.error(request, 'This order changed status and can no longer be cancelled.')
+            return redirect('core:order_detail', order_id=locked_order.id)
+        locked_order.status = OrderStatus.CANCELLED
+        locked_order.cancellation_reason = cancellation_reason
+        locked_order.cancelled_by_role = RoleType.CUSTOMER
+        locked_order.save(update_fields=['status', 'cancellation_reason', 'cancelled_by_role', 'updated_at'])
+        for item in locked_order.items.select_related('product'):
+            product = Product.objects.select_for_update().get(pk=item.product_id)
+            product.stock += item.quantity
+            product.save(update_fields=['stock', 'updated_at'])
+        if locked_order.rider:
+            locked_order.rider.is_available = True
+            locked_order.rider.save(update_fields=['is_available', 'updated_at'])
+            create_notification(
+                rider=locked_order.rider,
+                order=locked_order,
+                title='Order cancelled',
+                body=f'{locked_order.display_id} was cancelled by the customer.',
+            )
+        create_notification(
+            shop_owner=locked_order.shop.owner,
+            order=locked_order,
+            title='Customer cancelled order',
+            body=f'{locked_order.display_id} was cancelled. Reason: {cancellation_reason}',
+        )
+        create_notification(
+            customer=request.role_profile,
+            order=locked_order,
+            title='Order cancelled',
+            body=f'{locked_order.display_id} was cancelled successfully.',
+        )
+
+    messages.success(request, 'Your order was cancelled successfully.')
+    return redirect('core:order_detail', order_id=order.id)
+
+
+@role_required(RoleType.CUSTOMER)
+@require_POST
+def customer_reorder(request: HttpRequest, order_id: int) -> HttpResponse:
+    order = get_object_or_404(
+        Order.objects.select_related('shop').prefetch_related('items__product'),
+        pk=order_id,
+        customer=request.role_profile,
+    )
+    cart = cart_from_session(request)
+    added_count = 0
+    skipped = []
+    for item in order.items.all():
+        product = item.product
+        if product.shop.approval_status != ApprovalStatus.APPROVED or not product.shop.is_open:
+            skipped.append(f'{product.name} is unavailable because the store is offline.')
+            continue
+        if product.stock <= 0:
+            skipped.append(f'{product.name} is out of stock.')
+            continue
+        quantity_to_add = min(item.quantity, product.stock)
+        cart[str(product.id)] = min(product.stock, cart.get(str(product.id), 0) + quantity_to_add)
+        added_count += quantity_to_add
+        if quantity_to_add < item.quantity:
+            skipped.append(f'{product.name} was added with reduced quantity because stock is limited.')
+    save_cart(request, cart)
+    if added_count:
+        messages.success(request, f'{added_count} item(s) were added back to your cart.')
+    if skipped:
+        messages.info(request, ' '.join(skipped))
+    return redirect('core:customer_dashboard')
+
+
 @role_required(RoleType.SHOP)
 def shop_dashboard(request: HttpRequest) -> HttpResponse:
     owner = request.role_profile
@@ -1521,24 +1602,47 @@ def shop_delete_product(request: HttpRequest, product_id: int) -> HttpResponse:
 def shop_update_order_status(request: HttpRequest, order_id: int) -> HttpResponse:
     order = get_object_or_404(Order, pk=order_id, shop__owner=request.role_profile)
     next_status = request.POST.get('status')
+    cancellation_reason = request.POST.get('cancellation_reason', '').strip()
     allowed = {OrderStatus.CONFIRMED, OrderStatus.PACKED, OrderStatus.CANCELLED}
     if next_status in allowed:
-        order.status = next_status
-        order.save(update_fields=['status', 'updated_at'])
+        with transaction.atomic():
+            locked_order = Order.objects.select_for_update().select_related('rider', 'customer', 'shop__owner').get(pk=order.pk)
+            locked_order.status = next_status
+            update_fields = ['status', 'updated_at']
+            if next_status == OrderStatus.CANCELLED:
+                locked_order.cancellation_reason = cancellation_reason or 'Cancelled by the store before dispatch.'
+                locked_order.cancelled_by_role = RoleType.SHOP
+                update_fields.extend(['cancellation_reason', 'cancelled_by_role'])
+                for item in locked_order.items.select_related('product'):
+                    product = Product.objects.select_for_update().get(pk=item.product_id)
+                    product.stock += item.quantity
+                    product.save(update_fields=['stock', 'updated_at'])
+                if locked_order.rider:
+                    locked_order.rider.is_available = True
+                    locked_order.rider.save(update_fields=['is_available', 'updated_at'])
+            locked_order.save(update_fields=update_fields)
         create_notification(
-            customer=order.customer,
-            order=order,
+            customer=locked_order.customer,
+            order=locked_order,
             title='Store updated your order',
-            body=f'Order #{order.id} is now {order.get_status_display().lower()}.',
+            body=(
+                f'{locked_order.display_id} is now {locked_order.get_status_display().lower()}.'
+                if next_status != OrderStatus.CANCELLED
+                else f'{locked_order.display_id} was cancelled by the store. Reason: {locked_order.cancellation_reason}'
+            ),
         )
-        if order.rider:
+        if locked_order.rider:
             create_notification(
-                rider=order.rider,
-                order=order,
+                rider=locked_order.rider,
+                order=locked_order,
                 title='Store status changed',
-                body=f'Order #{order.id} is now {order.get_status_display().lower()}.',
+                body=(
+                    f'{locked_order.display_id} is now {locked_order.get_status_display().lower()}.'
+                    if next_status != OrderStatus.CANCELLED
+                    else f'{locked_order.display_id} was cancelled by the store.'
+                ),
             )
-        messages.success(request, f'Order #{order.id} moved to {order.get_status_display()}.')
+        messages.success(request, f'Order #{locked_order.id} moved to {locked_order.get_status_display()}.')
     else:
         messages.error(request, 'Invalid order status transition.')
     return redirect('core:shop_dashboard')

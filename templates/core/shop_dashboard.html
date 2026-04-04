@@ -213,6 +213,7 @@
                 <form method="post" action="{% url 'core:shop_update_order_status' order.id %}">
                   {% csrf_token %}
                   <input type="hidden" name="status" value="cancelled" />
+                  <input type="hidden" name="cancellation_reason" value="Store could not fulfil this order." />
                   <button class="button small danger" type="submit">Cancel</button>
                 </form>
                 {% if order.rider %}

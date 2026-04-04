@@ -840,6 +840,10 @@ textarea {
   border-radius: 1.4rem;
 }
 
+.lifecycle-form {
+  padding-top: 0.2rem;
+}
+
 .checkout-alert {
   display: grid;
   gap: 0.55rem;

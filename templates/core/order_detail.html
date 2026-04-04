@@ -6,7 +6,7 @@
       <div class="split-row">
         <div>
           <span class="eyebrow">Order Detail</span>
-          <h1 class="page-title">Order #{{ order.id }}</h1>
+          <h1 class="page-title">{{ order.display_id }}</h1>
           <p>{{ order.shop.name }} to {{ order.customer.full_name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
         </div>
         <div class="hero-inline-facts">
@@ -85,6 +85,38 @@
             {% endfor %}
           </div>
         </article>
+
+        {% if show_customer_actions %}
+          <article class="card" data-appear>
+            <span class="eyebrow">Actions</span>
+            <h2 class="section-title">Order controls</h2>
+            <div class="stack small-gap">
+              {% if order.can_be_cancelled_by_customer %}
+                <form method="post" action="{% url 'core:customer_cancel_order' order.id %}" class="stack small-gap lifecycle-form">
+                  {% csrf_token %}
+                  <label>Cancellation reason
+                    <input type="text" name="cancellation_reason" placeholder="Changed my mind, wrong address, ordered by mistake" />
+                  </label>
+                  <button class="button danger" type="submit">Cancel Order</button>
+                </form>
+              {% endif %}
+
+              {% if order.can_be_reordered %}
+                <form method="post" action="{% url 'core:customer_reorder' order.id %}">
+                  {% csrf_token %}
+                  <button class="button secondary" type="submit">Order Again</button>
+                </form>
+              {% endif %}
+
+              {% if order.status == 'cancelled' and order.cancellation_reason %}
+                <div class="checkout-cod-panel">
+                  <strong>Cancellation summary</strong>
+                  <p>{{ order.cancellation_reason }}</p>
+                </div>
+              {% endif %}
+            </div>
+          </article>
+        {% endif %}
       </div>
     </section>
 
