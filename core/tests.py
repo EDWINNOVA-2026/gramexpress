@@ -445,6 +445,35 @@ class CoreFlowTests(TestCase):
         self.assertIn('456789', pickup_note.body)
 
     @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_rider_can_resend_customer_otp(self):
+        delivery_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            status=OrderStatus.OUT_FOR_DELIVERY,
+            total_amount=Decimal('48.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            customer_otp='777888',
+        )
+        OrderItem.objects.create(order=delivery_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+
+        self.client.force_login(self.rider_user)
+        response = self.client.post(
+            reverse('core:rider_resend_customer_otp', args=[delivery_order.id]),
+            {'next': reverse('core:rider_deliveries')},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('Delivery OTP reminder', mail.outbox[0].subject)
+        self.assertIn('777888', mail.outbox[0].body)
+        resend_note = self.customer.notifications.filter(order=delivery_order).latest('created_at')
+        self.assertIn('777888', resend_note.body)
+        self.assertEqual(response.request['PATH_INFO'], reverse('core:rider_deliveries'))
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
     def test_rider_can_mark_delivered_and_email_customer(self):
         delivery_order = Order.objects.create(
             customer=self.customer,

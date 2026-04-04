@@ -710,6 +710,15 @@ def rider_availability_redirect_target(request: HttpRequest) -> str:
     return reverse('core:rider_dashboard')
 
 
+def rider_order_redirect_target(request: HttpRequest, order_id: int) -> str:
+    next_url = (request.POST.get('next') or '').strip()
+    if next_url:
+        parsed_url = urllib_parse.urlparse(next_url)
+        if not parsed_url.scheme and not parsed_url.netloc and next_url.startswith('/'):
+            return next_url
+    return reverse('core:order_detail', args=[order_id])
+
+
 def format_shop_address(shop: Shop) -> str:
     address_parts = [
         shop.address_line_1,
@@ -3219,6 +3228,43 @@ def rider_toggle_availability(request: HttpRequest) -> HttpResponse:
     rider.save(update_fields=['is_available', 'updated_at'])
     messages.success(request, 'Rider availability updated.')
     return redirect(rider_availability_redirect_target(request))
+
+
+@role_required(RoleType.RIDER)
+@require_POST
+def rider_resend_customer_otp(request: HttpRequest, order_id: int) -> HttpResponse:
+    rider = request.role_profile
+    locked_order = get_object_or_404(
+        Order.objects.select_related('customer', 'shop__owner', 'shop', 'rider'),
+        pk=order_id,
+        rider=rider,
+    )
+
+    if locked_order.status != OrderStatus.OUT_FOR_DELIVERY:
+        messages.error(request, 'OTP reminders are only available for active drop-off orders.')
+        return redirect(rider_order_redirect_target(request, order_id))
+
+    delivered, detail = send_order_status_email(
+        order=locked_order,
+        subject=f'Delivery OTP reminder for {locked_order.display_id}',
+        headline='Your delivery OTP has been resent.',
+        detail=(
+            f'{rider.full_name} requested a fresh handoff reminder while completing your delivery. '
+            f'Use OTP {locked_order.customer_otp} only when the order is handed to you.'
+        ),
+    )
+    create_notification(
+        customer=locked_order.customer,
+        order=locked_order,
+        title='Delivery OTP resent',
+        body=f'Order #{locked_order.id} delivery OTP reminder sent again: {locked_order.customer_otp}.',
+        notification_type=NotificationType.RIDER,
+    )
+    if delivered:
+        messages.success(request, 'Customer OTP reminder emailed again.')
+    else:
+        messages.error(request, detail)
+    return redirect(rider_order_redirect_target(request, order_id))
 
 
 @role_required(RoleType.RIDER)

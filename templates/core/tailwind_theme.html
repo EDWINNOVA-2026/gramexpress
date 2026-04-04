@@ -1,0 +1,1143 @@
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply min-h-screen bg-slate-100 font-sans text-slate-900 antialiased;
+    background-image:
+      radial-gradient(circle at 12% 12%, rgba(148, 163, 184, 0.16), transparent 20%),
+      radial-gradient(circle at 88% 10%, rgba(249, 115, 22, 0.08), transparent 18%),
+      linear-gradient(180deg, #f8fafc 0%, #f1f5f9 55%, #e2e8f0 100%);
+  }
+
+  a {
+    @apply text-inherit no-underline;
+  }
+
+  img {
+    @apply max-w-full object-cover;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea,
+  .input {
+    @apply block w-full rounded-md border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm transition focus:border-slate-900 focus:ring-2 focus:ring-slate-200;
+  }
+
+  label {
+    @apply grid gap-1.5 text-sm font-medium text-slate-700;
+  }
+
+  code {
+    @apply rounded-md bg-slate-100 px-2 py-1 font-mono text-sm text-slate-800;
+  }
+
+  summary {
+    @apply cursor-pointer list-none font-semibold text-slate-900;
+  }
+
+  summary::-webkit-details-marker {
+    display: none;
+  }
+}
+
+@layer components {
+  .app-frame {
+    @apply relative min-h-screen overflow-x-hidden;
+  }
+
+  .ambient {
+    @apply pointer-events-none absolute rounded-full opacity-60 blur-3xl;
+  }
+
+  .ambient-one {
+    @apply -left-24 -top-24 h-72 w-72 bg-slate-300/40;
+  }
+
+  .ambient-two {
+    @apply -right-20 top-24 h-72 w-72 bg-orange-200/40;
+  }
+
+  .ambient-three {
+    @apply bottom-0 left-1/4 h-80 w-80 bg-slate-400/20;
+  }
+
+  .site-shell {
+    width: min(100% - 1rem, 1180px);
+    @apply relative z-10 mx-auto;
+  }
+
+  .site-header {
+    @apply sticky top-0 z-30 pt-3;
+  }
+
+  .site-main {
+    @apply pb-24 pt-2;
+  }
+
+  .site-main.site-main-auth {
+    @apply flex min-h-screen items-center py-8;
+  }
+
+  .topbar,
+  .card,
+  .glass-card,
+  .metric-card,
+  .auth-card,
+  .auth-single-card,
+  .store-card,
+  .nested-panel,
+  .toast {
+    @apply border border-slate-200/80 bg-white shadow-soft;
+  }
+
+  .topbar {
+    @apply flex items-center justify-between gap-4 rounded-xl px-4 py-3 backdrop-blur;
+    background: rgba(255, 255, 255, 0.88);
+  }
+
+  .brand {
+    @apply inline-flex min-w-0 items-center gap-3;
+  }
+
+  .brand strong,
+  .section-title,
+  .page-title,
+  .hero-card h1,
+  .auth-card h1,
+  .auth-single-card h1,
+  .rider-brand-copy h1,
+  .metric-value {
+    @apply font-display tracking-tight text-slate-950;
+  }
+
+  .brand strong {
+    @apply text-base font-bold;
+  }
+
+  .brand small,
+  .subtle,
+  .muted,
+  .tiny,
+  .utility-note,
+  .hero-lead,
+  .eyebrow + p,
+  .rider-route-copy span,
+  .rider-account-copy span,
+  .rider-brand-copy p,
+  .field-help {
+    @apply text-sm leading-6 text-slate-500;
+  }
+
+  .brand small,
+  .tiny {
+    @apply text-xs;
+  }
+
+  .brand-mark,
+  .auth-lockmark {
+    @apply grid place-items-center rounded-lg bg-slate-900 text-white shadow-soft;
+    width: 3rem;
+    height: 3rem;
+  }
+
+  .brand-mark {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .brand-mark-lock,
+  .auth-lock-body {
+    position: relative;
+    width: 1rem;
+    height: 0.82rem;
+    border: 2px solid #fff;
+    border-radius: 0.2rem;
+  }
+
+  .brand-mark-lock::before,
+  .auth-lock-body::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 0.56rem;
+    width: 0.72rem;
+    height: 0.7rem;
+    border: 2px solid #fff;
+    border-bottom: 0;
+    border-radius: 999px 999px 0 0;
+    transform: translateX(-50%);
+  }
+
+  .topbar-actions,
+  .inline-actions,
+  .hero-inline-facts,
+  .hero-actions,
+  .helper-actions,
+  .profile-meta,
+  .rider-card-chips,
+  .rider-map-actions,
+  .notification-actions,
+  .customer-home-badges,
+  .customer-home-filters,
+  .customer-home-strip {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .nav {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .nav a,
+  .feature-nav-link,
+  .mobile-bottom-link {
+    @apply rounded-md px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-950;
+  }
+
+  .nav-active,
+  .feature-nav-link.feature-nav-link-active,
+  .mobile-bottom-link.mobile-bottom-link-active,
+  .menu-link.menu-link-active {
+    @apply bg-slate-900 text-white hover:bg-slate-900 hover:text-white;
+  }
+
+  .menu-shell {
+    @apply relative z-40;
+  }
+
+  .avatar-menu-toggle {
+    @apply relative h-11 w-11 rounded-md border border-slate-200 bg-white shadow-sm;
+  }
+
+  .avatar-menu-toggle-badge,
+  .avatar-badge,
+  .rider-avatar {
+    @apply grid place-items-center rounded-md bg-slate-900 font-bold text-white;
+  }
+
+  .avatar-menu-toggle-badge {
+    @apply mx-auto h-8 w-8;
+  }
+
+  .avatar-badge,
+  .rider-avatar {
+    @apply h-12 w-12 text-base;
+  }
+
+  .avatar-menu-alert-dot,
+  .notification-dot {
+    @apply absolute rounded-full border-2 border-white bg-orange-500;
+    width: 0.7rem;
+    height: 0.7rem;
+  }
+
+  .avatar-menu-alert-dot {
+    @apply right-1 top-1;
+  }
+
+  .menu-panel {
+    @apply absolute right-0 top-[calc(100%+0.6rem)] z-50 hidden w-[min(86vw,18rem)] gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-float;
+  }
+
+  .menu-panel.is-open {
+    @apply grid;
+  }
+
+  .menu-panel-head {
+    @apply grid gap-0.5 px-3 py-2;
+  }
+
+  .menu-panel-head strong {
+    @apply text-sm font-semibold text-slate-950;
+  }
+
+  .menu-panel-head small,
+  .menu-status-copy small {
+    @apply text-xs text-slate-500;
+  }
+
+  .menu-link {
+    @apply flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-950;
+  }
+
+  .menu-link-danger {
+    @apply text-red-600 hover:bg-red-50 hover:text-red-700;
+  }
+
+  .menu-link-alerts {
+    @apply font-semibold;
+  }
+
+  .menu-status-form {
+    @apply m-0;
+  }
+
+  .menu-status-card {
+    @apply flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5;
+  }
+
+  .menu-status-copy {
+    @apply grid min-w-0 gap-0.5;
+  }
+
+  .menu-status-copy strong {
+    @apply text-sm font-semibold text-slate-900;
+  }
+
+  .rider-status-switch {
+    @apply relative inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1.5;
+  }
+
+  .rider-status-switch-compact {
+    @apply shrink-0;
+  }
+
+  .rider-status-switch-disabled {
+    @apply cursor-not-allowed opacity-60;
+  }
+
+  .rider-status-switch input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .rider-status-slider {
+    position: relative;
+    width: 2.6rem;
+    height: 1.45rem;
+    border-radius: 999px;
+    background: #cbd5e1;
+    transition: background 160ms ease;
+  }
+
+  .rider-status-slider::after {
+    content: "";
+    position: absolute;
+    top: 0.13rem;
+    left: 0.14rem;
+    width: 1.16rem;
+    height: 1.16rem;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18);
+    transition: transform 160ms ease;
+  }
+
+  .rider-status-switch input:checked + .rider-status-slider {
+    background: #16a34a;
+  }
+
+  .rider-status-switch input:checked + .rider-status-slider::after {
+    transform: translateX(1.14rem);
+  }
+
+  .rider-status-text {
+    @apply text-xs font-semibold text-slate-800;
+  }
+
+  .mobile-bottom-nav {
+    @apply fixed bottom-3 left-1/2 z-30 hidden w-[min(94vw,28rem)] -translate-x-1/2 items-center justify-between gap-1 rounded-xl border border-slate-200 bg-white/95 p-2 shadow-float backdrop-blur;
+  }
+
+  .button,
+  .auth-primary-button,
+  .auth-secondary-button,
+  .auth-social-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .button.primary,
+  .auth-primary-button {
+    @apply border-slate-900 bg-slate-900 text-white hover:bg-slate-800;
+  }
+
+  .button.secondary,
+  .auth-secondary-button {
+    @apply border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50;
+  }
+
+  .button.danger {
+    @apply border-red-200 bg-red-50 text-red-700 hover:bg-red-100;
+  }
+
+  .button.small {
+    @apply px-3 py-2 text-xs;
+  }
+
+  .auth-social-button,
+  .auth-google-wrap > div {
+    @apply w-full;
+  }
+
+  .auth-social-button-disabled {
+    @apply border-slate-200 bg-slate-100 text-slate-400;
+  }
+
+  .auth-link-button {
+    @apply text-sm font-semibold text-slate-700 underline-offset-4 hover:text-slate-950 hover:underline;
+  }
+
+  .soft-pill,
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700;
+  }
+
+  .status-chip {
+    @apply inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold;
+  }
+
+  .status-chip.success,
+  .success-badge,
+  .success {
+    @apply bg-emerald-50 text-emerald-700;
+  }
+
+  .status-chip.warn,
+  .warn {
+    @apply bg-amber-50 text-amber-700;
+  }
+
+  .status-chip.info,
+  .info {
+    @apply bg-sky-50 text-sky-700;
+  }
+
+  .danger {
+    @apply bg-red-50 text-red-700;
+  }
+
+  .page-stack,
+  .stack {
+    @apply grid gap-4;
+  }
+
+  .small-gap {
+    @apply gap-2;
+  }
+
+  .top-gap {
+    @apply mt-4;
+  }
+
+  .top-gap-sm {
+    @apply mt-2;
+  }
+
+  .dashboard-top,
+  .layout-two,
+  .quick-grid,
+  .stats-grid,
+  .card-grid,
+  .store-grid,
+  .product-grid,
+  .landing-hero-grid,
+  .customer-home-shell {
+    @apply grid gap-4;
+  }
+
+  .card,
+  .glass-card,
+  .metric-card,
+  .quick-card,
+  .hero-card,
+  .auth-card,
+  .auth-single-card,
+  .nested-panel,
+  .profile-card,
+  .empty-card,
+  .form-card,
+  .tracking-map-card,
+  .success-hero-card,
+  .customer-home-card,
+  .customer-home-hero,
+  .customer-home-location-card,
+  .customer-home-section,
+  .store-card,
+  .product-card {
+    @apply rounded-xl p-5;
+  }
+
+  .glass-card,
+  .hero-card {
+    background: rgba(255, 255, 255, 0.86);
+    @apply backdrop-blur;
+  }
+
+  .hero-card,
+  .success-hero-card,
+  .order-hero-card,
+  .tracking-hero-card,
+  .checkout-hero-card {
+    @apply rounded-xl border border-slate-200 bg-white p-6 shadow-soft;
+  }
+
+  .hero-card h1,
+  .page-title {
+    @apply text-3xl font-bold;
+  }
+
+  .section-title {
+    @apply text-xl font-bold;
+  }
+
+  .page-title {
+    @apply text-2xl;
+  }
+
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.18em] text-slate-500;
+  }
+
+  .metric-card {
+    @apply grid gap-2 rounded-xl p-5;
+  }
+
+  .metric-label {
+    @apply text-xs font-semibold uppercase tracking-[0.16em] text-slate-500;
+  }
+
+  .metric-value {
+    @apply text-3xl font-bold;
+  }
+
+  .split-row {
+    @apply flex flex-col gap-3;
+  }
+
+  .split-row-inline {
+    @apply items-center justify-between;
+  }
+
+  .compact-list {
+    @apply grid gap-3;
+  }
+
+  .list-item,
+  .compact-item,
+  .notification-item,
+  .customer-home-category,
+  .rider-stop-card {
+    @apply rounded-lg border border-slate-200 bg-slate-50 p-4;
+  }
+
+  .compact-item-tight {
+    @apply px-3 py-2;
+  }
+
+  .compact-item-warning,
+  .nested-panel-warning {
+    @apply border-amber-200 bg-amber-50;
+  }
+
+  .compact-item-notification,
+  .notification-main {
+    @apply flex items-start gap-3;
+  }
+
+  .compact-item-notification-unread,
+  .notification-item-unread {
+    @apply border-slate-300 bg-white shadow-sm;
+  }
+
+  .compact-glyph,
+  .notification-icon,
+  .customer-home-category-icon,
+  .customer-home-badge-icon,
+  .customer-home-empty-icon,
+  .rider-route-icon {
+    @apply grid place-items-center rounded-md bg-slate-900 text-sm font-semibold text-white;
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .notification-shell,
+  .notification-header,
+  .notification-meta {
+    @apply flex items-start justify-between gap-3;
+  }
+
+  .notification-shell {
+    @apply flex-col;
+  }
+
+  .notification-copy {
+    @apply grid gap-2;
+  }
+
+  .empty-card {
+    @apply grid justify-items-start gap-3 border border-dashed border-slate-300 bg-white;
+  }
+
+  .profile-summary {
+    @apply flex flex-col gap-4;
+  }
+
+  .profile-copy,
+  .rider-account-copy,
+  .rider-brand-copy {
+    @apply grid gap-1;
+  }
+
+  .profile-copy strong,
+  .rider-account-copy strong {
+    @apply text-base font-semibold text-slate-950;
+  }
+
+  .feature-nav {
+    @apply flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm;
+  }
+
+  .rider-segmented-nav {
+    @apply grid grid-cols-5 gap-1;
+  }
+
+  .feature-nav-link {
+    @apply text-center;
+  }
+
+  .dashboard-top {
+    @apply items-start;
+  }
+
+  .hero-card-customer,
+  .hero-card-store,
+  .hero-card-rider,
+  .landing-hero-card {
+    @apply grid gap-4;
+  }
+
+  .quick-card,
+  .tracking-map-card,
+  .profile-card {
+    @apply grid gap-3;
+  }
+
+  .auth-stage,
+  .auth-shell {
+    @apply mx-auto w-full max-w-3xl;
+  }
+
+  .auth-shell-narrow {
+    @apply max-w-2xl;
+  }
+
+  .auth-card,
+  .auth-single-card {
+    @apply mx-auto grid gap-5 rounded-2xl p-6;
+    width: min(100%, 42rem);
+  }
+
+  .auth-card.auth-card-wide {
+    width: min(100%, 68rem);
+  }
+
+  .auth-card-visual,
+  .auth-topbar,
+  .auth-inline-links,
+  .auth-inline-form,
+  .auth-step-strip {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .auth-subtitle {
+    @apply text-lg font-semibold text-slate-900;
+  }
+
+  .auth-caption,
+  .auth-lead {
+    @apply text-sm leading-6 text-slate-600;
+  }
+
+  .auth-divider {
+    @apply relative my-1 text-center text-xs font-semibold uppercase tracking-[0.16em] text-slate-400;
+  }
+
+  .auth-divider::before {
+    content: "";
+    @apply absolute left-0 right-0 top-1/2 border-t border-slate-200;
+  }
+
+  .auth-divider span {
+    @apply relative bg-white px-3;
+  }
+
+  .auth-form,
+  .auth-register-form {
+    @apply grid gap-4;
+  }
+
+  .auth-form-tight {
+    @apply gap-3;
+  }
+
+  .auth-grid-two,
+  .bill-grid {
+    @apply grid gap-4;
+  }
+
+  .auth-field {
+    @apply grid gap-1.5;
+  }
+
+  .auth-otp-card,
+  .auth-note-panel,
+  .auth-location-card,
+  .checkout-cod-panel,
+  .checkout-alert,
+  .tracking-map-scene {
+    @apply grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4;
+  }
+
+  .checkout-alert-error {
+    @apply border-red-200 bg-red-50;
+  }
+
+  .auth-role-section,
+  .auth-pane,
+  .auth-subsection {
+    @apply grid gap-4 rounded-lg border border-slate-200 bg-slate-50/60 p-4;
+  }
+
+  .auth-section-head {
+    @apply grid gap-1;
+  }
+
+  .auth-step-strip-compact {
+    @apply gap-1.5;
+  }
+
+  .field-error {
+    @apply text-xs font-medium text-red-600;
+  }
+
+  .form-actions {
+    @apply flex flex-wrap items-center gap-3;
+  }
+
+  .checkout-checklist {
+    @apply ml-5 list-disc space-y-1 text-sm text-slate-600;
+  }
+
+  .checkout-checklist-tight {
+    @apply mt-2 text-xs;
+  }
+
+  .checkout-summary-card,
+  .tracking-metric-card {
+    @apply rounded-lg border border-slate-200 bg-slate-50 p-4;
+  }
+
+  .bill-row {
+    @apply flex items-center justify-between gap-3 border-b border-slate-200 py-2 text-sm;
+  }
+
+  .bill-row:last-child {
+    @apply border-b-0 pb-0;
+  }
+
+  .product-grid,
+  .store-grid,
+  .customer-home-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  .product-card,
+  .store-card,
+  .customer-home-card {
+    @apply grid gap-4 overflow-hidden border border-slate-200 bg-white p-0;
+  }
+
+  .product-card-media,
+  .store-card-media,
+  .customer-home-card-media {
+    @apply relative h-44 overflow-hidden bg-slate-100;
+  }
+
+  .product-card-media img,
+  .store-card-media img,
+  .customer-home-card-media img {
+    @apply h-full w-full object-cover;
+  }
+
+  .product-copy,
+  .store-card-body,
+  .customer-home-card-body {
+    @apply grid gap-3 p-5;
+  }
+
+  .store-card-placeholder {
+    @apply grid h-full w-full place-items-center bg-slate-100 text-4xl font-bold text-slate-500;
+  }
+
+  .store-card-meta,
+  .product-meta-row,
+  .customer-home-card-meta {
+    @apply flex flex-wrap gap-2 text-xs text-slate-500;
+  }
+
+  .customer-home-hero,
+  .customer-home-location-card {
+    @apply gap-4;
+  }
+
+  .customer-home-search {
+    @apply relative;
+  }
+
+  .customer-home-search-icon {
+    @apply pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400;
+  }
+
+  .customer-home-search-input {
+    @apply pl-9;
+  }
+
+  .customer-home-badge {
+    @apply inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700;
+  }
+
+  .customer-home-filter {
+    @apply rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950;
+  }
+
+  .customer-home-filter.customer-home-filter-active {
+    @apply border-slate-900 bg-slate-900 text-white;
+  }
+
+  .customer-home-location-card {
+    @apply md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-center;
+  }
+
+  .customer-home-location-card-copy,
+  .customer-home-section-intro,
+  .customer-home-section-head {
+    @apply grid gap-2;
+  }
+
+  .customer-home-location-active {
+    @apply grid gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800;
+  }
+
+  .customer-home-status {
+    @apply max-w-sm;
+  }
+
+  .customer-home-category {
+    @apply inline-flex items-center gap-3 px-4 py-3;
+  }
+
+  .customer-home-card-offer {
+    @apply absolute left-4 top-4 rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white;
+  }
+
+  .customer-home-card-rating {
+    @apply inline-flex w-max items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700;
+  }
+
+  .customer-home-card-rating-star {
+    @apply text-[0.7rem];
+  }
+
+  .customer-home-card-copy strong {
+    @apply text-lg font-semibold text-slate-950;
+  }
+
+  .customer-home-empty {
+    @apply grid justify-items-start gap-3 rounded-xl border border-dashed border-slate-300 bg-white p-6;
+  }
+
+  .customer-home-empty-actions {
+    @apply mt-1;
+  }
+
+  .timeline-list {
+    @apply grid gap-4;
+  }
+
+  .timeline-item {
+    @apply relative pl-7;
+  }
+
+  .timeline-item::before {
+    content: "";
+    position: absolute;
+    left: 0.45rem;
+    top: 1rem;
+    bottom: -1rem;
+    width: 1px;
+    background: #cbd5e1;
+  }
+
+  .timeline-item:last-child::before {
+    display: none;
+  }
+
+  .timeline-marker {
+    @apply absolute left-0 top-1 h-4 w-4 rounded-full border-4 border-white bg-slate-300 shadow-sm;
+  }
+
+  .timeline-item-current .timeline-marker {
+    @apply bg-slate-900;
+  }
+
+  .timeline-item-complete .timeline-marker {
+    @apply bg-emerald-500;
+  }
+
+  .timeline-copy {
+    @apply grid gap-1;
+  }
+
+  .tracking-map-embed {
+    @apply min-h-[18rem] w-full rounded-lg border-0;
+  }
+
+  .tracking-map-embed-tall {
+    @apply min-h-[24rem];
+  }
+
+  .tracking-map-scene {
+    @apply relative min-h-[18rem] overflow-hidden;
+  }
+
+  .tracking-map-copy {
+    @apply max-w-xs;
+  }
+
+  .tracking-route-line {
+    @apply absolute left-12 right-12 top-1/2 h-1 -translate-y-1/2 rounded-full bg-slate-200;
+  }
+
+  .tracking-pin {
+    @apply absolute rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white shadow-sm;
+  }
+
+  .tracking-pin-store {
+    @apply left-6 top-10;
+  }
+
+  .tracking-pin-rider {
+    @apply left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-orange-500;
+  }
+
+  .tracking-pin-home {
+    @apply bottom-10 right-6;
+  }
+
+  .rider-screen,
+  .rider-order-stream,
+  .rider-order-list,
+  .rider-job-card,
+  .rider-order-card {
+    @apply grid gap-4;
+  }
+
+  .rider-topbar-card {
+    @apply rounded-xl p-5;
+  }
+
+  .rider-topbar-main {
+    @apply grid gap-4;
+  }
+
+  .rider-brand-block,
+  .rider-account-block,
+  .rider-route-point {
+    @apply flex items-start gap-3;
+  }
+
+  .rider-job-head,
+  .rider-section-head {
+    @apply flex flex-col gap-3;
+  }
+
+  .rider-route-points,
+  .rider-stop-grid {
+    @apply grid gap-3;
+  }
+
+  .rider-route-copy {
+    @apply grid gap-1;
+  }
+
+  .rider-route-copy strong,
+  .rider-job-head strong {
+    @apply text-sm font-semibold text-slate-950;
+  }
+
+  .rider-order-items {
+    @apply rounded-lg border border-slate-200 bg-slate-50 p-4;
+  }
+
+  .rider-job-accept,
+  .rider-action-form {
+    @apply grid gap-3;
+  }
+
+  .rider-accept-button {
+    @apply w-full;
+  }
+
+  .rider-empty-state {
+    @apply border-dashed;
+  }
+
+  .cart-item-actions {
+    @apply flex flex-wrap justify-end gap-2;
+  }
+
+  .cart-inline-form {
+    @apply flex flex-wrap items-end gap-2;
+  }
+
+  .cart-qty-label {
+    @apply min-w-[7rem];
+  }
+
+  .tiny-input {
+    @apply w-20;
+  }
+
+  .notification-item {
+    @apply grid gap-3;
+  }
+
+  .notification-item.success {
+    @apply border-emerald-200;
+  }
+
+  .notification-item.info {
+    @apply border-sky-200;
+  }
+
+  .notification-item.warn {
+    @apply border-amber-200;
+  }
+
+  .notification-item.danger {
+    @apply border-red-200;
+  }
+
+  .toast-stack {
+    @apply mb-4 grid gap-3;
+  }
+
+  .toast {
+    @apply rounded-lg px-4 py-3 text-sm font-medium;
+  }
+
+  .toast {
+    @apply border-slate-200 bg-white text-slate-700;
+  }
+
+  .toast-success {
+    @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  }
+
+  .toast-error {
+    @apply border-red-200 bg-red-50 text-red-700;
+  }
+
+  .toast-warning {
+    @apply border-amber-200 bg-amber-50 text-amber-700;
+  }
+
+  .toast-info {
+    @apply border-sky-200 bg-sky-50 text-sky-700;
+  }
+}
+
+@media (min-width: 720px) {
+  .mobile-bottom-nav {
+    @apply hidden;
+  }
+
+  .split-row,
+  .notification-shell {
+    @apply flex-row items-start justify-between;
+  }
+
+  .bill-grid,
+  .auth-grid-two,
+  .product-grid,
+  .store-grid,
+  .customer-home-grid,
+  .card-grid,
+  .stats-grid,
+  .quick-grid,
+  .dashboard-top,
+  .layout-two,
+  .landing-hero-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rider-topbar-main {
+    grid-template-columns: minmax(0, 1fr) auto;
+    @apply items-center;
+  }
+
+  .rider-stop-grid,
+  .rider-route-points {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1040px) {
+  .dashboard-top {
+    grid-template-columns: minmax(0, 1.3fr) minmax(18rem, 0.7fr);
+  }
+
+  .layout-two {
+    grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+  }
+
+  .quick-grid,
+  .card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .store-grid,
+  .customer-home-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 719px) {
+  .nav-primary {
+    @apply hidden;
+  }
+
+  .menu-panel {
+    @apply fixed left-4 right-4 top-20 w-auto;
+  }
+
+  .mobile-bottom-nav {
+    @apply flex;
+  }
+
+  .site-main {
+    @apply pb-28;
+  }
+}

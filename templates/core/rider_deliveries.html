@@ -99,6 +99,11 @@
           {% endif %}
 
           {% if order.status == 'out_for_delivery' %}
+            <form method="post" action="{% url 'core:rider_resend_customer_otp' order.id %}" class="inline-actions">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{% url 'core:rider_deliveries' %}" />
+              <button class="button small secondary" type="submit">Resend OTP</button>
+            </form>
             <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap rider-action-form">
               {% csrf_token %}
               <input type="hidden" name="status" value="delivered" />

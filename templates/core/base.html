@@ -13,7 +13,40 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/core/styles.css?v={{ shell_asset_version }}" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['DM Sans', 'sans-serif'],
+              display: ['Plus Jakarta Sans', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              brand: {
+                50: '#eef2ff',
+                100: '#e0e7ff',
+                500: '#334155',
+                700: '#1e293b',
+                900: '#0f172a',
+              },
+              accent: {
+                500: '#f97316',
+                600: '#ea580c',
+              },
+            },
+            boxShadow: {
+              soft: '0 10px 28px rgba(15, 23, 42, 0.08)',
+              float: '0 24px 60px rgba(15, 23, 42, 0.10)',
+            },
+          },
+        },
+      };
+    </script>
+    <style type="text/tailwindcss">
+      {% include 'core/tailwind_theme.html' %}
+    </style>
     <script type="module" src="https://unpkg.com/@lottiefiles/dotlottie-wc@latest/dist/dotlottie-wc.js"></script>
     {% if google_client_id %}
       <script src="https://accounts.google.com/gsi/client" async defer></script>

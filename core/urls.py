@@ -53,6 +53,7 @@ urlpatterns = [
     path('rider/availability/', views.rider_toggle_availability, name='rider_toggle_availability'),
     path('rider/location/', views.rider_update_location, name='rider_update_location'),
     path('rider/order/<int:order_id>/accept/', views.rider_accept_order, name='rider_accept_order'),
+    path('rider/order/<int:order_id>/resend-otp/', views.rider_resend_customer_otp, name='rider_resend_customer_otp'),
     path('rider/order/<int:order_id>/status/', views.rider_update_order_status, name='rider_update_order_status'),
     path('payments/razorpay/webhook/', views.razorpay_webhook, name='razorpay_webhook'),
     path('manifest.json', views.manifest, name='manifest'),
