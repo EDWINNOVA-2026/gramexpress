@@ -7,3 +7,6 @@ venv/
 media/
 staticfiles/
 *.log
+*.aux
+*.out
+*.toc
