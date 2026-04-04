@@ -43,6 +43,18 @@ class PaymentStatus(models.TextChoices):
     FAILED = 'failed', 'Failed'
 
 
+class CodCollectionMode(models.TextChoices):
+    ONLINE = 'online', 'Online COD Payment'
+    CASH = 'cash', 'Cash Collected'
+
+
+class SettlementStatus(models.TextChoices):
+    NOT_REQUIRED = 'not_required', 'Not Required'
+    QR_READY = 'qr_ready', 'QR Ready'
+    PAID = 'paid', 'Settled'
+    FAILED = 'failed', 'Failed'
+
+
 class RoleType(models.TextChoices):
     CUSTOMER = 'customer', 'Customer'
     SHOP = 'shop', 'Store Owner'
@@ -282,6 +294,23 @@ class Order(TimeStampedModel):
     status = models.CharField(max_length=20, choices=OrderStatus.choices, default=OrderStatus.PENDING)
     payment_method = models.CharField(max_length=12, choices=PaymentMethod.choices, default=PaymentMethod.COD)
     payment_status = models.CharField(max_length=12, choices=PaymentStatus.choices, default=PaymentStatus.PENDING)
+    payment_reference = models.CharField(max_length=120, blank=True)
+    cod_collection_mode = models.CharField(max_length=12, choices=CodCollectionMode.choices, blank=True)
+    cod_payment_link_id = models.CharField(max_length=80, blank=True, db_index=True)
+    cod_payment_link_url = models.URLField(blank=True)
+    cod_payment_link_status = models.CharField(max_length=24, blank=True)
+    customer_paid_at = models.DateTimeField(null=True, blank=True)
+    cash_confirmed_at = models.DateTimeField(null=True, blank=True)
+    settlement_status = models.CharField(
+        max_length=20,
+        choices=SettlementStatus.choices,
+        default=SettlementStatus.NOT_REQUIRED,
+    )
+    settlement_qr_id = models.CharField(max_length=80, blank=True, db_index=True)
+    settlement_qr_image_url = models.URLField(blank=True)
+    settlement_payment_id = models.CharField(max_length=80, blank=True)
+    settlement_generated_at = models.DateTimeField(null=True, blank=True)
+    settlement_paid_at = models.DateTimeField(null=True, blank=True)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('20.00'))
     delivery_address = models.CharField(max_length=240)

@@ -74,22 +74,43 @@
         </form>
       {% elif priority_order.status == 'out_for_delivery' %}
         <div class="mission-actions">
-          <form method="post" action="{% url 'core:rider_resend_customer_otp' priority_order.id %}">
-            {% csrf_token %}
-            <input type="hidden" name="next" value="{% url 'core:rider_deliveries' %}" />
-            <button class="button small secondary" type="submit">Resend OTP</button>
-          </form>
-          <form method="post" action="{% url 'core:rider_update_order_status' priority_order.id %}" class="stack small-gap rider-action-form mission-delivery-form">
-            {% csrf_token %}
-            <input type="hidden" name="status" value="delivered" />
-            <label>Customer OTP
-              <input type="text" name="customer_otp" placeholder="Enter OTP before handoff" required />
-            </label>
-            {% if priority_order.customer_otp_valid_until %}
-              <span class="tiny muted">Current OTP valid until {{ priority_order.customer_otp_valid_until|date:"H:i" }}</span>
+          <div class="compact-item content-stack">
+            <strong>{{ priority_order.payment_summary.label }}</strong>
+            <p>{{ priority_order.payment_summary.detail }}</p>
+            <span class="status-chip {{ priority_order.payment_summary.chip_class }}">{{ priority_order.payment_summary.status_label }}</span>
+          </div>
+          <div class="stack small-gap">
+            {% if priority_order.payment_method == 'cod' and priority_order.payment_status != 'paid' %}
+              <form method="post" action="{% url 'core:rider_request_cod_online_payment' priority_order.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'core:rider_deliveries' %}" />
+                <button class="button secondary" type="submit">Recieve Money Online</button>
+              </form>
             {% endif %}
-            <button class="button primary" type="submit">Delivered</button>
-          </form>
+            <form method="post" action="{% url 'core:rider_resend_customer_otp' priority_order.id %}">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{% url 'core:rider_deliveries' %}" />
+              <button class="button small secondary" type="submit">Resend OTP</button>
+            </form>
+          </div>
+          {% if priority_order.payment_method != 'cod' or priority_order.cod_collection_mode != 'online' or priority_order.payment_status == 'paid' %}
+            <form method="post" action="{% url 'core:rider_update_order_status' priority_order.id %}" class="stack small-gap rider-action-form mission-delivery-form">
+              {% csrf_token %}
+              <input type="hidden" name="status" value="delivered" />
+              <label>Customer OTP
+                <input type="text" name="customer_otp" placeholder="Enter OTP before handoff" required />
+              </label>
+              {% if priority_order.customer_otp_valid_until %}
+                <span class="tiny muted">Current OTP valid until {{ priority_order.customer_otp_valid_until|date:"H:i" }}</span>
+              {% endif %}
+              <button class="button primary" type="submit">Delivered</button>
+            </form>
+          {% else %}
+            <div class="compact-item content-stack">
+              <strong>Online payment pending</strong>
+              <p>The customer must complete the emailed Razorpay link before you close this COD delivery.</p>
+            </div>
+          {% endif %}
         </div>
       {% endif %}
     </section>
@@ -140,6 +161,11 @@
               <span class="tiny muted">{{ order.latest_rider_notification.created_at|date:"M d, H:i" }}</span>
             {% endif %}
           </div>
+          <div class="compact-item content-stack">
+            <strong>{{ order.payment_summary.label }}</strong>
+            <p>{{ order.payment_summary.detail }}</p>
+            <span class="status-chip {{ order.payment_summary.chip_class }}">{{ order.payment_summary.status_label }}</span>
+          </div>
           </div>
 
           <div class="rider-stop-grid">
@@ -189,17 +215,31 @@
               <input type="hidden" name="next" value="{% url 'core:rider_deliveries' %}" />
               <button class="button small secondary" type="submit">Resend OTP</button>
             </form>
-            <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap rider-action-form">
-              {% csrf_token %}
-              <input type="hidden" name="status" value="delivered" />
-              <label>Customer OTP
-                <input type="text" name="customer_otp" placeholder="Enter OTP before handoff" required />
-              </label>
-              {% if order.customer_otp_valid_until %}
-                <span class="tiny muted">Current OTP valid until {{ order.customer_otp_valid_until|date:"H:i" }}</span>
-              {% endif %}
-              <button class="button primary" type="submit">Delivered</button>
-            </form>
+            {% if order.payment_method == 'cod' and order.payment_status != 'paid' %}
+              <form method="post" action="{% url 'core:rider_request_cod_online_payment' order.id %}" class="inline-actions">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'core:rider_deliveries' %}" />
+                <button class="button secondary" type="submit">Recieve Money Online</button>
+              </form>
+            {% endif %}
+            {% if order.payment_method != 'cod' or order.cod_collection_mode != 'online' or order.payment_status == 'paid' %}
+              <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap rider-action-form">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="delivered" />
+                <label>Customer OTP
+                  <input type="text" name="customer_otp" placeholder="Enter OTP before handoff" required />
+                </label>
+                {% if order.customer_otp_valid_until %}
+                  <span class="tiny muted">Current OTP valid until {{ order.customer_otp_valid_until|date:"H:i" }}</span>
+                {% endif %}
+                <button class="button primary" type="submit">Delivered</button>
+              </form>
+            {% else %}
+              <div class="compact-item content-stack">
+                <strong>Online payment pending</strong>
+                <p>Wait for the customer to pay the Razorpay COD link before you close delivery.</p>
+              </div>
+            {% endif %}
           {% endif %}
         </article>
         {% endif %}

@@ -48,6 +48,7 @@ from .forms import (
 from .models import (
     ApprovalStatus,
     AuthOtpToken,
+    CodCollectionMode,
     CheckoutSession,
     CustomerProfile,
     EmailOtpToken,
@@ -63,6 +64,7 @@ from .models import (
     Product,
     RiderProfile,
     RoleType,
+    SettlementStatus,
     Shop,
     ShopOwnerProfile,
 )
@@ -791,6 +793,59 @@ def is_razorpay_ready() -> bool:
     return bool(getattr(settings, 'RAZORPAY_KEY_ID', '') and getattr(settings, 'RAZORPAY_KEY_SECRET', ''))
 
 
+def settlement_qr_fallback_ready() -> bool:
+    return bool(
+        getattr(settings, 'RAZORPAY_SETTLEMENT_QR_IMAGE_URL', '')
+        or getattr(settings, 'RAZORPAY_SETTLEMENT_UPI_ID', '')
+    )
+
+
+def can_create_settlement_qr() -> bool:
+    return is_razorpay_ready() or settlement_qr_fallback_ready()
+
+
+def build_order_detail_absolute_url(request: HttpRequest, order: Order) -> str:
+    return request.build_absolute_uri(reverse('core:order_detail', args=[order.id]))
+
+
+def order_payment_reference(order: Order) -> str:
+    if order.payment_reference:
+        return order.payment_reference
+    if order.checkout_session and order.checkout_session.razorpay_payment_id:
+        return order.checkout_session.razorpay_payment_id
+    return ''
+
+
+def order_customer_payment_complete(order: Order) -> bool:
+    return order.payment_status == PaymentStatus.PAID
+
+
+def order_has_open_cod_payment_link(order: Order) -> bool:
+    return bool(
+        order.cod_payment_link_url
+        and order.cod_payment_link_status in ['', 'created', 'partially_paid']
+        and not order_customer_payment_complete(order)
+    )
+
+
+def order_needs_rider_settlement(order: Order) -> bool:
+    return (
+        order.payment_method == PaymentMethod.COD
+        and order.cod_collection_mode == CodCollectionMode.CASH
+        and order.settlement_status != SettlementStatus.PAID
+    )
+
+
+def order_can_request_cod_online_payment(order: Order) -> bool:
+    return (
+        order.payment_method == PaymentMethod.COD
+        and order.status == OrderStatus.OUT_FOR_DELIVERY
+        and not order_customer_payment_complete(order)
+        and bool((order.customer.email or '').strip())
+        and is_razorpay_ready()
+    )
+
+
 def landing_context() -> dict[str, Any]:
     return {}
 
@@ -895,9 +950,7 @@ def send_order_status_email(
     rider_name = order.rider.full_name if order.rider else 'Pending rider assignment'
     rider_phone = order.rider.phone if order.rider else 'Unavailable'
     rider_email = order.rider.email if order.rider and order.rider.email else 'Unavailable'
-    payment_reference = ''
-    if order.checkout_session and order.checkout_session.razorpay_payment_id:
-        payment_reference = order.checkout_session.razorpay_payment_id
+    payment_reference = order_payment_reference(order)
 
     otp_lines = []
     if order.status == OrderStatus.OUT_FOR_DELIVERY:
@@ -1013,6 +1066,41 @@ def send_store_order_status_email(
         return False, 'Store email update could not be sent with the current mail settings.'
 
 
+def send_cod_payment_link_email(*, order: Order) -> tuple[bool, str]:
+    recipient = (order.customer.email or '').strip()
+    if not recipient or not order.cod_payment_link_url:
+        return False, 'Customer email or COD payment link is unavailable.'
+
+    message = '\n'.join(
+        [
+            f'Pay securely online for {order.display_id}',
+            '',
+            'Your rider shared a Razorpay payment link for this cash-on-delivery order.',
+            'Open the link below, complete the payment, and then continue the handoff with the rider.',
+            '',
+            f'Payment link: {order.cod_payment_link_url}',
+            '',
+            f'Order: {order.display_id}',
+            f'Store: {order.shop.name}',
+            f'Amount: Rs. {order.total_amount}',
+            f'Delivery address: {order.delivery_address}',
+            '',
+            'This payment updates both the customer and rider dashboards automatically after it succeeds.',
+        ]
+    )
+    try:
+        send_mail(
+            subject=f'Pay online for COD order {order.display_id}',
+            message=message,
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@gramexpress.local'),
+            recipient_list=[recipient],
+            fail_silently=False,
+        )
+        return True, 'COD payment link email sent successfully.'
+    except Exception:
+        return False, 'COD payment link email could not be sent with the current mail settings.'
+
+
 def build_order_flow_steps(order: Order) -> list[dict[str, Any]]:
     steps = [
         {'label': 'Accepted', 'completed': bool(order.rider_id), 'current': False},
@@ -1082,6 +1170,15 @@ def enrich_order_progress(order: Order) -> Order:
         order.flow_detail = 'A nearby rider still needs to claim this delivery.'
         order.support_prompt = 'Need order help?'
         order.support_copy = 'Use support for address issues, store delays, or payment questions.'
+    order.payment_reference_display = order_payment_reference(order)
+    order.cod_online_link_ready = order_has_open_cod_payment_link(order)
+    order.cod_online_paid = order.cod_collection_mode == CodCollectionMode.ONLINE and order_customer_payment_complete(order)
+    order.cod_cash_confirmed = order.cod_collection_mode == CodCollectionMode.CASH and bool(order.cash_confirmed_at)
+    order.settlement_upi_url = build_settlement_upi_url(order)
+    order.settlement_qr_ready = order.settlement_status == SettlementStatus.QR_READY and (
+        bool(order.settlement_qr_id) or bool(order.settlement_qr_image_url) or bool(order.settlement_upi_url)
+    )
+    order.payment_summary = build_payment_summary(order)
     return order
 
 
@@ -1097,8 +1194,12 @@ def rider_status_chip(order: Order) -> str:
 
 def rider_status_hint(order: Order, *, pickup_gate_open: bool) -> str:
     if order.status == OrderStatus.OUT_FOR_DELIVERY:
+        if order.cod_collection_mode == CodCollectionMode.ONLINE and not order_customer_payment_complete(order):
+            return 'The Razorpay payment link was sent. Wait for the customer payment, then finish handoff with the OTP.'
         return 'Pickup confirmed. Head to the customer and complete handoff with the OTP.'
     if order.status == OrderStatus.DELIVERED:
+        if order_needs_rider_settlement(order):
+            return 'Delivery is done, but the collected cash still needs settlement to GramExpress from your dashboard QR.'
         return 'Delivered successfully. This order is now part of your completed history.'
     if pickup_gate_open:
         return 'You are at the store. Mark the order as picked up so customer and store are both updated immediately.'
@@ -1120,7 +1221,19 @@ def enrich_rider_order(order: Order, rider: RiderProfile) -> Order:
     order.accepted_at = order.milestone_timestamps.get('accepted')
     order.pickup_confirmed_at = order.milestone_timestamps.get('pickup')
     order.delivered_confirmed_at = order.milestone_timestamps.get('delivered')
-    if order.status == OrderStatus.OUT_FOR_DELIVERY:
+    if order.status == OrderStatus.DELIVERED and order_needs_rider_settlement(order):
+        order.current_mission_title = 'Settle collected cash'
+        order.current_mission_detail = 'The customer confirmed cash payment. Use the rider settlement QR to pay GramExpress from your account.'
+        order.current_mission_map_url = order.dropoff_map_url
+        order.current_mission_map_label = 'Open Drop-off Pin'
+        order.current_mission_meta = f'Rs. {order.total_amount} settlement pending'
+    elif order.status == OrderStatus.OUT_FOR_DELIVERY and order.cod_collection_mode == CodCollectionMode.ONLINE and not order_customer_payment_complete(order):
+        order.current_mission_title = 'Collect money online first'
+        order.current_mission_detail = 'The customer has a Razorpay payment link by email. Finish delivery only after that payment is recorded.'
+        order.current_mission_map_url = order.dropoff_map_url
+        order.current_mission_map_label = 'Open Drop-off Pin'
+        order.current_mission_meta = f'Rs. {order.total_amount} waiting online payment'
+    elif order.status == OrderStatus.OUT_FOR_DELIVERY:
         order.current_mission_title = 'Finish the customer handoff'
         order.current_mission_detail = 'Navigate to the drop-off pin, verify the OTP, and complete delivery.'
         order.current_mission_map_url = order.dropoff_map_url
@@ -1418,6 +1531,132 @@ def fetch_razorpay_payment(payment_id: str) -> dict[str, Any]:
 
 def fetch_razorpay_order(order_id: str) -> dict[str, Any]:
     return razorpay_api_request(path=f'/orders/{order_id}')
+
+
+def create_cod_payment_link(*, request: HttpRequest, order: Order) -> dict[str, Any]:
+    if order_has_open_cod_payment_link(order):
+        return {
+            'id': order.cod_payment_link_id,
+            'short_url': order.cod_payment_link_url,
+            'status': order.cod_payment_link_status or 'created',
+        }
+
+    payload = {
+        'amount': int((order.total_amount * 100).quantize(Decimal('1'))),
+        'currency': 'INR',
+        'accept_partial': False,
+        'description': f'COD online payment for {order.display_id}',
+        'reference_id': order.display_id,
+        'customer': {
+            'name': order.customer.full_name,
+            'email': order.customer.email,
+            'contact': order.customer.phone,
+        },
+        'notify': {
+            'email': False,
+            'sms': False,
+        },
+        'reminder_enable': False,
+        'callback_url': build_order_detail_absolute_url(request, order),
+        'callback_method': 'get',
+        'notes': {
+            'order_id': str(order.id),
+            'order_display_id': order.display_id,
+            'flow': 'cod_online',
+        },
+    }
+    payment_link = razorpay_api_request(path='/payment_links', method='POST', payload=payload)
+    order.cod_collection_mode = CodCollectionMode.ONLINE
+    order.cod_payment_link_id = payment_link.get('id', '')
+    order.cod_payment_link_url = payment_link.get('short_url', '')
+    order.cod_payment_link_status = payment_link.get('status', 'created')
+    order.save(
+        update_fields=[
+            'cod_collection_mode',
+            'cod_payment_link_id',
+            'cod_payment_link_url',
+            'cod_payment_link_status',
+            'updated_at',
+        ]
+    )
+    return payment_link
+
+
+def build_settlement_upi_url(order: Order) -> str:
+    upi_id = getattr(settings, 'RAZORPAY_SETTLEMENT_UPI_ID', '').strip()
+    if not upi_id:
+        return ''
+    params = {
+        'pa': upi_id,
+        'pn': getattr(settings, 'GRAMEXPRESS_APP_NAME', 'GramExpress'),
+        'am': f'{order.total_amount:.2f}',
+        'cu': 'INR',
+        'tn': f'COD settlement {order.display_id}',
+    }
+    return f'upi://pay?{urllib_parse.urlencode(params)}'
+
+
+def create_rider_settlement_qr(order: Order) -> dict[str, Any]:
+    if order.settlement_status == SettlementStatus.QR_READY and (order.settlement_qr_id or order.settlement_qr_image_url):
+        return {
+            'id': order.settlement_qr_id,
+            'image_url': order.settlement_qr_image_url,
+            'status': 'active',
+        }
+
+    if settlement_qr_fallback_ready() and not is_razorpay_ready():
+        order.settlement_status = SettlementStatus.QR_READY
+        order.settlement_qr_image_url = getattr(settings, 'RAZORPAY_SETTLEMENT_QR_IMAGE_URL', '').strip()
+        order.settlement_generated_at = timezone.now()
+        order.save(update_fields=['settlement_status', 'settlement_qr_image_url', 'settlement_generated_at', 'updated_at'])
+        return {
+            'id': '',
+            'image_url': order.settlement_qr_image_url,
+            'status': 'active',
+        }
+
+    qr_payload = {
+        'type': 'upi_qr',
+        'usage': 'single_use',
+        'fixed_amount': True,
+        'payment_amount': int((order.total_amount * 100).quantize(Decimal('1'))),
+        'name': f'{getattr(settings, "GRAMEXPRESS_APP_NAME", "GramExpress")} COD Settlement',
+        'description': f'Rider settlement for {order.display_id}',
+        'notes': {
+            'order_id': str(order.id),
+            'order_display_id': order.display_id,
+            'flow': 'cod_settlement',
+        },
+    }
+    try:
+        qr_code = razorpay_api_request(path='/payments/qr_codes', method='POST', payload=qr_payload)
+    except CheckoutValidationError:
+        fallback_image_url = getattr(settings, 'RAZORPAY_SETTLEMENT_QR_IMAGE_URL', '').strip()
+        if not fallback_image_url:
+            raise
+        order.settlement_status = SettlementStatus.QR_READY
+        order.settlement_qr_image_url = fallback_image_url
+        order.settlement_generated_at = timezone.now()
+        order.save(update_fields=['settlement_status', 'settlement_qr_image_url', 'settlement_generated_at', 'updated_at'])
+        return {
+            'id': '',
+            'image_url': fallback_image_url,
+            'status': 'active',
+        }
+    order.settlement_status = SettlementStatus.QR_READY
+    order.settlement_qr_id = qr_code.get('id', '')
+    order.settlement_qr_image_url = qr_code.get('image_url', '')
+    order.settlement_generated_at = timezone.now()
+    order.save(
+        update_fields=[
+            'settlement_status',
+            'settlement_qr_id',
+            'settlement_qr_image_url',
+            'settlement_generated_at',
+            'updated_at',
+        ]
+    )
+    return qr_code
 
 
 def verify_razorpay_payment_signature(*, razorpay_order_id: str, razorpay_payment_id: str, razorpay_signature: str) -> bool:
@@ -1741,7 +1980,7 @@ def customer_workspace_context(request: HttpRequest) -> dict[str, Any]:
 
     cart = build_cart_context(request)
     orders = (
-        customer.orders.select_related('shop', 'rider')
+        customer.orders.select_related('shop', 'rider', 'checkout_session')
         .prefetch_related('items__product')
         .all()
     )
@@ -1922,7 +2161,7 @@ def rider_workspace_context(request: HttpRequest) -> dict[str, Any]:
         Order.objects.filter(
             status__in=[OrderStatus.CONFIRMED, OrderStatus.PACKED, OrderStatus.OUT_FOR_DELIVERY],
         )
-        .select_related('customer', 'shop', 'rider')
+        .select_related('customer', 'shop', 'rider', 'checkout_session')
         .prefetch_related('items__product')
     )
     available_orders = []
@@ -2152,28 +2391,85 @@ def build_order_status_summary(order: Order) -> dict[str, str]:
 
 
 def build_payment_summary(order: Order) -> dict[str, str]:
+    reference = order_payment_reference(order)
     if order.payment_method == PaymentMethod.COD:
+        if order.cod_collection_mode == CodCollectionMode.ONLINE:
+            if order.payment_status == PaymentStatus.PAID:
+                return {
+                    'label': 'COD paid online',
+                    'detail': 'The customer completed the emailed Razorpay payment link for this order.',
+                    'chip_class': 'success',
+                    'status_label': 'Paid online',
+                    'reference': reference,
+                    'link_url': order.cod_payment_link_url,
+                    'link_label': 'Open payment link',
+                }
+            return {
+                'label': 'COD online payment requested',
+                'detail': 'The rider sent a Razorpay payment link to the customer and both dashboards update after payment succeeds.',
+                'chip_class': 'info',
+                'status_label': 'Payment link sent',
+                'reference': reference,
+                'link_url': order.cod_payment_link_url,
+                'link_label': 'Open payment link',
+            }
+        if order.cod_collection_mode == CodCollectionMode.CASH:
+            if order.settlement_status == SettlementStatus.PAID:
+                return {
+                    'label': 'Cash paid and settled',
+                    'detail': 'The customer paid cash at handoff and the rider settled the amount back to GramExpress.',
+                    'chip_class': 'success',
+                    'status_label': 'Settled',
+                    'reference': order.settlement_payment_id or reference,
+                    'link_url': '',
+                    'link_label': '',
+                }
+            return {
+                'label': 'Cash paid at handoff',
+                'detail': 'The customer confirmed cash payment. The rider now sees a Razorpay settlement QR in the rider dashboard.',
+                'chip_class': 'warn',
+                'status_label': 'Rider settlement pending',
+                'reference': order.settlement_payment_id or reference,
+                'link_url': '',
+                'link_label': '',
+            }
         return {
             'label': 'Cash on delivery',
-            'detail': 'Pay the rider after checking the order at handoff.',
-            'chip_class': 'warn' if order.payment_status != PaymentStatus.PAID else 'success',
+            'detail': 'The rider can either email a Razorpay payment link or collect cash and wait for customer cash confirmation.',
+            'chip_class': 'warn',
+            'status_label': 'Pending',
+            'reference': reference,
+            'link_url': '',
+            'link_label': '',
         }
     if order.payment_status == PaymentStatus.PAID:
         return {
             'label': 'Paid online',
             'detail': 'Online payment was captured successfully for this order.',
             'chip_class': 'success',
+            'status_label': order.get_payment_status_display(),
+            'reference': reference,
+            'link_url': '',
+            'link_label': '',
         }
     if order.payment_status == PaymentStatus.FAILED:
         return {
             'label': 'Payment failed',
             'detail': 'This online payment did not complete successfully.',
             'chip_class': 'warn',
+            'status_label': order.get_payment_status_display(),
+            'reference': reference,
+            'link_url': '',
+            'link_label': '',
         }
     return {
         'label': 'Online payment pending',
         'detail': 'Payment is still waiting for a confirmed result.',
         'chip_class': 'info',
+        'status_label': order.get_payment_status_display(),
+        'reference': reference,
+        'link_url': '',
+        'link_label': '',
     }
 
 
@@ -2766,16 +3062,16 @@ def order_detail_view(request: HttpRequest, order_id: int) -> HttpResponse:
     order = get_order_for_user(request.user, order_id)
     active_role, active_profile = get_role_profile(request.user)
     order.subtotal_amount = order.total_amount - order.delivery_fee
-    related_notifications = order.notifications.order_by('-created_at')[:6]
-    timeline = build_order_timeline(order)
-    status_summary = build_order_status_summary(order)
-    payment_summary = build_payment_summary(order)
-    shop_map_url = order.shop.google_maps_url
-    customer_map_url = order.customer.google_maps_url
     if active_role == RoleType.RIDER:
         enrich_rider_order(order, active_profile)
     else:
         enrich_order_progress(order)
+    related_notifications = order.notifications.order_by('-created_at')[:6]
+    timeline = build_order_timeline(order)
+    status_summary = build_order_status_summary(order)
+    payment_summary = order.payment_summary
+    shop_map_url = order.shop.google_maps_url
+    customer_map_url = order.customer.google_maps_url
     return disable_html_cache(
         render(
             request,
@@ -2880,6 +3176,90 @@ def customer_orders_view(request: HttpRequest) -> HttpResponse:
         if order.status in [OrderStatus.DELIVERED, OrderStatus.CANCELLED]
     ]
     return disable_html_cache(render(request, 'core/customer_orders.html', context))
+
+
+@role_required(RoleType.CUSTOMER)
+@require_POST
+def customer_confirm_cod_cash(request: HttpRequest, order_id: int) -> HttpResponse:
+    order = get_object_or_404(
+        Order.objects.select_related('customer', 'rider', 'shop__owner', 'shop'),
+        pk=order_id,
+        customer=request.role_profile,
+    )
+    if order.payment_method != PaymentMethod.COD:
+        messages.error(request, 'Cash confirmation is only available for COD orders.')
+        return redirect('core:order_detail', order_id=order.id)
+    if order.status not in [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED]:
+        messages.error(request, 'Cash confirmation is only available once delivery is in progress or completed.')
+        return redirect('core:order_detail', order_id=order.id)
+    if not order.rider_id:
+        messages.error(request, 'A rider must be assigned before COD cash can be confirmed.')
+        return redirect('core:order_detail', order_id=order.id)
+    if order.cod_collection_mode == CodCollectionMode.ONLINE and order_customer_payment_complete(order):
+        messages.error(request, 'This COD order was already paid online.')
+        return redirect('core:order_detail', order_id=order.id)
+
+    with transaction.atomic():
+        locked_order = Order.objects.select_for_update().select_related('rider', 'shop__owner', 'customer').get(pk=order.pk)
+        locked_order.cod_collection_mode = CodCollectionMode.CASH
+        locked_order.payment_status = PaymentStatus.PAID
+        locked_order.customer_paid_at = locked_order.customer_paid_at or timezone.now()
+        locked_order.cash_confirmed_at = timezone.now()
+        if locked_order.settlement_status != SettlementStatus.PAID and not can_create_settlement_qr():
+            locked_order.settlement_status = SettlementStatus.FAILED
+        locked_order.save(
+            update_fields=[
+                'cod_collection_mode',
+                'payment_status',
+                'customer_paid_at',
+                'cash_confirmed_at',
+                'settlement_status',
+                'updated_at',
+            ]
+        )
+
+    qr_ready = False
+    qr_error = ''
+    if locked_order.settlement_status == SettlementStatus.FAILED and not can_create_settlement_qr():
+        qr_error = 'Configure Razorpay QR collection or a settlement QR fallback image to finish rider settlement.'
+    elif locked_order.settlement_status != SettlementStatus.PAID:
+        try:
+            create_rider_settlement_qr(locked_order)
+            qr_ready = True
+        except CheckoutValidationError as error:
+            locked_order.settlement_status = SettlementStatus.FAILED
+            locked_order.save(update_fields=['settlement_status', 'updated_at'])
+            qr_error = str(error)
+
+    create_notification(
+        customer=locked_order.customer,
+        order=locked_order,
+        title='Cash payment recorded',
+        body=f'{locked_order.display_id} was marked as cash paid. Rider settlement is now being tracked.',
+        notification_type=NotificationType.PAYMENT,
+    )
+    create_notification(
+        rider=locked_order.rider,
+        order=locked_order,
+        title='Customer marked cash paid',
+        body=(
+            f'{locked_order.display_id} was confirmed as cash paid. '
+            f'{"Open the settlement QR in your dashboard to pay GramExpress." if qr_ready else "Settlement QR generation needs attention."}'
+        ),
+        notification_type=NotificationType.PAYMENT,
+    )
+    create_notification(
+        shop_owner=locked_order.shop.owner,
+        order=locked_order,
+        title='COD cash confirmed',
+        body=f'{locked_order.display_id} was marked as cash paid by the customer.',
+        notification_type=NotificationType.PAYMENT,
+    )
+    if qr_ready:
+        messages.success(request, 'Cash payment recorded. The rider now has a settlement QR in the rider dashboard.')
+    else:
+        messages.warning(request, f'Cash payment recorded, but the rider settlement QR is not ready yet. {qr_error}'.strip())
+    return redirect('core:order_detail', order_id=order.id)
 
 
 @role_required(RoleType.CUSTOMER)
@@ -3207,6 +3587,88 @@ def razorpay_webhook(request: HttpRequest) -> HttpResponse:
     event_name = event_payload.get('event', '')
     payment_entity = event_payload.get('payload', {}).get('payment', {}).get('entity', {})
     order_entity = event_payload.get('payload', {}).get('order', {}).get('entity', {})
+    payment_link_entity = event_payload.get('payload', {}).get('payment_link', {}).get('entity', {})
+    qr_code_entity = event_payload.get('payload', {}).get('qr_code', {}).get('entity', {})
+
+    if payment_link_entity.get('id'):
+        order = Order.objects.filter(cod_payment_link_id=payment_link_entity.get('id')).select_related('customer', 'rider', 'shop__owner').first()
+        if not order:
+            return JsonResponse({'status': 'ignored'})
+        if event_name == 'payment_link.paid':
+            order.cod_collection_mode = CodCollectionMode.ONLINE
+            order.cod_payment_link_status = payment_link_entity.get('status', 'paid')
+            order.payment_status = PaymentStatus.PAID
+            order.customer_paid_at = order.customer_paid_at or timezone.now()
+            order.payment_reference = payment_entity.get('id', order.payment_reference)
+            order.save(
+                update_fields=[
+                    'cod_collection_mode',
+                    'cod_payment_link_status',
+                    'payment_status',
+                    'customer_paid_at',
+                    'payment_reference',
+                    'updated_at',
+                ]
+            )
+            create_notification(
+                customer=order.customer,
+                order=order,
+                title='COD payment received',
+                body=f'{order.display_id} COD online payment was captured successfully.',
+                notification_type=NotificationType.PAYMENT,
+            )
+            if order.rider_id:
+                create_notification(
+                    rider=order.rider,
+                    order=order,
+                    title='Customer paid online',
+                    body=f'{order.display_id} customer payment is complete. You can finish the handoff after OTP verification.',
+                    notification_type=NotificationType.PAYMENT,
+                )
+            create_notification(
+                shop_owner=order.shop.owner,
+                order=order,
+                title='COD online payment received',
+                body=f'{order.display_id} customer payment was completed through Razorpay.',
+                notification_type=NotificationType.PAYMENT,
+            )
+        elif event_name in ['payment_link.cancelled', 'payment_link.expired', 'payment_link.partially_paid']:
+            order.cod_payment_link_status = payment_link_entity.get('status', order.cod_payment_link_status)
+            order.save(update_fields=['cod_payment_link_status', 'updated_at'])
+        return JsonResponse({'status': 'ok'})
+
+    if qr_code_entity.get('id'):
+        order = Order.objects.filter(settlement_qr_id=qr_code_entity.get('id')).select_related('customer', 'rider', 'shop__owner').first()
+        if not order:
+            return JsonResponse({'status': 'ignored'})
+        if event_name == 'qr_code.credited':
+            order.settlement_status = SettlementStatus.PAID
+            order.settlement_paid_at = order.settlement_paid_at or timezone.now()
+            order.settlement_payment_id = payment_entity.get('id', order.settlement_payment_id)
+            order.save(update_fields=['settlement_status', 'settlement_paid_at', 'settlement_payment_id', 'updated_at'])
+            create_notification(
+                rider=order.rider,
+                order=order,
+                title='COD settlement received',
+                body=f'{order.display_id} settlement to GramExpress was recorded successfully.',
+                notification_type=NotificationType.PAYMENT,
+            )
+            create_notification(
+                customer=order.customer,
+                order=order,
+                title='Cash payment closed',
+                body=f'{order.display_id} cash payment and rider settlement are both complete.',
+                notification_type=NotificationType.PAYMENT,
+            )
+            create_notification(
+                shop_owner=order.shop.owner,
+                order=order,
+                title='COD settlement completed',
+                body=f'{order.display_id} cash collection settlement was completed successfully.',
+                notification_type=NotificationType.PAYMENT,
+            )
+        return JsonResponse({'status': 'ok'})
+
     razorpay_order_id = payment_entity.get('order_id') or order_entity.get('id')
     if not razorpay_order_id:
         return JsonResponse({'status': 'ignored'})
@@ -3676,6 +4138,72 @@ def rider_update_location(request: HttpRequest) -> HttpResponse:
 
 @role_required(RoleType.RIDER)
 @require_POST
+def rider_request_cod_online_payment(request: HttpRequest, order_id: int) -> HttpResponse:
+    rider = request.role_profile
+    locked_order = get_object_or_404(
+        Order.objects.select_related('customer', 'shop__owner', 'shop', 'rider'),
+        pk=order_id,
+        rider=rider,
+    )
+    if locked_order.payment_method != PaymentMethod.COD:
+        messages.error(request, 'This action is only available for COD orders.')
+        return redirect(rider_order_redirect_target(request, order_id))
+    if locked_order.status != OrderStatus.OUT_FOR_DELIVERY:
+        messages.error(request, 'Request the COD payment link only after pickup starts delivery.')
+        return redirect(rider_order_redirect_target(request, order_id))
+    if not (locked_order.customer.email or '').strip():
+        messages.error(request, 'Customer email is required before sending the COD payment link.')
+        return redirect(rider_order_redirect_target(request, order_id))
+    if not is_razorpay_ready():
+        messages.error(request, 'Razorpay is not configured yet for COD online payment links.')
+        return redirect(rider_order_redirect_target(request, order_id))
+    if locked_order.cod_collection_mode == CodCollectionMode.CASH and locked_order.cash_confirmed_at:
+        messages.error(request, 'This COD order is already marked as cash paid.')
+        return redirect(rider_order_redirect_target(request, order_id))
+    if order_customer_payment_complete(locked_order):
+        messages.info(request, 'Customer payment is already recorded for this order.')
+        return redirect(rider_order_redirect_target(request, order_id))
+
+    try:
+        create_cod_payment_link(request=request, order=locked_order)
+    except CheckoutValidationError as error:
+        messages.error(request, str(error))
+        return redirect(rider_order_redirect_target(request, order_id))
+
+    email_sent, email_detail = send_cod_payment_link_email(order=locked_order)
+    create_notification(
+        customer=locked_order.customer,
+        order=locked_order,
+        title='COD payment link ready',
+        body=f'{locked_order.display_id} now has an online payment link: {locked_order.cod_payment_link_url}',
+        notification_type=NotificationType.PAYMENT,
+    )
+    create_notification(
+        rider=locked_order.rider,
+        order=locked_order,
+        title='COD payment link sent',
+        body=f'{locked_order.display_id} payment link was prepared for the customer.',
+        notification_type=NotificationType.PAYMENT,
+    )
+    create_notification(
+        shop_owner=locked_order.shop.owner,
+        order=locked_order,
+        title='COD payment link sent',
+        body=f'{locked_order.display_id} customer can now pay online through Razorpay before final handoff.',
+        notification_type=NotificationType.PAYMENT,
+    )
+    if email_sent:
+        messages.success(request, 'Recieve Money Online link sent to the customer email and reflected in both dashboards.')
+    else:
+        messages.warning(
+            request,
+            f'Payment link is ready in the app, but the email could not be sent automatically. {email_detail}',
+        )
+    return redirect(rider_order_redirect_target(request, order_id))
+
+
+@role_required(RoleType.RIDER)
+@require_POST
 def rider_accept_order(request: HttpRequest, order_id: int) -> HttpResponse:
     rider = request.role_profile
     if rider.approval_status != ApprovalStatus.APPROVED or not rider.is_available:
@@ -3808,6 +4336,9 @@ def rider_update_order_status(request: HttpRequest, order_id: int) -> HttpRespon
             if locked_order.status != OrderStatus.OUT_FOR_DELIVERY:
                 messages.error(request, 'This order must be out for delivery before completion.')
                 return redirect('core:rider_deliveries')
+            if locked_order.payment_method == PaymentMethod.COD and locked_order.cod_collection_mode == CodCollectionMode.ONLINE and not order_customer_payment_complete(locked_order):
+                messages.error(request, 'Wait for the customer Razorpay payment link to complete before marking this COD order delivered.')
+                return redirect('core:rider_deliveries')
             if delivery_otp_is_expired(locked_order):
                 messages.error(request, 'Customer OTP expired. Resend a fresh OTP before completing delivery.')
                 return redirect('core:rider_deliveries')
@@ -3817,16 +4348,43 @@ def rider_update_order_status(request: HttpRequest, order_id: int) -> HttpRespon
 
             locked_order.status = OrderStatus.DELIVERED
             locked_order.delivered_at = timezone.now()
-            locked_order.save(update_fields=['status', 'updated_at', 'delivered_at'])
+            if locked_order.payment_method == PaymentMethod.COD and locked_order.cod_collection_mode == CodCollectionMode.ONLINE:
+                locked_order.settlement_status = SettlementStatus.NOT_REQUIRED
+            locked_order.save(update_fields=['status', 'updated_at', 'delivered_at', 'settlement_status'])
             locked_rider.is_available = True
             locked_rider.save(update_fields=['is_available', 'updated_at'])
             status_message = 'was delivered successfully'
-            customer_status_message = f'Order #{locked_order.id} was delivered successfully.'
+            if locked_order.payment_method == PaymentMethod.COD and locked_order.cod_collection_mode == CodCollectionMode.CASH:
+                customer_status_message = (
+                    f'Order #{locked_order.id} was delivered successfully. Cash handoff is recorded and rider settlement is now tracked.'
+                )
+            elif locked_order.payment_method == PaymentMethod.COD and locked_order.cod_collection_mode == CodCollectionMode.ONLINE:
+                customer_status_message = f'Order #{locked_order.id} was delivered successfully after online COD payment.'
+            else:
+                customer_status_message = f'Order #{locked_order.id} was delivered successfully.'
             success_message = f'Order #{locked_order.id} marked as delivered.'
             email_subject = f'Your order {locked_order.display_id} was delivered'
             email_headline = 'Your order has been delivered successfully.'
-            email_detail = 'Thank you for ordering with GramExpress. Your final invoice summary is included below.'
-            store_status_message = f'Order #{locked_order.id} was delivered successfully by {locked_rider.full_name}.'
+            if locked_order.payment_method == PaymentMethod.COD and locked_order.cod_collection_mode == CodCollectionMode.CASH:
+                email_detail = (
+                    'The rider completed delivery and the order now reflects a cash handoff. '
+                    'The rider settlement back to GramExpress is tracked separately in the rider dashboard.'
+                )
+                store_status_message = (
+                    f'Order #{locked_order.id} was delivered successfully by {locked_rider.full_name}. '
+                    'Customer cash handoff is recorded.'
+                )
+            elif locked_order.payment_method == PaymentMethod.COD and locked_order.cod_collection_mode == CodCollectionMode.ONLINE:
+                email_detail = (
+                    'The rider completed delivery after the COD online payment link was successfully paid. '
+                    'Your final invoice summary is included below.'
+                )
+                store_status_message = (
+                    f'Order #{locked_order.id} was delivered successfully by {locked_rider.full_name} after online COD payment.'
+                )
+            else:
+                email_detail = 'Thank you for ordering with GramExpress. Your final invoice summary is included below.'
+                store_status_message = f'Order #{locked_order.id} was delivered successfully by {locked_rider.full_name}.'
             store_email_subject = f'{locked_order.display_id} delivered successfully'
             store_email_headline = 'The rider completed delivery for this order.'
             store_email_detail = (

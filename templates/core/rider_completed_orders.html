@@ -67,6 +67,26 @@
             </div>
           </div>
 
+          <div class="compact-item content-stack">
+            <strong>{{ order.payment_summary.label }}</strong>
+            <p>{{ order.payment_summary.detail }}</p>
+            <span class="status-chip {{ order.payment_summary.chip_class }}">{{ order.payment_summary.status_label }}</span>
+            {% if order.settlement_qr_ready %}
+              <p class="utility-note">Pay GramExpress from your account to settle this COD cash collection.</p>
+              {% if order.settlement_qr_image_url %}
+                <img class="qr-preview-image" src="{{ order.settlement_qr_image_url }}" alt="Settlement QR for {{ order.display_id }}" />
+              {% endif %}
+              <div class="inline-actions">
+                {% if order.settlement_qr_image_url %}
+                  <a class="button small secondary" href="{{ order.settlement_qr_image_url }}" target="_blank" rel="noreferrer">Open QR</a>
+                {% endif %}
+                {% if order.settlement_upi_url %}
+                  <a class="button small secondary" href="{{ order.settlement_upi_url }}">Pay Via UPI App</a>
+                {% endif %}
+              </div>
+            {% endif %}
+          </div>
+
           <div class="inline-actions">
             <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
           </div>

@@ -69,6 +69,7 @@
               <strong>{{ order.display_id }}</strong>
               <p>{{ order.shop.name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
               <p class="utility-note">{{ order.tracking_label }}</p>
+              <p class="utility-note">{{ order.payment_summary.label }} | {{ order.payment_summary.status_label }}</p>
               {% if order.status == 'out_for_delivery' %}
                 <p class="utility-note">Delivery OTP for handoff: <code>{{ order.customer_otp }}</code></p>
                 {% if order.customer_otp_valid_until %}
@@ -84,6 +85,19 @@
                   {% csrf_token %}
                   <button class="button small secondary" type="submit">Order Again</button>
                 </form>
+              {% endif %}
+              {% if order.payment_method == 'cod' %}
+                {% if order.status == 'out_for_delivery' or order.status == 'delivered' %}
+                  {% if order.cod_collection_mode != 'online' and not order.cod_cash_confirmed %}
+                    <form method="post" action="{% url 'core:customer_confirm_cod_cash' order.id %}">
+                      {% csrf_token %}
+                      <button class="button small primary" type="submit">I Paid Cash</button>
+                    </form>
+                  {% endif %}
+                {% endif %}
+              {% endif %}
+              {% if order.cod_online_link_ready and order.payment_status != 'paid' %}
+                <a class="button small secondary" href="{{ order.cod_payment_link_url }}" target="_blank" rel="noreferrer">Open Payment Link</a>
               {% endif %}
             </div>
           </div>
@@ -103,12 +117,15 @@
           </div>
 
           <div class="compact-item content-stack">
-            <strong>{{ order.support_prompt }}</strong>
-            <p>{{ order.support_copy }}</p>
-            <div class="inline-actions">
-              <a class="button small secondary" href="{% url 'core:support' %}">Need Help?</a>
+              <strong>{{ order.support_prompt }}</strong>
+              <p>{{ order.support_copy }}</p>
+              {% if order.payment_summary.reference %}
+                <p class="utility-note">Payment reference: {{ order.payment_summary.reference }}</p>
+              {% endif %}
+              <div class="inline-actions">
+                <a class="button small secondary" href="{% url 'core:support' %}">Need Help?</a>
+              </div>
             </div>
-          </div>
           </div>
 
           <div class="compact-list line-list">
@@ -158,6 +175,7 @@
             <div class="content-stack">
               <strong>{{ order.display_id }}</strong>
               <p>{{ order.shop.name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
+              <p class="utility-note">{{ order.payment_summary.label }} | {{ order.payment_summary.status_label }}</p>
             </div>
             <div class="action-cluster">
               <span class="pill">Rs. {{ order.total_amount }}</span>

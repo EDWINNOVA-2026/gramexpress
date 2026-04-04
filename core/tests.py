@@ -15,6 +15,7 @@ from .admin import approve_riders, approve_stores
 from .models import (
     ApprovalStatus,
     AuthOtpToken,
+    CodCollectionMode,
     CheckoutSession,
     CustomerProfile,
     Notification,
@@ -28,6 +29,7 @@ from .models import (
     Product,
     RiderProfile,
     RoleType,
+    SettlementStatus,
     Shop,
     ShopOwnerProfile,
 )
@@ -603,6 +605,220 @@ class CoreFlowTests(TestCase):
         self.assertIn('was delivered', combined_mail)
         self.assertIn('delivered successfully', combined_mail)
         self.assertIn('delivered successfully by', self.owner.notifications.filter(order=delivery_order).latest('created_at').body)
+
+    @override_settings(
+        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        RAZORPAY_KEY_ID='rzp_test_123',
+        RAZORPAY_KEY_SECRET='secret_123',
+    )
+    @patch('core.views.razorpay_api_request')
+    def test_rider_can_send_cod_online_payment_link(self, mock_razorpay_api_request):
+        mock_razorpay_api_request.return_value = {
+            'id': 'plink_test_123',
+            'short_url': 'https://rzp.io/i/cod-online-123',
+            'status': 'created',
+        }
+        delivery_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            status=OrderStatus.OUT_FOR_DELIVERY,
+            payment_method=PaymentMethod.COD,
+            payment_status=PaymentStatus.PENDING,
+            total_amount=Decimal('48.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            customer_otp='654321',
+        )
+        OrderItem.objects.create(order=delivery_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+
+        self.client.force_login(self.rider_user)
+        response = self.client.post(
+            reverse('core:rider_request_cod_online_payment', args=[delivery_order.id]),
+            {'next': reverse('core:rider_deliveries')},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delivery_order.refresh_from_db()
+        self.assertEqual(delivery_order.cod_collection_mode, CodCollectionMode.ONLINE)
+        self.assertEqual(delivery_order.cod_payment_link_id, 'plink_test_123')
+        self.assertEqual(delivery_order.cod_payment_link_url, 'https://rzp.io/i/cod-online-123')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('https://rzp.io/i/cod-online-123', mail.outbox[0].body)
+        self.assertContains(response, 'Recieve Money Online link sent')
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_rider_cannot_mark_cod_online_delivery_complete_before_payment(self):
+        delivery_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            status=OrderStatus.OUT_FOR_DELIVERY,
+            payment_method=PaymentMethod.COD,
+            payment_status=PaymentStatus.PENDING,
+            cod_collection_mode=CodCollectionMode.ONLINE,
+            cod_payment_link_id='plink_test_123',
+            cod_payment_link_url='https://rzp.io/i/cod-online-123',
+            cod_payment_link_status='created',
+            total_amount=Decimal('48.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            customer_otp='654321',
+        )
+        OrderItem.objects.create(order=delivery_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+
+        self.client.force_login(self.rider_user)
+        response = self.client.post(
+            reverse('core:rider_update_order_status', args=[delivery_order.id]),
+            {'status': OrderStatus.DELIVERED, 'customer_otp': '654321'},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delivery_order.refresh_from_db()
+        self.assertEqual(delivery_order.status, OrderStatus.OUT_FOR_DELIVERY)
+        self.assertContains(response, 'Wait for the customer Razorpay payment link to complete')
+
+    @override_settings(
+        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        RAZORPAY_KEY_ID='rzp_test_123',
+        RAZORPAY_KEY_SECRET='secret_123',
+    )
+    @patch('core.views.razorpay_api_request')
+    def test_customer_cash_confirmation_creates_rider_settlement_qr(self, mock_razorpay_api_request):
+        mock_razorpay_api_request.return_value = {
+            'id': 'qr_test_123',
+            'image_url': 'https://rzp.io/i/qr-cash-123',
+            'status': 'active',
+        }
+        delivered_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            status=OrderStatus.DELIVERED,
+            payment_method=PaymentMethod.COD,
+            payment_status=PaymentStatus.PENDING,
+            total_amount=Decimal('48.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            delivered_at=timezone.now(),
+        )
+        OrderItem.objects.create(order=delivered_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+
+        self.client.force_login(self.customer_user)
+        response = self.client.post(
+            reverse('core:customer_confirm_cod_cash', args=[delivered_order.id]),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delivered_order.refresh_from_db()
+        self.assertEqual(delivered_order.payment_status, PaymentStatus.PAID)
+        self.assertEqual(delivered_order.cod_collection_mode, CodCollectionMode.CASH)
+        self.assertEqual(delivered_order.settlement_status, SettlementStatus.QR_READY)
+        self.assertEqual(delivered_order.settlement_qr_id, 'qr_test_123')
+        self.assertEqual(delivered_order.settlement_qr_image_url, 'https://rzp.io/i/qr-cash-123')
+        self.client.force_login(self.rider_user)
+        rider_completed_response = self.client.get(reverse('core:rider_completed_orders'))
+        self.assertContains(rider_completed_response, 'https://rzp.io/i/qr-cash-123')
+        self.assertContains(rider_completed_response, 'Open QR')
+
+    @override_settings(RAZORPAY_WEBHOOK_SECRET='webhook_secret_123')
+    def test_payment_link_webhook_marks_cod_order_paid(self):
+        delivery_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            status=OrderStatus.OUT_FOR_DELIVERY,
+            payment_method=PaymentMethod.COD,
+            payment_status=PaymentStatus.PENDING,
+            cod_collection_mode=CodCollectionMode.ONLINE,
+            cod_payment_link_id='plink_test_123',
+            cod_payment_link_url='https://rzp.io/i/cod-online-123',
+            cod_payment_link_status='created',
+            total_amount=Decimal('48.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+        )
+        payload = {
+            'event': 'payment_link.paid',
+            'payload': {
+                'payment_link': {
+                    'entity': {
+                        'id': 'plink_test_123',
+                        'status': 'paid',
+                    }
+                },
+                'payment': {
+                    'entity': {
+                        'id': 'pay_test_123',
+                    }
+                },
+            },
+        }
+        body = json.dumps(payload).encode('utf-8')
+        signature = hmac.new(b'webhook_secret_123', body, hashlib.sha256).hexdigest()
+
+        response = self.client.post(
+            reverse('core:razorpay_webhook'),
+            data=body,
+            content_type='application/json',
+            headers={'X-Razorpay-Signature': signature},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delivery_order.refresh_from_db()
+        self.assertEqual(delivery_order.payment_status, PaymentStatus.PAID)
+        self.assertEqual(delivery_order.payment_reference, 'pay_test_123')
+        self.assertEqual(delivery_order.cod_payment_link_status, 'paid')
+
+    @override_settings(RAZORPAY_WEBHOOK_SECRET='webhook_secret_123')
+    def test_qr_code_webhook_marks_rider_settlement_paid(self):
+        delivered_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            status=OrderStatus.DELIVERED,
+            payment_method=PaymentMethod.COD,
+            payment_status=PaymentStatus.PAID,
+            cod_collection_mode=CodCollectionMode.CASH,
+            cash_confirmed_at=timezone.now(),
+            total_amount=Decimal('48.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            settlement_status=SettlementStatus.QR_READY,
+            settlement_qr_id='qr_test_123',
+        )
+        payload = {
+            'event': 'qr_code.credited',
+            'payload': {
+                'qr_code': {
+                    'entity': {
+                        'id': 'qr_test_123',
+                    }
+                },
+                'payment': {
+                    'entity': {
+                        'id': 'pay_settlement_123',
+                    }
+                },
+            },
+        }
+        body = json.dumps(payload).encode('utf-8')
+        signature = hmac.new(b'webhook_secret_123', body, hashlib.sha256).hexdigest()
+
+        response = self.client.post(
+            reverse('core:razorpay_webhook'),
+            data=body,
+            content_type='application/json',
+            headers={'X-Razorpay-Signature': signature},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delivered_order.refresh_from_db()
+        self.assertEqual(delivered_order.settlement_status, SettlementStatus.PAID)
+        self.assertEqual(delivered_order.settlement_payment_id, 'pay_settlement_123')
 
     def test_rider_completed_and_earnings_pages_render(self):
         self.client.force_login(self.rider_user)

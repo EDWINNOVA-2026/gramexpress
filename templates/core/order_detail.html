@@ -70,7 +70,13 @@
         <div class="compact-item content-stack top-gap-sm">
           <strong>{{ payment_summary.label }}</strong>
           <p>{{ payment_summary.detail }}</p>
-          <span class="status-chip {{ payment_summary.chip_class }}">{{ order.get_payment_status_display }}</span>
+          <span class="status-chip {{ payment_summary.chip_class }}">{{ payment_summary.status_label }}</span>
+          {% if payment_summary.reference %}
+            <p class="utility-note">Payment reference: {{ payment_summary.reference }}</p>
+          {% endif %}
+          {% if payment_summary.link_url %}
+            <a class="button small secondary" href="{{ payment_summary.link_url }}" target="_blank" rel="noreferrer">{{ payment_summary.link_label }}</a>
+          {% endif %}
         </div>
       </article>
 
@@ -143,22 +149,66 @@
                 </form>
               {% endif %}
               {% if order.status == 'out_for_delivery' %}
+                {% if order.payment_method == 'cod' %}
+                  <div class="compact-item content-stack">
+                    <strong>COD collection</strong>
+                    <p>{{ payment_summary.detail }}</p>
+                    {% if order.cod_online_link_ready and not order.cod_online_paid %}
+                      <span class="status-chip info">Payment link sent</span>
+                    {% elif order.cod_cash_confirmed %}
+                      <span class="status-chip warn">Cash paid</span>
+                    {% else %}
+                      <span class="status-chip warn">Awaiting collection</span>
+                    {% endif %}
+                  </div>
+                  {% if order.payment_status != 'paid' %}
+                    <form method="post" action="{% url 'core:rider_request_cod_online_payment' order.id %}" class="stack small-gap rider-action-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{% url 'core:order_detail' order.id %}" />
+                      <button class="button secondary" type="submit">Recieve Money Online</button>
+                    </form>
+                  {% endif %}
+                {% endif %}
                 <form method="post" action="{% url 'core:rider_resend_customer_otp' order.id %}" class="inline-actions">
                   {% csrf_token %}
                   <input type="hidden" name="next" value="{% url 'core:order_detail' order.id %}" />
                   <button class="button small secondary" type="submit">Resend OTP</button>
                 </form>
-                <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap rider-action-form">
-                  {% csrf_token %}
-                  <input type="hidden" name="status" value="delivered" />
-                  <label>Customer OTP
-                    <input type="text" name="customer_otp" placeholder="Enter OTP before handoff" required />
-                  </label>
-                  {% if order.customer_otp_valid_until %}
-                    <span class="tiny muted">Current OTP valid until {{ order.customer_otp_valid_until|date:"H:i" }}</span>
+                {% if order.payment_method != 'cod' or order.cod_collection_mode != 'online' or order.payment_status == 'paid' %}
+                  <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap rider-action-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="status" value="delivered" />
+                    <label>Customer OTP
+                      <input type="text" name="customer_otp" placeholder="Enter OTP before handoff" required />
+                    </label>
+                    {% if order.customer_otp_valid_until %}
+                      <span class="tiny muted">Current OTP valid until {{ order.customer_otp_valid_until|date:"H:i" }}</span>
+                    {% endif %}
+                    <button class="button primary" type="submit">Delivered</button>
+                  </form>
+                {% else %}
+                  <div class="compact-item content-stack">
+                    <strong>Online payment pending</strong>
+                    <p>Wait for the customer to complete the Razorpay COD payment link before finishing delivery.</p>
+                  </div>
+                {% endif %}
+              {% endif %}
+              {% if active_role == 'rider' and order.settlement_qr_ready %}
+                <div class="compact-item content-stack">
+                  <strong>Rider settlement QR</strong>
+                  <p>Customer cash is recorded. Pay GramExpress from your own account to close this COD collection.</p>
+                  {% if order.settlement_qr_image_url %}
+                    <img class="qr-preview-image" src="{{ order.settlement_qr_image_url }}" alt="Settlement QR for {{ order.display_id }}" />
                   {% endif %}
-                  <button class="button primary" type="submit">Delivered</button>
-                </form>
+                  <div class="inline-actions">
+                    {% if order.settlement_qr_image_url %}
+                      <a class="button small secondary" href="{{ order.settlement_qr_image_url }}" target="_blank" rel="noreferrer">Open QR</a>
+                    {% endif %}
+                    {% if order.settlement_upi_url %}
+                      <a class="button small secondary" href="{{ order.settlement_upi_url }}">Pay Via UPI App</a>
+                    {% endif %}
+                  </div>
+                </div>
               {% endif %}
             {% endif %}
           </div>
@@ -195,6 +245,27 @@
             <span class="eyebrow">Actions</span>
             <h2 class="section-title">Order controls</h2>
             <div class="stack small-gap">
+              {% if order.payment_method == 'cod' %}
+                {% if order.status == 'out_for_delivery' or order.status == 'delivered' %}
+                  {% if order.cod_collection_mode != 'online' and not order.cod_cash_confirmed %}
+                    <form method="post" action="{% url 'core:customer_confirm_cod_cash' order.id %}" class="stack small-gap lifecycle-form">
+                      {% csrf_token %}
+                      <button class="button primary" type="submit">I Paid Cash</button>
+                    </form>
+                  {% endif %}
+                {% endif %}
+              {% endif %}
+
+              {% if order.cod_online_link_ready and order.payment_status != 'paid' %}
+                <div class="checkout-cod-panel">
+                  <strong>COD payment link</strong>
+                  <p>The rider has already sent your Razorpay payment link by email. You can also open it from here.</p>
+                  <div class="inline-actions">
+                    <a class="button small secondary" href="{{ order.cod_payment_link_url }}" target="_blank" rel="noreferrer">Open Payment Link</a>
+                  </div>
+                </div>
+              {% endif %}
+
               {% if order.can_be_cancelled_by_customer %}
                 <form method="post" action="{% url 'core:customer_cancel_order' order.id %}" class="stack small-gap lifecycle-form">
                   {% csrf_token %}
@@ -245,10 +316,10 @@
         <div class="bill-row"><span>Item total</span><strong>Rs. {{ order.subtotal_amount|floatformat:2 }}</strong></div>
         <div class="bill-row"><span>Delivery fee</span><strong>Rs. {{ order.delivery_fee|floatformat:2 }}</strong></div>
         <div class="bill-row"><span>Total</span><strong>Rs. {{ order.total_amount|floatformat:2 }}</strong></div>
-        <div class="bill-row"><span>Payment status</span><strong>{{ order.get_payment_status_display }}</strong></div>
+        <div class="bill-row"><span>Payment status</span><strong>{{ payment_summary.status_label }}</strong></div>
       </div>
-      {% if order.checkout_session and order.checkout_session.razorpay_payment_id %}
-        <p class="utility-note top-gap-sm">Payment reference: {{ order.checkout_session.razorpay_payment_id }}</p>
+      {% if payment_summary.reference %}
+        <p class="utility-note top-gap-sm">Payment reference: {{ payment_summary.reference }}</p>
       {% endif %}
     </article>
   </section>
