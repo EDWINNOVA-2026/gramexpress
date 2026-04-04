@@ -33,7 +33,10 @@
             </div>
             <div class="auth-field">
               <label for="{{ form.phone.id_for_label }}">Mobile Number</label>
-              {{ form.phone }}
+              <div class="phone-input">
+                <span class="phone-prefix">+91</span>
+                {{ form.phone }}
+              </div>
               {% for error in form.phone.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
             </div>
           </div>

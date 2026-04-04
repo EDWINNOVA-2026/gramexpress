@@ -23,6 +23,12 @@
     @apply max-w-full object-cover;
   }
 
+  ul,
+  ol {
+    @apply m-0 p-0;
+    list-style: none;
+  }
+
   button,
   input,
   select,
@@ -47,6 +53,10 @@
 
   summary {
     @apply cursor-pointer list-none font-semibold text-slate-900;
+  }
+
+  summary::marker {
+    content: "";
   }
 
   summary::-webkit-details-marker {
@@ -76,7 +86,7 @@
   }
 
   .site-shell {
-    width: min(100% - 1.5rem, 1240px);
+    width: min(100% - 1.5rem, 1360px);
     @apply relative z-10 mx-auto;
   }
 
@@ -197,6 +207,10 @@
     @apply flex flex-wrap items-center gap-3;
   }
 
+  .topbar-actions {
+    @apply justify-end;
+  }
+
   .action-cluster {
     @apply flex flex-wrap items-center gap-3 md:justify-end;
   }
@@ -209,6 +223,10 @@
   .feature-nav-link,
   .mobile-bottom-link {
     @apply rounded-md px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-950;
+  }
+
+  .nav-primary a {
+    @apply bg-slate-900 text-white hover:bg-slate-800 hover:text-white;
   }
 
   .nav-active,
@@ -357,6 +375,21 @@
     @apply fixed bottom-3 left-1/2 z-30 hidden w-[min(94vw,28rem)] -translate-x-1/2 items-center justify-between gap-1 rounded-xl border border-slate-200 bg-white/95 p-2 shadow-float backdrop-blur;
   }
 
+  .mobile-bottom-nav-shop {
+    @apply grid grid-cols-4 items-stretch justify-center gap-1.5 rounded-2xl p-3;
+    width: min(94vw, 24rem);
+  }
+
+  .mobile-bottom-nav-shop .mobile-bottom-link {
+    @apply grid min-h-[3.25rem] place-items-center rounded-xl px-2 py-2 text-center text-xs font-semibold;
+    justify-self: center;
+    width: 100%;
+  }
+
+  .mobile-bottom-nav-shop .mobile-bottom-link-active {
+    @apply border border-slate-900 shadow-sm;
+  }
+
   .button,
   .auth-primary-button,
   .auth-secondary-button,
@@ -393,6 +426,11 @@
 
   .auth-link-button {
     @apply text-sm font-semibold text-slate-700 underline-offset-4 hover:text-slate-950 hover:underline;
+  }
+
+  [data-location-trigger].is-loading,
+  [data-location-trigger]:disabled {
+    @apply cursor-not-allowed opacity-60;
   }
 
   .soft-pill,
@@ -447,6 +485,11 @@
     @apply grid gap-5;
   }
 
+  .order-card,
+  .lifecycle-form {
+    @apply grid gap-4;
+  }
+
   .meta-grid,
   .summary-grid,
   .info-grid {
@@ -475,6 +518,16 @@
   .landing-hero-grid,
   .customer-home-shell {
     @apply grid gap-6;
+  }
+
+  .inline-actions,
+  .helper-actions,
+  .hero-actions,
+  .mission-toolbar,
+  .mission-primary-actions,
+  .cart-item-actions,
+  .cart-inline-form {
+    @apply gap-3;
   }
 
   .card,
@@ -566,6 +619,10 @@
     @apply rounded-lg border border-slate-200 bg-slate-50 p-5;
   }
 
+  .list-item {
+    @apply transition hover:border-slate-300 hover:bg-white;
+  }
+
   .compact-item-tight {
     @apply px-3 py-2;
   }
@@ -585,9 +642,31 @@
     @apply border-amber-200 bg-amber-50;
   }
 
-  .compact-item-notification,
+  .compact-item-notification {
+    @apply grid grid-cols-[auto,minmax(0,1fr)] gap-4;
+  }
+
   .notification-main {
-    @apply flex items-start gap-3;
+    @apply flex min-w-0 items-start gap-4;
+  }
+
+  .compact-item-notification > div,
+  .notification-copy {
+    @apply min-w-0;
+  }
+
+  .compact-item-notification > div strong,
+  .notification-copy strong {
+    @apply block text-base font-semibold leading-6 text-slate-950;
+  }
+
+  .compact-item-notification > div p,
+  .notification-copy p {
+    @apply mt-1 text-sm leading-6 text-slate-700;
+  }
+
+  .compact-item-notification > .tiny:last-child {
+    @apply col-start-2 text-left;
   }
 
   .compact-item-notification-unread,
@@ -601,9 +680,9 @@
   .customer-home-badge-icon,
   .customer-home-empty-icon,
   .rider-route-icon {
-    @apply grid place-items-center rounded-md bg-slate-900 text-sm font-semibold text-white;
-    width: 2rem;
-    height: 2rem;
+    @apply grid shrink-0 place-items-center rounded-lg bg-slate-900 text-[0.68rem] font-bold tracking-[0.18em] text-white;
+    width: 2.5rem;
+    height: 2.5rem;
   }
 
   .notification-shell,
@@ -613,11 +692,19 @@
   }
 
   .notification-shell {
-    @apply flex-col;
+    @apply flex-col gap-4;
   }
 
   .notification-copy {
     @apply grid gap-2;
+  }
+
+  .notification-header {
+    @apply flex-col gap-2;
+  }
+
+  .notification-meta {
+    @apply flex-wrap items-center;
   }
 
   .empty-card {
@@ -626,6 +713,10 @@
 
   .profile-summary {
     @apply flex flex-col gap-4;
+  }
+
+  .customer-home-location-card-actions {
+    @apply flex flex-wrap items-center gap-3;
   }
 
   .mission-card,
@@ -703,6 +794,138 @@
     @apply grid gap-5;
   }
 
+  .shop-dashboard-top,
+  .shop-dashboard-layout,
+  .shop-dashboard-heading,
+  .shop-dashboard-state-copy,
+  .shop-dashboard-ops-list,
+  .shop-dashboard-op-row,
+  .shop-dashboard-empty-state {
+    @apply grid gap-4;
+  }
+
+  .shop-dashboard-hero {
+    @apply gap-5;
+  }
+
+  .shop-dashboard-facts {
+    @apply gap-2;
+  }
+
+  .shop-dashboard-state-card {
+    @apply grid gap-4 rounded-2xl border p-4;
+  }
+
+  .shop-dashboard-state-card.is-live {
+    @apply border-emerald-200 bg-emerald-50;
+  }
+
+  .shop-dashboard-state-card.is-waiting {
+    @apply border-amber-200 bg-amber-50;
+  }
+
+  .shop-dashboard-state-card.is-offline {
+    @apply border-slate-200 bg-slate-50;
+  }
+
+  .shop-dashboard-state-title {
+    @apply text-xl font-bold tracking-tight text-slate-950;
+  }
+
+  .shop-dashboard-state-copy p,
+  .shop-dashboard-op-row p,
+  .shop-dashboard-empty-state p {
+    @apply text-sm leading-6 text-slate-600;
+  }
+
+  .shop-dashboard-state-actions,
+  .shop-dashboard-primary-actions {
+    @apply grid gap-3;
+  }
+
+  .shop-dashboard-primary-actions {
+    @apply sm:grid-cols-2;
+  }
+
+  .shop-dashboard-state-actions .button,
+  .shop-dashboard-primary-actions .button {
+    @apply w-full;
+  }
+
+  .shop-dashboard-summary-grid {
+    @apply grid grid-cols-2 gap-3;
+  }
+
+  .shop-dashboard-summary-item {
+    @apply grid gap-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3;
+  }
+
+  .shop-dashboard-summary-item strong {
+    @apply text-lg font-bold text-slate-950;
+  }
+
+  .shop-dashboard-nav {
+    @apply sticky z-20 grid grid-cols-4 gap-1 p-2;
+    top: calc(env(safe-area-inset-top) + 5.1rem);
+  }
+
+  .shop-segmented-nav {
+    @apply justify-center;
+  }
+
+  .shop-segmented-nav .feature-nav-link {
+    @apply min-w-[5.5rem] text-center;
+  }
+
+  .shop-dashboard-nav .feature-nav-link {
+    @apply grid min-h-[3.25rem] place-items-center px-2 py-2 text-center text-xs font-semibold;
+  }
+
+  .shop-dashboard-nav .feature-nav-link.feature-nav-link-active {
+    @apply border border-slate-900 shadow-sm;
+  }
+
+  .shop-dashboard-ops-card {
+    @apply gap-5;
+  }
+
+  .shop-dashboard-op-row {
+    @apply rounded-xl border border-slate-200 bg-slate-50 p-4;
+  }
+
+  .shop-dashboard-op-head {
+    @apply flex items-center justify-between gap-3;
+  }
+
+  .shop-dashboard-panel {
+    @apply gap-4;
+  }
+
+  .shop-dashboard-panel summary {
+    @apply flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-slate-950;
+  }
+
+  .shop-dashboard-panel summary > span:first-child {
+    @apply grid gap-1;
+  }
+
+  .shop-dashboard-panel summary strong {
+    @apply text-base font-semibold text-slate-950;
+  }
+
+  .shop-dashboard-panel[open] summary {
+    @apply mb-4;
+  }
+
+  .shop-dashboard-panel summary::after {
+    content: "+";
+    @apply text-base font-semibold text-slate-500;
+  }
+
+  .shop-dashboard-panel[open] summary::after {
+    content: "−";
+  }
+
   .quick-card,
   .tracking-map-card,
   .profile-card {
@@ -760,7 +983,11 @@
 
   .auth-form,
   .auth-register-form {
-    @apply grid gap-5;
+    @apply grid gap-6;
+  }
+
+  .auth-form-compact {
+    @apply gap-4;
   }
 
   .auth-form-tight {
@@ -788,6 +1015,10 @@
   .checkout-alert,
   .tracking-map-scene {
     @apply grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4;
+  }
+
+  .auth-location-card {
+    @apply md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-4;
   }
 
   .checkout-alert-error {
@@ -825,8 +1056,28 @@
     @apply text-xs font-medium text-red-600;
   }
 
+  .phone-input {
+    @apply flex items-center overflow-hidden rounded-md border border-slate-300 bg-white shadow-sm transition focus-within:border-slate-900 focus-within:ring-2 focus-within:ring-slate-200;
+  }
+
+  .phone-prefix {
+    @apply shrink-0 border-r border-slate-200 px-3 text-sm font-semibold text-slate-500;
+  }
+
+  .phone-input .phone-number-input {
+    @apply flex-1 rounded-none border-0 bg-transparent shadow-none focus:border-transparent focus:ring-0;
+    padding-left: 0.9rem;
+  }
+
   .form-actions {
-    @apply flex flex-wrap items-center gap-4;
+    @apply flex flex-wrap items-center gap-4 pt-2;
+  }
+
+  .form-actions .button,
+  .form-actions .auth-primary-button,
+  .form-actions .auth-secondary-button,
+  .form-actions .auth-social-button {
+    @apply w-full sm:w-auto;
   }
 
   .checkout-checklist {
@@ -988,6 +1239,10 @@
 
   .customer-home-empty-actions {
     @apply mt-1;
+  }
+
+  .store-grid-catalog {
+    @apply items-start;
   }
 
   .timeline-list {
@@ -1167,15 +1422,26 @@
   }
 
   .toast-stack {
-    @apply mb-5 grid gap-4;
+    @apply pointer-events-none fixed left-1/2 top-4 z-50 grid w-full max-w-md -translate-x-1/2 gap-3 px-3;
+    top: max(1rem, calc(env(safe-area-inset-top) + 0.5rem));
   }
 
   .toast {
-    @apply rounded-lg px-4 py-3.5 text-sm font-medium;
+    @apply pointer-events-auto flex items-start justify-between gap-3 rounded-2xl border px-4 py-3.5 text-sm font-medium text-slate-700 backdrop-blur;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.16);
+    opacity: 0;
+    transform: translateY(-0.75rem) scale(0.98);
+    transition: opacity 220ms ease, transform 220ms ease;
   }
 
-  .toast {
-    @apply border-slate-200 bg-white text-slate-700;
+  .toast.is-visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  .toast.is-dismissing {
+    opacity: 0;
+    transform: translateY(-0.5rem) scale(0.98);
   }
 
   .toast-success {
@@ -1193,15 +1459,63 @@
   .toast-info {
     @apply border-sky-200 bg-sky-50 text-sky-700;
   }
+
+  .toast-close {
+    @apply inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-lg font-semibold leading-none transition;
+    color: currentColor;
+    opacity: 0.6;
+  }
+
+  .toast-close:hover,
+  .toast-close:focus-visible {
+    @apply bg-slate-900/5 outline-none;
+    opacity: 1;
+  }
 }
 
 @media (min-width: 720px) {
+  .site-shell {
+    width: min(100% - 2.25rem, 1360px);
+  }
+
+  .site-main {
+    @apply gap-8 pt-6;
+  }
+
+  .topbar {
+    @apply gap-6 px-6 py-5;
+  }
+
   .mobile-bottom-nav {
     @apply hidden;
   }
 
   .split-row,
   .notification-shell {
+    @apply flex-row items-start justify-between;
+  }
+
+  .compact-item-notification {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .compact-item-notification > .tiny:last-child {
+    @apply col-auto text-right;
+  }
+
+  .action-cluster,
+  .hero-actions,
+  .mission-toolbar,
+  .customer-home-location-card-actions {
+    @apply items-center;
+  }
+
+  .profile-summary {
+    @apply flex-row items-start justify-between gap-6;
+  }
+
+  .rider-job-head,
+  .rider-section-head {
     @apply flex-row items-start justify-between;
   }
 
@@ -1242,6 +1556,10 @@
   .payment-choice-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .form-actions {
+    @apply gap-4;
+  }
 }
 
 @media (min-width: 1040px) {
@@ -1251,6 +1569,10 @@
 
   .layout-two {
     grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+  }
+
+  .shop-dashboard-layout {
+    grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr);
   }
 
   .quick-grid,
@@ -1274,6 +1596,63 @@
   .auth-role-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .section-stack {
+    @apply gap-8;
+  }
+
+  .card,
+  .glass-card,
+  .metric-card,
+  .quick-card,
+  .hero-card,
+  .auth-card,
+  .auth-single-card,
+  .nested-panel,
+  .profile-card,
+  .empty-card,
+  .form-card,
+  .tracking-map-card,
+  .success-hero-card,
+  .customer-home-card,
+  .customer-home-hero,
+  .customer-home-location-card,
+  .customer-home-section,
+  .store-card,
+  .product-card {
+    @apply p-8;
+  }
+
+  .feature-nav {
+    @apply gap-3 p-4;
+  }
+
+  .auth-role-section,
+  .auth-pane,
+  .auth-subsection {
+    @apply gap-6 p-7;
+  }
+}
+
+@media (min-width: 1280px) {
+  .quick-grid,
+  .card-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .product-grid,
+  .store-grid,
+  .customer-home-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .store-grid.store-grid-catalog {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .site-main {
+    @apply gap-10;
+  }
 }
 
 @media (max-width: 719px) {
@@ -1291,6 +1670,30 @@
 
   .site-main {
     @apply pb-28;
+  }
+
+  .toast-stack {
+    @apply top-3 max-w-none px-4;
+  }
+
+  .shop-segmented-nav {
+    @apply hidden;
+  }
+
+  .shop-dashboard-top,
+  .shop-dashboard-layout {
+    @apply gap-4;
+  }
+
+  .shop-dashboard-hero {
+    @apply p-5;
+  }
+
+  .shop-dashboard-state-card,
+  .shop-dashboard-op-row,
+  .shop-dashboard-panel summary,
+  .shop-dashboard-summary-item {
+    @apply rounded-xl;
   }
 
   .card,

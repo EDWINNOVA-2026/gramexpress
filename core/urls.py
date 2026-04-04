@@ -15,6 +15,7 @@ urlpatterns = [
     path('auth/email-otp/', views.email_otp_view, name='email_otp'),
     path('auth/email-otp/verify/', views.email_otp_verify_view, name='email_otp_verify'),
     path('support/', views.support_view, name='support'),
+    path('location/reverse-geocode/', views.reverse_geocode_location_api, name='reverse_geocode_location_api'),
     path('notifications/', views.notifications_view, name='notifications'),
     path('notifications/mark-all-read/', views.notifications_mark_all_read, name='notifications_mark_all_read'),
     path('notifications/<int:notification_id>/mark-read/', views.notification_mark_read, name='notification_mark_read'),

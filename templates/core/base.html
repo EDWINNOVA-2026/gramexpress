@@ -163,9 +163,12 @@
 
         <main class="site-shell site-main{% if route_name == 'login' or route_name == 'login_verify' or route_name == 'register' or route_name == 'register_details' or route_name == 'register_verify' or route_name == 'email_otp' or route_name == 'email_otp_verify' or route_name == 'customer_start' or route_name == 'shop_start' or route_name == 'rider_start' %} site-main-auth{% endif %}">
           {% if messages %}
-            <section class="toast-stack" data-appear>
+            <section class="toast-stack" aria-live="polite" aria-atomic="true" data-toast-stack>
               {% for message in messages %}
-                <div class="toast toast-{{ message.tags|default:'info' }}">{{ message }}</div>
+                <div class="toast toast-{{ message.tags|default:'info' }}" role="{% if 'error' in message.tags %}alert{% else %}status{% endif %}" data-toast>
+                  <span>{{ message }}</span>
+                  <button class="toast-close" type="button" aria-label="Dismiss notification" data-toast-close>&times;</button>
+                </div>
               {% endfor %}
             </section>
           {% endif %}
@@ -222,9 +225,16 @@
           var buttons = document.querySelectorAll('[data-location-trigger]');
           buttons.forEach(function (button) {
             button.addEventListener('click', function () {
+              var originalLabel = button.getAttribute('data-location-label') || button.textContent.trim();
+              var loadingLabel = button.getAttribute('data-location-loading-text') || 'Fetching location...';
               var form = button.closest('form');
               var latInput = form && form.querySelector('[name="latitude"]');
               var lngInput = form && form.querySelector('[name="longitude"]');
+              var addressLine1Input = form && form.querySelector('[name="address_line_1"]');
+              var addressLine2Input = form && form.querySelector('[name="address_line_2"]');
+              var districtInput = form && form.querySelector('[name="district"]');
+              var pincodeInput = form && form.querySelector('[name="pincode"]');
+              var areaInput = form && form.querySelector('[name="area"]');
               var status = null;
               if (form) {
                 status = form.querySelector('[data-location-status]');
@@ -239,33 +249,84 @@
                 }
               }
 
+              function setLoadingState(isLoading) {
+                button.disabled = isLoading;
+                button.classList.toggle('is-loading', isLoading);
+                button.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+                button.textContent = isLoading ? loadingLabel : originalLabel;
+              }
+
               if (!latInput || !lngInput) {
                 return;
               }
 
               if (!navigator.geolocation) {
+                setLoadingState(false);
                 if (status) {
                   status.textContent = 'Geolocation is not available in this browser.';
                 }
                 return;
               }
 
+              setLoadingState(true);
               if (status) {
                 status.textContent = 'Capturing your live location...';
               }
 
               navigator.geolocation.getCurrentPosition(
                 function (position) {
+                  function fillInput(input, value) {
+                    if (!input || !value) {
+                      return;
+                    }
+                    input.value = value;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                  }
+
                   latInput.value = position.coords.latitude.toFixed(6);
                   lngInput.value = position.coords.longitude.toFixed(6);
-                  if (status) {
-                    status.textContent = 'Current location captured successfully.';
-                  }
-                  if (form && form.hasAttribute('data-location-autosubmit')) {
-                    form.submit();
-                  }
+
+                  fetch("{% url 'core:reverse_geocode_location_api' %}?latitude=" + encodeURIComponent(latInput.value) + "&longitude=" + encodeURIComponent(lngInput.value), {
+                    headers: {
+                      'X-Requested-With': 'XMLHttpRequest'
+                    }
+                  })
+                    .then(function (response) {
+                      if (!response.ok) {
+                        throw new Error('lookup_failed');
+                      }
+                      return response.json();
+                    })
+                    .then(function (details) {
+                      var secondaryLine = details.locality || details.city || details.district || '';
+                      fillInput(addressLine1Input, details.address_line_1);
+                      fillInput(addressLine2Input, secondaryLine);
+                      fillInput(districtInput, details.district);
+                      fillInput(pincodeInput, details.pincode);
+                      fillInput(areaInput, details.locality || details.city || details.district);
+                      if (status) {
+                        status.textContent = details.formatted_address
+                          ? 'Current location captured and address fields updated.'
+                          : 'Current location captured successfully.';
+                      }
+                      setLoadingState(false);
+                      if (form && form.hasAttribute('data-location-autosubmit')) {
+                        form.submit();
+                      }
+                    })
+                    .catch(function () {
+                      if (status) {
+                        status.textContent = 'Current location captured. Address fields could not be auto-filled, so you can enter them manually.';
+                      }
+                      setLoadingState(false);
+                      if (form && form.hasAttribute('data-location-autosubmit')) {
+                        form.submit();
+                      }
+                    });
                 },
                 function () {
+                  setLoadingState(false);
                   if (status) {
                     status.textContent = 'Location access failed. You can still enter coordinates manually.';
                   }
@@ -296,6 +357,85 @@
 
           items.forEach(function (item) {
             observer.observe(item);
+          });
+        }
+
+        function focusFirstFormError() {
+          var firstError = document.querySelector('.field-error');
+          if (!firstError) {
+            return;
+          }
+
+          var form = firstError.closest('form');
+          if (!form) {
+            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+          }
+
+          var fieldContainer = firstError.closest(
+            '.auth-field, .form-field, .field, label, .auth-role-section'
+          );
+          var candidate = fieldContainer
+            ? fieldContainer.querySelector('input:not([type="hidden"]), select, textarea, button')
+            : null;
+
+          if (!candidate) {
+            candidate = form.querySelector('input:not([type="hidden"]), select, textarea, button');
+          }
+
+          if (!candidate) {
+            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+          }
+
+          if (typeof candidate.focus === 'function') {
+            candidate.focus({ preventScroll: true });
+          }
+          candidate.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function attachToasts() {
+          var stack = document.querySelector('[data-toast-stack]');
+          if (!stack) {
+            return;
+          }
+
+          var toasts = stack.querySelectorAll('[data-toast]');
+          if (!toasts.length) {
+            return;
+          }
+
+          function dismissToast(toast) {
+            if (!toast || toast.classList.contains('is-dismissing')) {
+              return;
+            }
+
+            toast.classList.add('is-dismissing');
+            window.setTimeout(function () {
+              if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+              }
+              if (!stack.querySelector('[data-toast]') && stack.parentNode) {
+                stack.parentNode.removeChild(stack);
+              }
+            }, 220);
+          }
+
+          toasts.forEach(function (toast, index) {
+            var closeButton = toast.querySelector('[data-toast-close]');
+            if (closeButton) {
+              closeButton.addEventListener('click', function () {
+                dismissToast(toast);
+              });
+            }
+
+            window.setTimeout(function () {
+              toast.classList.add('is-visible');
+            }, 40 + (index * 70));
+
+            window.setTimeout(function () {
+              dismissToast(toast);
+            }, 4200 + (index * 180));
           });
         }
 
@@ -377,6 +517,8 @@
         attachNavToggle();
         attachLocationButtons();
         attachAppearObserver();
+        focusFirstFormError();
+        attachToasts();
         attachRoleSwitcher();
         attachGoogleSignIn();
         attachInstallPrompt();

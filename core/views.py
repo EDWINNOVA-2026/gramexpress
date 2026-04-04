@@ -97,7 +97,7 @@ REGISTRATION_ROLE_ONBOARDING_COPY = {
 }
 TWILIO_API_BASE = 'https://api.twilio.com/2010-04-01/Accounts'
 RAZORPAY_API_BASE = 'https://api.razorpay.com/v1'
-PHONE_SANITIZER = re.compile(r'[^\d+]')
+PHONE_SANITIZER = re.compile(r'\D')
 SERIALIZABLE_REGISTRATION_FIELDS = [
     'account_type',
     'full_name',
@@ -128,8 +128,10 @@ class CheckoutValidationError(Exception):
 
 def normalize_phone(phone: str) -> str:
     phone = PHONE_SANITIZER.sub('', (phone or '').strip())
-    if phone.startswith('++'):
-        phone = phone.lstrip('+')
+    if phone.startswith('91') and len(phone) == 12:
+        phone = phone[2:]
+    if phone.startswith('0') and len(phone) == 11:
+        phone = phone[1:]
     return phone
 
 
@@ -226,22 +228,27 @@ def find_user_by_identity(identity: str):
     return None, None, 'No account matched that phone number or email.'
 
 
-def contact_exists_elsewhere(*, phone: str, email: str) -> bool:
+def contact_conflicts(*, phone: str, email: str) -> dict[str, bool]:
     phone = normalize_phone(phone)
-    email = (email or '').strip()
-    return any(
+    email = (email or '').strip().lower()
+    phone_conflict = any(
         [
-            CustomerProfile.objects.filter(phone=phone).exists(),
-            ShopOwnerProfile.objects.filter(phone=phone).exists(),
-            RiderProfile.objects.filter(phone=phone).exists(),
-            bool(email)
-            and (
-                CustomerProfile.objects.filter(email__iexact=email).exists()
-                or ShopOwnerProfile.objects.filter(email__iexact=email).exists()
-                or RiderProfile.objects.filter(email__iexact=email).exists()
-            ),
+            CustomerProfile.objects.filter(phone=phone, user__isnull=False).exists(),
+            ShopOwnerProfile.objects.filter(phone=phone, user__isnull=False).exists(),
+            RiderProfile.objects.filter(phone=phone, user__isnull=False).exists(),
         ]
     )
+    email_conflict = bool(email) and any(
+        [
+            CustomerProfile.objects.filter(email__iexact=email, user__isnull=False).exists(),
+            ShopOwnerProfile.objects.filter(email__iexact=email, user__isnull=False).exists(),
+            RiderProfile.objects.filter(email__iexact=email, user__isnull=False).exists(),
+        ]
+    )
+    return {
+        'phone': phone_conflict,
+        'email': email_conflict,
+    }
 
 
 def create_auth_otp(
@@ -269,14 +276,19 @@ def create_auth_otp(
 
 
 def send_email_otp(*, email: str, code: str, subject: str, intro: str) -> tuple[bool, str]:
+    backend = getattr(settings, 'EMAIL_BACKEND', '').lower()
+    message = f'{intro}\n\nOTP: {code}\nThis code expires in {getattr(settings, "OTP_EXPIRY_MINUTES", 10)} minutes.'
     try:
         send_mail(
             subject=subject,
-            message=f'{intro}\n\nOTP: {code}\nThis code expires in {getattr(settings, "OTP_EXPIRY_MINUTES", 10)} minutes.',
+            message=message,
             from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@gramexpress.local'),
             recipient_list=[email],
             fail_silently=False,
         )
+        if backend == 'django.core.mail.backends.console.emailbackend':
+            print(f'[GramExpress EMAIL OTP] {email}: OTP {code} (valid {getattr(settings, "OTP_EXPIRY_MINUTES", 10)} min)')
+            return True, 'Email OTP generated with console email backend.'
         return True, 'Email OTP sent successfully.'
     except Exception:
         return False, 'Email OTP could not be sent with the current mail settings.'
@@ -2189,6 +2201,11 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
         'dashboard_role': RoleType.SHOP,
         'page_nav': shop_page_nav(),
     }
+
+
+def redirect_missing_shop_setup(request: HttpRequest) -> HttpResponse:
+    messages.info(request, 'Complete your store details to open the store workspace.')
+    return redirect('core:shop_start')
 
 
 def rider_workspace_context(request: HttpRequest) -> dict[str, Any]:

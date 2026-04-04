@@ -24,6 +24,27 @@ REGISTRATION_ROLE_FIELDS = {
 }
 
 
+def normalize_indian_mobile(value: str) -> str:
+    digits = ''.join(ch for ch in (value or '') if ch.isdigit())
+    if digits.startswith('91') and len(digits) == 12:
+        digits = digits[2:]
+    if digits.startswith('0') and len(digits) == 11:
+        digits = digits[1:]
+    return digits
+
+
+def apply_mobile_number_attrs(field: forms.Field) -> None:
+    field.widget.attrs['autocomplete'] = 'tel'
+    field.widget.attrs['inputmode'] = 'numeric'
+    field.widget.attrs['maxlength'] = '10'
+    field.widget.attrs['minlength'] = '10'
+    field.widget.attrs['pattern'] = '[0-9]{10}'
+    field.widget.attrs['placeholder'] = '9999999999'
+    field.widget.attrs['title'] = 'Enter a 10 digit mobile number'
+    field.widget.attrs['oninput'] = "this.value=this.value.replace(/\\D/g,'').slice(0,10);"
+    field.widget.attrs['class'] = f"{field.widget.attrs.get('class', '')} phone-number-input".strip()
+
+
 class BaseStyledForm:
     def _style_fields(self):
         for name, field in self.fields.items():
@@ -38,8 +59,7 @@ class BaseStyledForm:
             elif isinstance(field.widget, forms.NumberInput):
                 field.widget.attrs['inputmode'] = 'numeric'
             elif name == 'phone':
-                field.widget.attrs['autocomplete'] = 'tel'
-                field.widget.attrs['inputmode'] = 'tel'
+                apply_mobile_number_attrs(field)
 
 
 class LoginForm(forms.Form, BaseStyledForm):
@@ -177,6 +197,12 @@ class UnifiedRegistrationForm(forms.Form, BaseStyledForm):
 
         return cleaned_data
 
+    def clean_phone(self):
+        phone = normalize_indian_mobile(self.cleaned_data.get('phone', ''))
+        if len(phone) != 10:
+            raise forms.ValidationError('Enter a valid 10 digit mobile number.')
+        return phone
+
 
 class CustomerOnboardingForm(forms.ModelForm, BaseStyledForm):
     password1 = forms.CharField(widget=forms.PasswordInput)
@@ -216,6 +242,12 @@ class CustomerOnboardingForm(forms.ModelForm, BaseStyledForm):
         if cleaned_data.get('password1') != cleaned_data.get('password2'):
             self.add_error('password2', 'Passwords did not match.')
         return cleaned_data
+
+    def clean_phone(self):
+        phone = normalize_indian_mobile(self.cleaned_data.get('phone', ''))
+        if len(phone) != 10:
+            raise forms.ValidationError('Enter a valid 10 digit mobile number.')
+        return phone
 
 
 class CustomerProfileForm(forms.ModelForm, BaseStyledForm):
@@ -286,6 +318,12 @@ class ShopOwnerOnboardingForm(forms.Form, BaseStyledForm):
             self.add_error('password2', 'Passwords did not match.')
         return cleaned_data
 
+    def clean_phone(self):
+        phone = normalize_indian_mobile(self.cleaned_data.get('phone', ''))
+        if len(phone) != 10:
+            raise forms.ValidationError('Enter a valid 10 digit mobile number.')
+        return phone
+
 
 class RiderOnboardingForm(forms.Form, BaseStyledForm):
     full_name = forms.CharField(max_length=120)
@@ -312,6 +350,12 @@ class RiderOnboardingForm(forms.Form, BaseStyledForm):
         if cleaned_data.get('password1') != cleaned_data.get('password2'):
             self.add_error('password2', 'Passwords did not match.')
         return cleaned_data
+
+    def clean_phone(self):
+        phone = normalize_indian_mobile(self.cleaned_data.get('phone', ''))
+        if len(phone) != 10:
+            raise forms.ValidationError('Enter a valid 10 digit mobile number.')
+        return phone
 
 
 class ShopUpdateForm(forms.ModelForm, BaseStyledForm):
