@@ -1,0 +1,49 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="auth-shell">
+    <article class="auth-single-card glass-card" data-appear>
+      <div class="auth-card-visual">
+        <dotlottie-wc
+          class="lottie-auth"
+          src="https://lottie.host/3952c2bb-d2d3-4b39-8482-cd4f6ac898c4/xZZIDl8jKY.lottie"
+          autoplay
+          loop>
+        </dotlottie-wc>
+      </div>
+      <div class="auth-topbar">
+        <span class="eyebrow">Passwordless Login</span>
+        <div class="auth-inline-links">
+          <a href="{% url 'core:login' %}">Password Login</a>
+        </div>
+      </div>
+      <h1>Continue with Email OTP</h1>
+      <p class="auth-lead">Request a code, verify it, and jump directly into the correct role dashboard.</p>
+      <div class="auth-step-strip">
+        <span class="soft-pill">1. Request code</span>
+        <span class="soft-pill">2. Verify</span>
+      </div>
+      <form class="form-card auth-form-compact auth-pane auth-subsection" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="request" />
+        <h2 class="section-title">Step 1</h2>
+        {{ request_form.as_p }}
+        <button class="button primary" type="submit">Send OTP</button>
+      </form>
+      <form class="form-card auth-form-compact auth-pane auth-subsection" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="verify" />
+        <h2 class="section-title">Step 2</h2>
+        {{ verify_form.as_p }}
+        <div class="form-actions">
+          <button class="button primary" type="submit">Verify OTP</button>
+          <a class="button secondary" href="{% url 'core:login' %}">Back To Login</a>
+        </div>
+      </form>
+      <div class="auth-note-panel">
+        <strong>Demo tip</strong>
+        <p>If email is not configured yet, Django prints the OTP in the server console for quick testing.</p>
+      </div>
+    </article>
+  </section>
+{% endblock %}

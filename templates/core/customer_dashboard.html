@@ -1,0 +1,327 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="dashboard-top" id="top">
+    <article class="hero-card glass-card hero-card-customer" data-appear>
+      <span class="eyebrow">Customer Dashboard</span>
+      <h1>{{ customer.full_name }}</h1>
+      <p class="hero-lead">
+        Shopping from {{ customer.district }} with a delivery radius of {{ delivery_radius_km }} km. Your dashboard combines nearby discovery, multi-store cart, delivery tracking, and post-order feedback.
+      </p>
+      <div class="hero-inline-facts">
+        <span class="soft-pill">Language {{ customer.preferred_language|upper }}</span>
+        <span class="soft-pill">{{ customer.district }}</span>
+        <span class="soft-pill">{{ cart.item_count }} item{{ cart.item_count|pluralize }} in cart</span>
+      </div>
+      <div class="hero-actions">
+        <a class="button primary" href="{{ customer.google_maps_url }}" target="_blank" rel="noreferrer">Open Your Location</a>
+        <a class="button secondary" href="{% url 'core:email_otp' %}">Try Email OTP Login</a>
+      </div>
+    </article>
+
+    <aside class="hero-visual glass-card floating" data-appear>
+      <div class="visual-shell">
+        <dotlottie-wc
+          class="lottie-hero"
+          src="https://lottie.host/4db68bbd-31f6-4cd8-84eb-189de081159a/IGmMCqhzpt.lottie"
+          autoplay
+          loop>
+        </dotlottie-wc>
+        <div class="visual-caption">
+          <strong>Orders, tracking, and ratings in one flow</strong>
+          <p>Everything a judge needs to see in one screen: store discovery, multi-store cart, live rider handoff, and order history.</p>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="stats-grid" data-appear>
+    <article class="metric-card">
+      <span class="metric-label">Nearby Stores</span>
+      <strong class="metric-value">{{ shops|length }}</strong>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Cart Items</span>
+      <strong class="metric-value">{{ cart.item_count }}</strong>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Active Orders</span>
+      <strong class="metric-value">{{ active_order_count }}</strong>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Delivered</span>
+      <strong class="metric-value">{{ delivered_order_count }}</strong>
+    </article>
+  </section>
+
+  <section class="role-banner card" data-appear>
+    <div>
+      <span class="eyebrow">Customer Flow</span>
+      <h2 class="section-title">Nearby shopping, multi-store cart, and rider handoff in one demo path</h2>
+      <p>Browse approved local stores, place split orders, watch dispatch updates, and rate completed deliveries without leaving the dashboard.</p>
+    </div>
+    <dotlottie-wc
+      class="mini-lottie"
+      src="https://lottie.host/4db68bbd-31f6-4cd8-84eb-189de081159a/IGmMCqhzpt.lottie"
+      autoplay
+      loop>
+    </dotlottie-wc>
+  </section>
+
+  <section class="layout-two" id="workspace">
+    <div class="stack">
+      <article class="card profile-card" data-appear id="account">
+        <div class="split-row">
+          <div>
+            <span class="eyebrow">Account</span>
+            <h2 class="section-title">Profile, address, and live location</h2>
+          </div>
+          <span class="status-chip info">{{ customer.preferred_language|upper }}</span>
+        </div>
+        <div class="profile-summary">
+          <div class="avatar-badge">{{ customer.full_name|first|upper }}</div>
+          <div class="profile-copy">
+            <strong>{{ customer.full_name }}</strong>
+            <p>{{ customer.address_line_1 }}{% if customer.address_line_2 %}, {{ customer.address_line_2 }}{% endif %}, {{ customer.district }} {{ customer.pincode }}</p>
+            <div class="profile-meta">
+              <span class="soft-pill">{{ customer.phone }}</span>
+              <span class="soft-pill">{{ customer.email|default:"No email" }}</span>
+            </div>
+          </div>
+        </div>
+        <form method="post" class="stack">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="update_profile" />
+          {{ profile_form.as_p }}
+          <div class="helper-actions">
+            <button class="button secondary" type="button" data-location-trigger>Use Current Location</button>
+            <span class="muted tiny" data-location-status>Refresh the customer location before checking nearby stores.</span>
+          </div>
+          <button class="button primary" type="submit">Save Customer Profile</button>
+        </form>
+      </article>
+
+      <article class="card" data-appear>
+        <div class="split-row">
+          <div>
+            <span class="eyebrow">Store Discovery</span>
+            <h2 class="section-title">Approved stores near you</h2>
+          </div>
+          <span class="status-chip info">{{ delivery_radius_km }} km radius</span>
+        </div>
+        <div class="store-grid">
+          {% for shop in shops %}
+            <a class="store-card" href="?shop={{ shop.slug }}">
+              <div class="store-card-media">
+                {% if shop.image_source %}
+                  <img src="{{ shop.image_source }}" alt="{{ shop.name }}" />
+                {% else %}
+                  <div class="store-card-placeholder">{{ shop.name|first|upper }}</div>
+                {% endif %}
+              </div>
+              <div class="store-card-body">
+                <div class="split-row">
+                  <div>
+                    <strong>{{ shop.name }}</strong>
+                    <p>{{ shop.area }}, {{ shop.district }}</p>
+                  </div>
+                  <span class="pill">Rating {{ shop.rating }}</span>
+                </div>
+                <div class="store-card-meta">
+                  <span>{{ shop.get_shop_type_display }}</span>
+                  <span>{{ shop.distance_km }} km away</span>
+                </div>
+              </div>
+            </a>
+          {% empty %}
+            <p>No approved stores found within your current delivery radius.</p>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="card" data-appear>
+        <div class="split-row">
+          <div>
+            <span class="eyebrow">Notifications</span>
+            <h2 class="section-title">Latest customer updates</h2>
+          </div>
+        </div>
+        <div class="compact-list">
+          {% for note in notifications %}
+            <div class="list-item compact-item">
+              <div>
+                <strong>{{ note.title }}</strong>
+                <p>{{ note.body }}</p>
+              </div>
+              <span class="tiny muted">{{ note.created_at|date:"M d, H:i" }}</span>
+            </div>
+          {% empty %}
+            <p>No customer notifications yet.</p>
+          {% endfor %}
+        </div>
+      </article>
+    </div>
+
+    <div class="stack">
+      <article class="card" data-appear>
+        <div class="split-row">
+          <div>
+            <span class="eyebrow">Cart</span>
+            <h2 class="section-title">Multi-store checkout</h2>
+          </div>
+          {% if cart.item_count %}
+            <form method="post" action="{% url 'core:cart_clear' %}">
+              {% csrf_token %}
+              <button class="button small danger" type="submit">Clear Cart</button>
+            </form>
+          {% endif %}
+        </div>
+
+        {% if cart.groups %}
+          <form method="post" action="{% url 'core:customer_checkout' %}" class="stack">
+            {% csrf_token %}
+            {{ order_form.as_p }}
+            {% for group in cart.groups %}
+              <div class="nested-panel">
+                <div class="split-row">
+                  <div>
+                    <strong>{{ group.shop.name }}</strong>
+                    <p class="muted">Store subtotal Rs. {{ group.subtotal }}</p>
+                  </div>
+                  <span class="pill">{{ group.items|length }} item{{ group.items|length|pluralize }}</span>
+                </div>
+                {% for item in group.items %}
+                  <div class="list-item compact-item">
+                    <div>
+                      <strong>{{ item.product.name }}</strong>
+                      <p>{{ item.quantity }} x Rs. {{ item.product.price }}</p>
+                    </div>
+                    <span class="pill">Rs. {{ item.line_total }}</span>
+                  </div>
+                {% endfor %}
+              </div>
+            {% endfor %}
+            <button class="button primary" type="submit">Checkout Across Stores</button>
+          </form>
+        {% else %}
+          <p>Your cart is empty. Add products from one or more stores below.</p>
+        {% endif %}
+      </article>
+
+      {% if selected_shop %}
+        <article class="card shop-detail-card" data-appear>
+          <div class="split-row">
+            <div>
+              <span class="eyebrow">Selected Store</span>
+              <h2 class="section-title">{{ selected_shop.name }}</h2>
+              <p>{{ selected_shop.description }}</p>
+            </div>
+            <div class="inline-actions">
+              <span class="pill">{{ selected_shop.distance_km }} km away</span>
+              <a class="button small secondary" href="{{ selected_shop.google_maps_url }}" target="_blank" rel="noreferrer">Store Map</a>
+            </div>
+          </div>
+          <div class="hero-inline-facts">
+            <span class="soft-pill">{{ selected_shop.get_shop_type_display }}</span>
+            <span class="soft-pill">{{ selected_shop.offer }}</span>
+            <span class="soft-pill">Rating {{ selected_shop.rating }}</span>
+          </div>
+
+          <div class="product-grid">
+            {% for product in selected_shop.products.all %}
+              <div class="product-card product-card-rich">
+                <div class="product-media" style="background: linear-gradient(135deg, {{ product.color }}, #fff4ee);">
+                  {% if product.image_url %}
+                    <img src="{{ product.image_url }}" alt="{{ product.name }}" />
+                  {% else %}
+                    <span>{{ product.name|first|upper }}</span>
+                  {% endif %}
+                </div>
+                <div class="product-copy">
+                  <strong>{{ product.name }}</strong>
+                  <p>{{ product.subtitle }}</p>
+                  <div class="product-meta-row">
+                    <span class="soft-pill">{{ product.unit }}</span>
+                    <span class="soft-pill">Stock {{ product.stock }}</span>
+                    {% if product.tag %}<span class="soft-pill">{{ product.tag }}</span>{% endif %}
+                  </div>
+                </div>
+                <form method="post" action="{% url 'core:cart_add' product.id %}" class="inline-actions">
+                  {% csrf_token %}
+                  <input type="number" min="1" max="{{ product.stock }}" name="quantity" value="1" class="tiny-input" />
+                  <button class="button small primary" type="submit">Add for Rs. {{ product.price }}</button>
+                </form>
+              </div>
+            {% empty %}
+              <p>No products added yet.</p>
+            {% endfor %}
+          </div>
+        </article>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="card" data-appear>
+    <div class="split-row">
+      <div>
+        <span class="eyebrow">Order History</span>
+        <h2 class="section-title">Track riders, review line items, and rate deliveries</h2>
+      </div>
+    </div>
+
+    <div class="stack">
+      {% for order in orders %}
+        <div class="nested-panel order-card">
+          <div class="split-row">
+            <div>
+              <strong>Order #{{ order.id }}</strong>
+              <p>{{ order.shop.name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
+              <p class="utility-note">{{ order.tracking_label }}</p>
+              {% if order.status == 'out_for_delivery' %}
+                <p class="utility-note">Delivery OTP for handoff: <code>{{ order.customer_otp }}</code></p>
+              {% endif %}
+            </div>
+            <div class="inline-actions">
+              <span class="pill">Rs. {{ order.total_amount }}</span>
+              {% if order.rider %}
+                <a class="button small secondary" href="{{ order.rider.google_maps_url }}" target="_blank" rel="noreferrer">Rider Live</a>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="compact-list">
+            {% for item in order.items.all %}
+              <div class="list-item compact-item">
+                <div>
+                  <strong>{{ item.product.name }}</strong>
+                  <p>{{ item.quantity }} x Rs. {{ item.unit_price }}</p>
+                </div>
+                <span class="muted">Rs. {{ item.line_total }}</span>
+              </div>
+            {% endfor %}
+          </div>
+
+          {% if order.can_be_rated_by_customer %}
+            <form method="post" action="{% url 'core:customer_rate_order' order.id %}" class="stack small-gap">
+              {% csrf_token %}
+              <label>Rate this order (1-5)
+                <input type="number" name="customer_rating" min="1" max="5" required />
+              </label>
+              <label>Review
+                <textarea name="customer_review" rows="2"></textarea>
+              </label>
+              <button class="button small primary" type="submit">Submit Rating</button>
+            </form>
+          {% elif order.customer_rating %}
+            <p class="muted">You rated this order {{ order.customer_rating }}/5. {{ order.customer_review }}</p>
+          {% endif %}
+        </div>
+      {% empty %}
+        <div class="nested-panel">
+          <strong>No orders placed yet</strong>
+          <p>Add a few products to the cart and check out across multiple stores to show the full demo flow.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

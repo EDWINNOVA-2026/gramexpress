@@ -1,0 +1,23 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="auth-shell auth-shell-narrow">
+    <article class="auth-single-card glass-card" data-appear>
+      <span class="eyebrow">Customer Registration</span>
+      <h1>Create a user account</h1>
+      <p class="auth-lead">Save address, language, and current location once so nearby stores and delivery tracking feel instant.</p>
+      <form class="form-card auth-form-compact auth-pane" method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <div class="helper-actions">
+          <button class="button secondary" type="button" data-location-trigger>Use Current Location</button>
+          <span class="muted tiny" data-location-status>Using the default coordinates until you capture location.</span>
+        </div>
+        <div class="form-actions">
+          <button class="button primary" type="submit">Create Customer Account</button>
+          <a class="button secondary" href="{% url 'core:register' %}">Back To Register</a>
+        </div>
+      </form>
+    </article>
+  </section>
+{% endblock %}
