@@ -101,21 +101,19 @@
                 {% else %}
                   <div class="store-card-placeholder">{{ shop.name|first|upper }}</div>
                 {% endif %}
-                <span class="customer-home-card-offer">{{ shop.offer_badge }}</span>
+                <span class="customer-home-card-offer">Fresh delivery in your area.</span>
               </div>
               <div class="customer-home-card-body">
                 <div class="customer-home-card-rating">
-                  {{ shop.display_rating|default:shop.rating }} ★
-                  <span>
-                    {% if shop.rating_count %}
-                      {{ shop.rating_count }} rating{{ shop.rating_count|pluralize }}
-                    {% else %}
-                      New
-                    {% endif %}
-                  </span>
+                  <span class="customer-home-card-rating-star" aria-hidden="true">★</span>
+                  <span>{{ shop.display_rating|default:shop.rating }}</span>
+                  <span aria-hidden="true">•</span>
+                  <span>{% if shop.rating_count %}{{ shop.rating_count }} rating{{ shop.rating_count|pluralize }}{% else %}New{% endif %}</span>
                 </div>
-                <strong>{{ shop.name }}</strong>
-                <p>{{ shop.area }} • {{ shop.get_shop_type_display }}</p>
+                <div class="customer-home-card-copy">
+                  <strong>{{ shop.name }}</strong>
+                  <p>{{ shop.area }} • {{ shop.get_shop_type_display }}</p>
+                </div>
                 <div class="customer-home-card-meta">
                   <span>{{ shop.distance_km }} km away</span>
                   <span>{{ shop.speed_badge }}</span>
