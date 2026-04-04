@@ -1,4 +1,5 @@
 __pycache__/
+.pycache_tmp/
 *.py[cod]
 *.sqlite3
 .env
