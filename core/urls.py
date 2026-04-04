@@ -44,6 +44,7 @@ urlpatterns = [
     path('customer/order/<int:order_id>/rate/', views.customer_rate_order, name='customer_rate_order'),
     path('shop/start/', views.shop_start, name='shop_start'),
     path('shop/dashboard/', views.shop_dashboard, name='shop_dashboard'),
+    path('shop/state/', views.shop_toggle_store_state, name='shop_toggle_store_state'),
     path('shop/orders/', views.shop_orders_view, name='shop_orders'),
     path('shop/products/', views.shop_products_view, name='shop_products'),
     path('shop/settings/', views.shop_settings_view, name='shop_settings'),

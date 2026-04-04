@@ -52,22 +52,35 @@ def shell_navigation(request):
             ]
         elif hasattr(user, 'shop_owner_profile'):
             active_role = RoleType.SHOP
-            dashboard_label = 'Store Home'
-            dashboard_url = reverse('core:shop_dashboard')
             unread_notification_count = user.shop_owner_profile.notifications.filter(is_read=False).count()
             user_label = user.shop_owner_profile.full_name
             user_initial = (user_label[:1] or 'S').upper()
-            role_links = [
-                {'label': 'Overview', 'url': reverse('core:shop_dashboard')},
-                {'label': 'Orders', 'url': reverse('core:shop_orders')},
-                {'label': 'Catalog', 'url': reverse('core:shop_products')},
-                {'label': 'Settings', 'url': reverse('core:shop_settings')},
-            ]
-            primary_links = role_links[:3]
-            menu_links = [
-                {'label': 'Store Settings', 'url': reverse('core:shop_settings')},
-                {'label': 'Customer Support', 'url': reverse('core:support')},
-            ]
+            if user.shop_owner_profile.shops.exists():
+                dashboard_label = 'Store Home'
+                dashboard_url = reverse('core:shop_dashboard')
+                role_links = [
+                    {'label': 'Overview', 'url': reverse('core:shop_dashboard')},
+                    {'label': 'Orders', 'url': reverse('core:shop_orders')},
+                    {'label': 'Catalog', 'url': reverse('core:shop_products')},
+                    {'label': 'Settings', 'url': reverse('core:shop_settings')},
+                ]
+                primary_links = role_links[:3]
+                menu_links = [
+                    {'label': 'Store Settings', 'url': reverse('core:shop_settings')},
+                    {'label': 'Customer Support', 'url': reverse('core:support')},
+                ]
+            else:
+                dashboard_label = 'Complete Store Setup'
+                dashboard_url = reverse('core:shop_start')
+                role_links = [
+                    {'label': 'Store Setup', 'url': reverse('core:shop_start')},
+                    {'label': 'Support', 'url': reverse('core:support')},
+                ]
+                primary_links = role_links
+                menu_links = [
+                    {'label': 'Store Setup', 'url': reverse('core:shop_start')},
+                    {'label': 'Customer Support', 'url': reverse('core:support')},
+                ]
         elif hasattr(user, 'rider_profile'):
             active_role = RoleType.RIDER
             dashboard_label = 'Rider Home'

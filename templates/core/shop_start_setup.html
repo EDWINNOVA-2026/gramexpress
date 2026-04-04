@@ -1,0 +1,139 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="auth-stage" data-appear>
+    <article class="auth-card auth-card-wide">
+      <div class="auth-lockmark" aria-hidden="true">
+        <span class="auth-lock-body"></span>
+      </div>
+      <h1>Complete Store Setup</h1>
+      <p class="auth-subtitle">Finish the missing store details for {{ shop_owner.full_name }}.</p>
+      <p class="auth-lead">Your account already exists. Add the store profile once, and then the normal shop workspace will open without redirect loops.</p>
+
+      <form class="auth-form auth-register-form" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <section class="auth-role-section">
+          <div class="auth-section-head">
+            <strong>Store details</strong>
+            <p>These details define how the store appears in the shop workspace and customer experience.</p>
+          </div>
+          <div class="auth-grid-two">
+            <div class="auth-field">
+              <label for="{{ form.name.id_for_label }}">Shop Name</label>
+              {{ form.name }}
+              {% for error in form.name.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+            <div class="auth-field">
+              <label for="{{ form.shop_type.id_for_label }}">Shop Type</label>
+              {{ form.shop_type }}
+              {% for error in form.shop_type.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+          </div>
+          <div class="auth-grid-two">
+            <div class="auth-field">
+              <label for="{{ form.area.id_for_label }}">Area</label>
+              {{ form.area }}
+              {% for error in form.area.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+            <div class="auth-field">
+              <label for="{{ form.offer.id_for_label }}">Offer Tagline</label>
+              {{ form.offer }}
+              {% for error in form.offer.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+          </div>
+          <div class="auth-field">
+            <label for="{{ form.description.id_for_label }}">Description</label>
+            {{ form.description }}
+            {% for error in form.description.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+          </div>
+        </section>
+
+        <section class="auth-role-section">
+          <div class="auth-section-head">
+            <strong>Store address</strong>
+            <p>Use the exact pickup location so rider dispatch and map links stay accurate.</p>
+          </div>
+          <div class="auth-grid-two">
+            <div class="auth-field">
+              <label for="{{ form.address_line_1.id_for_label }}">Address Line 1</label>
+              {{ form.address_line_1 }}
+              {% for error in form.address_line_1.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+            <div class="auth-field">
+              <label for="{{ form.address_line_2.id_for_label }}">Address Line 2</label>
+              {{ form.address_line_2 }}
+              {% for error in form.address_line_2.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+          </div>
+          <div class="auth-grid-two">
+            <div class="auth-field">
+              <label for="{{ form.district.id_for_label }}">District</label>
+              {{ form.district }}
+              {% for error in form.district.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+            <div class="auth-field">
+              <label for="{{ form.pincode.id_for_label }}">Pincode</label>
+              {{ form.pincode }}
+              {% for error in form.pincode.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+          </div>
+        </section>
+
+        <section class="auth-role-section auth-role-section-location">
+          <div class="auth-location-card">
+            <div>
+              <strong>Current location</strong>
+              <p>Capture the store coordinates before saving the setup.</p>
+            </div>
+            <button class="auth-link-button" type="button" data-location-trigger>Use Current Location</button>
+          </div>
+          <div class="auth-grid-two">
+            <div class="auth-field">
+              <label for="{{ form.latitude.id_for_label }}">Latitude</label>
+              {{ form.latitude }}
+              {% for error in form.latitude.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+            <div class="auth-field">
+              <label for="{{ form.longitude.id_for_label }}">Longitude</label>
+              {{ form.longitude }}
+              {% for error in form.longitude.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+          </div>
+          <small class="field-help" data-location-status>Location coordinates will stay here after capture.</small>
+        </section>
+
+        <section class="auth-role-section">
+          <div class="auth-section-head">
+            <strong>Store media and availability</strong>
+            <p>The store will still wait for admin approval before going live.</p>
+          </div>
+          <div class="auth-grid-two">
+            <div class="auth-field">
+              <label for="{{ form.image_url.id_for_label }}">Image URL</label>
+              {{ form.image_url }}
+              {% for error in form.image_url.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+            <div class="auth-field">
+              <label for="{{ form.image.id_for_label }}">Upload Image</label>
+              {{ form.image }}
+              {% for error in form.image.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+          </div>
+          <div class="auth-field">
+            <label for="{{ form.is_open.id_for_label }}">Store Open</label>
+            {{ form.is_open }}
+            {% if form.is_open.help_text %}<small class="field-help">{{ form.is_open.help_text }}</small>{% endif %}
+            {% for error in form.is_open.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+          </div>
+        </section>
+
+        {% for error in form.non_field_errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+
+        <div class="form-actions">
+          <button class="auth-primary-button" type="submit">Save Store Setup</button>
+        </div>
+      </form>
+    </article>
+  </section>
+{% endblock %}

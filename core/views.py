@@ -726,6 +726,22 @@ def reverse_geocode_location(latitude: Decimal, longitude: Decimal) -> dict[str,
     }
 
 
+@require_GET
+def reverse_geocode_location_api(request: HttpRequest) -> JsonResponse:
+    latitude = request.GET.get('latitude', '').strip()
+    longitude = request.GET.get('longitude', '').strip()
+    try:
+        lat_value = Decimal(latitude)
+        lng_value = Decimal(longitude)
+    except Exception:
+        return JsonResponse({'error': 'Invalid coordinates.'}, status=400)
+
+    details = reverse_geocode_location(lat_value, lng_value)
+    if not details:
+        return JsonResponse({'error': 'Address lookup unavailable.'}, status=502)
+    return JsonResponse(details)
+
+
 def customer_address_summary(customer: CustomerProfile) -> str:
     return ', '.join(
         part
@@ -831,7 +847,10 @@ def get_dashboard_url_for_user(user) -> str:
     if role == RoleType.CUSTOMER:
         return reverse('core:customer_dashboard')
     if role == RoleType.SHOP:
-        return reverse('core:shop_dashboard')
+        owner = getattr(user, 'shop_owner_profile', None)
+        if owner and owner.shops.exists():
+            return reverse('core:shop_dashboard')
+        return reverse('core:shop_start')
     if role == RoleType.RIDER:
         return reverse('core:rider_dashboard')
     if role == RoleType.ADMIN:
@@ -2077,10 +2096,14 @@ def customer_workspace_context(request: HttpRequest) -> dict[str, Any]:
 
 def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | None = None) -> dict[str, Any]:
     owner = request.role_profile
-    shop = get_object_or_404(
-        Shop.objects.select_related('owner').prefetch_related('products', 'orders__customer', 'orders__rider', 'orders__items__product'),
-        owner=owner,
+    shop = (
+        Shop.objects.select_related('owner')
+        .prefetch_related('products', 'orders__customer', 'orders__rider', 'orders__items__product')
+        .filter(owner=owner)
+        .first()
     )
+    if shop is None:
+        raise Shop.DoesNotExist
     editing_product = get_object_or_404(Product, pk=editing_product_id, shop=shop) if editing_product_id else None
     orders = list(shop.orders.all())
     for order in orders:
@@ -2852,9 +2875,12 @@ def register_details_view(request: HttpRequest) -> HttpResponse:
             cleaned_data = form.cleaned_data.copy()
             cleaned_data['phone'] = normalize_phone(cleaned_data['phone'])
             cleaned_data['email'] = cleaned_data['email'].strip().lower()
-            if contact_exists_elsewhere(phone=cleaned_data['phone'], email=cleaned_data['email']):
-                form.add_error(None, 'That phone number or email is already linked to an existing account.')
-            else:
+            conflicts = contact_conflicts(phone=cleaned_data['phone'], email=cleaned_data['email'])
+            if conflicts['phone']:
+                form.add_error('phone', 'This mobile number is already linked to an existing account.')
+            if conflicts['email']:
+                form.add_error('email', 'This email address is already linked to an existing account.')
+            if not any(conflicts.values()):
                 payload = serialize_registration_data(cleaned_data)
                 token = create_auth_otp(
                     purpose=OtpPurpose.REGISTER,
@@ -3242,6 +3268,50 @@ def customer_start(request: HttpRequest) -> HttpResponse:
 
 
 def shop_start(request: HttpRequest) -> HttpResponse:
+    if request.user.is_authenticated:
+        active_role, profile = get_role_profile(request.user)
+        if active_role != RoleType.SHOP:
+            messages.error(request, 'This area is only for shop accounts.')
+            return redirect(get_dashboard_url_for_user(request.user))
+        if profile.shops.exists():
+            return redirect('core:shop_dashboard')
+
+        form = ShopUpdateForm(
+            request.POST or None,
+            request.FILES or None,
+            initial={
+                'is_open': False,
+                'latitude': DEFAULT_LATITUDE,
+                'longitude': DEFAULT_LONGITUDE,
+            },
+        )
+        form.fields['is_open'].help_text = 'Your store stays offline until admin approval is complete.'
+
+        if request.method == 'POST' and form.is_valid():
+            shop = form.save(commit=False)
+            shop.owner = profile
+            shop.approval_status = ApprovalStatus.PENDING
+            shop.is_open = False
+            shop.save()
+            create_notification(
+                shop_owner=profile,
+                title='Store sent for approval',
+                body=f'{shop.name} is waiting for admin approval before it goes live.',
+                notification_type=NotificationType.STORE,
+            )
+            messages.success(request, 'Store setup saved. Your workspace is ready for review.')
+            return redirect('core:shop_dashboard')
+
+        return disable_html_cache(
+            render(
+                request,
+                'core/shop_start_setup.html',
+                {
+                    'form': form,
+                    'shop_owner': profile,
+                },
+            )
+        )
     return redirect(f'{reverse("core:register_details")}?account_type={RoleType.SHOP}')
 
 
@@ -3988,20 +4058,67 @@ def customer_reorder(request: HttpRequest, order_id: int) -> HttpResponse:
 
 @role_required(RoleType.SHOP)
 def shop_dashboard(request: HttpRequest) -> HttpResponse:
-    context = shop_workspace_context(request)
+    try:
+        context = shop_workspace_context(request)
+    except Shop.DoesNotExist:
+        return redirect_missing_shop_setup(request)
     return render(request, 'core/shop_dashboard.html', context)
 
 
 @role_required(RoleType.SHOP)
+@require_POST
+def shop_toggle_store_state(request: HttpRequest) -> HttpResponse:
+    try:
+        context = shop_workspace_context(request)
+    except Shop.DoesNotExist:
+        return redirect_missing_shop_setup(request)
+
+    shop = context['shop']
+    redirect_to = request.POST.get('next') or reverse('core:shop_dashboard')
+
+    if shop.approval_status != ApprovalStatus.APPROVED:
+        messages.error(request, 'Your store can go live only after admin approval.')
+        return redirect(redirect_to)
+
+    shop.is_open = not shop.is_open
+    shop.save(update_fields=['is_open', 'updated_at'])
+
+    if shop.is_open:
+        create_notification(
+            shop_owner=request.role_profile,
+            title='Store opened',
+            body='Your store is now visible for customers and ready to accept orders.',
+            notification_type=NotificationType.STORE,
+        )
+        messages.success(request, 'Your store is now open.')
+    else:
+        create_notification(
+            shop_owner=request.role_profile,
+            title='Store closed',
+            body='Your store is now offline for customers until you open it again.',
+            notification_type=NotificationType.STORE,
+        )
+        messages.success(request, 'Your store is now closed.')
+
+    return redirect(redirect_to)
+
+
+@role_required(RoleType.SHOP)
 def shop_orders_view(request: HttpRequest) -> HttpResponse:
-    context = shop_workspace_context(request)
+    try:
+        context = shop_workspace_context(request)
+    except Shop.DoesNotExist:
+        return redirect_missing_shop_setup(request)
     context['store_rating_form'] = StoreRatingForm()
     return disable_html_cache(render(request, 'core/shop_orders.html', context))
 
 
 @role_required(RoleType.SHOP)
 def shop_products_view(request: HttpRequest) -> HttpResponse:
-    context = shop_workspace_context(request, editing_product_id=request.GET.get('edit_product'))
+    try:
+        context = shop_workspace_context(request, editing_product_id=request.GET.get('edit_product'))
+    except Shop.DoesNotExist:
+        return redirect_missing_shop_setup(request)
     shop = context['shop']
     editing_product = context['editing_product']
     if request.method == 'POST':
@@ -4021,7 +4138,10 @@ def shop_products_view(request: HttpRequest) -> HttpResponse:
 
 @role_required(RoleType.SHOP)
 def shop_settings_view(request: HttpRequest) -> HttpResponse:
-    context = shop_workspace_context(request)
+    try:
+        context = shop_workspace_context(request)
+    except Shop.DoesNotExist:
+        return redirect_missing_shop_setup(request)
     shop = context['shop']
     if request.method == 'POST' and request.POST.get('action') == 'update_shop':
         shop_form = ShopUpdateForm(request.POST, request.FILES, instance=shop)

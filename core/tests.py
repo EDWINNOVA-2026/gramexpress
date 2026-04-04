@@ -33,7 +33,8 @@ from .models import (
     Shop,
     ShopOwnerProfile,
 )
-from .views import reverse_geocode_location
+from .forms import UnifiedRegistrationForm
+from .views import get_dashboard_url_for_user, reverse_geocode_location
 
 
 class CoreFlowTests(TestCase):
@@ -179,6 +180,190 @@ class CoreFlowTests(TestCase):
         self.client.force_login(self.customer_user)
         response = self.client.get(reverse('core:home'))
         self.assertRedirects(response, reverse('core:customer_dashboard'))
+
+    def test_registration_phone_requires_exactly_ten_digits(self):
+        form = UnifiedRegistrationForm(
+            data={
+                'account_type': RoleType.CUSTOMER,
+                'full_name': 'Phone Check',
+                'phone': '98765',
+                'email': 'phonecheck@example.com',
+                'password1': 'demo12345',
+                'password2': 'demo12345',
+                'preferred_language': 'en',
+                'address_line_1': '1 MG Road',
+                'district': 'Mandya',
+                'pincode': '571401',
+                'latitude': '12.915300',
+                'longitude': '76.643800',
+            },
+            selected_role=RoleType.CUSTOMER,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('Enter a valid 10 digit mobile number.', form.errors['phone'])
+
+    def test_registration_shows_contact_conflicts_under_specific_fields(self):
+        response = self.client.post(
+            reverse('core:register_details') + f'?account_type={RoleType.CUSTOMER}',
+            {
+                'account_type': RoleType.CUSTOMER,
+                'full_name': 'Duplicate Contact',
+                'phone': self.customer.phone,
+                'email': self.customer.email,
+                'password1': 'demo12345',
+                'password2': 'demo12345',
+                'preferred_language': 'en',
+                'address_line_1': '1 MG Road',
+                'district': 'Mandya',
+                'pincode': '571401',
+                'latitude': '12.915300',
+                'longitude': '76.643800',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'This mobile number is already linked to an existing account.')
+        self.assertContains(response, 'This email address is already linked to an existing account.')
+        self.assertNotContains(response, 'That phone number or email is already linked to an existing account.')
+
+    @patch('core.views.reverse_geocode_location')
+    def test_reverse_geocode_location_api_returns_json(self, reverse_geocode_mock):
+        reverse_geocode_mock.return_value = {
+            'formatted_address': '12 Market Street, VV Nagar, Mandya 571401',
+            'address_line_1': '12 Market Street',
+            'locality': 'VV Nagar',
+            'city': 'Mandya',
+            'district': 'Mandya',
+            'pincode': '571401',
+        }
+
+        response = self.client.get(
+            reverse('core:reverse_geocode_location_api'),
+            {'latitude': '12.915300', 'longitude': '76.643800'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertJSONEqual(
+            response.content,
+            {
+                'formatted_address': '12 Market Street, VV Nagar, Mandya 571401',
+                'address_line_1': '12 Market Street',
+                'locality': 'VV Nagar',
+                'city': 'Mandya',
+                'district': 'Mandya',
+                'pincode': '571401',
+            },
+        )
+
+    def test_shop_dashboard_redirects_to_setup_when_shop_record_is_missing(self):
+        user = get_user_model().objects.create_user(
+            username=f'{RoleType.SHOP}:6666666666',
+            password='demo12345',
+            email='setup@example.com',
+        )
+        owner = ShopOwnerProfile.objects.create(
+            user=user,
+            full_name='Setup Pending',
+            phone='6666666666',
+            email='setup@example.com',
+            approval_status=ApprovalStatus.PENDING,
+        )
+
+        self.client.force_login(user)
+        response = self.client.get(reverse('core:shop_dashboard'), follow=True)
+
+        self.assertRedirects(response, reverse('core:shop_start'))
+        self.assertContains(response, 'Complete your store details to open the store workspace.')
+        self.assertFalse(owner.shops.exists())
+
+    def test_shop_owner_can_toggle_store_state_from_dashboard(self):
+        self.client.force_login(self.shop_user)
+
+        response = self.client.post(reverse('core:shop_toggle_store_state'))
+
+        self.assertRedirects(response, reverse('core:shop_dashboard'))
+        self.shop.refresh_from_db()
+        self.assertFalse(self.shop.is_open)
+        self.assertTrue(
+            Notification.objects.filter(
+                shop_owner=self.owner,
+                title='Store closed',
+                notification_type=NotificationType.STORE,
+            ).exists()
+        )
+
+    def test_shop_toggle_store_state_keeps_pending_store_closed(self):
+        pending_user = get_user_model().objects.create_user(
+            username=f'{RoleType.SHOP}:6655555511',
+            password='demo12345',
+            email='pendingtoggle@example.com',
+        )
+        pending_owner = ShopOwnerProfile.objects.create(
+            user=pending_user,
+            full_name='Pending Toggle',
+            phone='6655555511',
+            email='pendingtoggle@example.com',
+            approval_status=ApprovalStatus.PENDING,
+        )
+        pending_shop = Shop.objects.create(
+            owner=pending_owner,
+            name='Pending Toggle Mart',
+            shop_type='kirana',
+            area='VV Nagar',
+            address_line_1='44 Market Street',
+            district='Mandya',
+            pincode='571401',
+            approval_status=ApprovalStatus.PENDING,
+            is_open=False,
+            latitude=Decimal('12.915300'),
+            longitude=Decimal('76.643800'),
+        )
+
+        self.client.force_login(pending_user)
+        response = self.client.post(reverse('core:shop_toggle_store_state'), follow=True)
+
+        self.assertRedirects(response, reverse('core:shop_dashboard'))
+        pending_shop.refresh_from_db()
+        self.assertFalse(pending_shop.is_open)
+        self.assertContains(response, 'Your store can go live only after admin approval.')
+
+    def test_shop_user_without_shop_gets_shop_start_dashboard_url(self):
+        user = get_user_model().objects.create_user(
+            username=f'{RoleType.SHOP}:6655555555',
+            password='demo12345',
+            email='start@example.com',
+        )
+        ShopOwnerProfile.objects.create(
+            user=user,
+            full_name='Start Pending',
+            phone='6655555555',
+            email='start@example.com',
+            approval_status=ApprovalStatus.PENDING,
+        )
+
+        self.assertEqual(get_dashboard_url_for_user(user), reverse('core:shop_start'))
+
+    def test_shop_start_renders_setup_form_for_authenticated_shop_without_store(self):
+        user = get_user_model().objects.create_user(
+            username=f'{RoleType.SHOP}:6644444444',
+            password='demo12345',
+            email='missing-shop@example.com',
+        )
+        ShopOwnerProfile.objects.create(
+            user=user,
+            full_name='Missing Shop',
+            phone='6644444444',
+            email='missing-shop@example.com',
+            approval_status=ApprovalStatus.PENDING,
+        )
+
+        self.client.force_login(user)
+        response = self.client.get(reverse('core:shop_start'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Complete Store Setup')
+        self.assertContains(response, 'Save Store Setup')
 
     def test_customer_can_add_to_cart_and_checkout(self):
         self.client.force_login(self.customer_user)
