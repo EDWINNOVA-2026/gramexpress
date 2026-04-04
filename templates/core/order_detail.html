@@ -2,23 +2,43 @@
 
 {% block content %}
   <section class="page-stack" id="top">
-    <article class="card order-hero-card" data-appear>
+    <article class="card order-hero-card section-stack" data-appear>
       <div class="split-row">
-        <div>
+        <div class="content-stack">
           <span class="eyebrow">Order Detail</span>
           <h1 class="page-title">{{ order.display_id }}</h1>
           <p>{{ order.shop.name }} to {{ order.customer.full_name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
         </div>
-        <div class="hero-inline-facts">
+        <div class="action-cluster">
           <span class="status-chip {{ status_summary.chip_class }}">{{ order.get_status_display }}</span>
           <span class="soft-pill">ETA {{ eta_label }}</span>
           <span class="pill">Rs. {{ order.total_amount }}</span>
         </div>
       </div>
+
+      <div class="meta-grid">
+        <div class="focus-card content-stack">
+          <strong>Latest update</strong>
+          <p>{{ order.latest_rider_update }}</p>
+          <span class="tiny muted">{{ order.last_update_timestamp_label }}</span>
+        </div>
+        <div class="focus-card content-stack">
+          <strong>Current stage</strong>
+          <p>{{ order.flow_headline }}</p>
+          <span class="tiny muted">{{ order.flow_detail }}</span>
+        </div>
+        <div class="focus-card content-stack">
+          <strong>Need help?</strong>
+          <p>{{ order.support_copy }}</p>
+          <div class="inline-actions">
+            <a class="button small secondary" href="{% url 'core:support' %}">Contact Support</a>
+          </div>
+        </div>
+      </div>
     </article>
 
     <section class="layout-two" id="workspace">
-      <article class="card" data-appear>
+      <article class="card section-stack" data-appear>
         <span class="eyebrow">Status</span>
         <h2 class="section-title">{{ status_summary.title }}</h2>
         <div class="metric-card tracking-metric-card">
@@ -26,18 +46,35 @@
           <strong class="metric-value">{{ eta_label }}</strong>
           <p>{{ status_summary.detail }}</p>
         </div>
-        <div class="compact-item top-gap-sm">
-          <strong>Email updates</strong>
-          <p>Live tracking is unavailable in this version. Rider assignment and delivery status updates are sent by email instead.</p>
+        <div class="flow-strip" aria-label="Order flow">
+          {% for step in order.flow_steps %}
+            <span class="flow-step{% if step.completed %} flow-step-complete{% endif %}{% if step.current %} flow-step-current{% endif %}">{{ step.label }}</span>
+          {% endfor %}
         </div>
-        <div class="compact-item top-gap-sm">
+        <div class="compact-item content-stack top-gap-sm">
+          <strong>Last update</strong>
+          <p>{{ order.latest_rider_update }}</p>
+          <span class="tiny muted">{{ order.last_update_timestamp_label }}</span>
+        </div>
+        <div class="compact-item content-stack top-gap-sm">
+          <strong>{{ order.support_prompt }}</strong>
+          <p>{{ order.support_copy }}</p>
+          <div class="inline-actions">
+            <a class="button small secondary" href="{% url 'core:support' %}">Need Help?</a>
+          </div>
+        </div>
+        <div class="compact-item content-stack top-gap-sm">
+          <strong>Email updates</strong>
+          <p>Live tracking is unavailable in this version. Rider assignment and delivery status updates are shared by email and in-app updates.</p>
+        </div>
+        <div class="compact-item content-stack top-gap-sm">
           <strong>{{ payment_summary.label }}</strong>
           <p>{{ payment_summary.detail }}</p>
           <span class="status-chip {{ payment_summary.chip_class }}">{{ order.get_payment_status_display }}</span>
         </div>
       </article>
 
-      <article class="card" data-appear>
+      <article class="card section-stack" data-appear>
         <span class="eyebrow">Timeline</span>
         <h2 class="section-title">Order progress</h2>
         <div class="timeline-list">
@@ -57,34 +94,43 @@
       </article>
 
       <div class="stack">
-        <article class="card" data-appear>
+        <article class="card section-stack" data-appear>
           <span class="eyebrow">Delivery</span>
           <h2 class="section-title">Pickup, drop-off, and contact</h2>
           <div class="stack small-gap">
-            <div class="compact-item rider-stop-card">
+            <div class="compact-item rider-stop-card content-stack">
               <strong>Pickup location</strong>
               <p>{{ order.shop.name }}</p>
               <p class="utility-note">{{ order.shop.address_line_1 }}{% if order.shop.address_line_2 %}, {{ order.shop.address_line_2 }}{% endif %}, {{ order.shop.area }}, {{ order.shop.district }} {{ order.shop.pincode }}</p>
               <a class="button small secondary" href="{{ shop_map_url }}" target="_blank" rel="noreferrer">Open Pickup Pin</a>
             </div>
-            <div class="compact-item rider-stop-card">
+            <div class="compact-item rider-stop-card content-stack">
               <strong>Drop-off location</strong>
               <p>{{ order.customer.full_name }}</p>
               <p class="utility-note">{{ order.delivery_address }}</p>
               <a class="button small secondary" href="{{ customer_map_url }}" target="_blank" rel="noreferrer">Open Drop-off Pin</a>
             </div>
             {% if order.rider %}
-              <div class="compact-item">
+              <div class="compact-item content-stack">
                 <strong>Rider</strong>
                 <p>{{ order.rider.full_name }} | {{ order.rider.phone }}{% if order.rider.email %} | {{ order.rider.email }}{% endif %}</p>
                 <span class="soft-pill">{{ order.rider.get_vehicle_type_display }}</span>
               </div>
             {% endif %}
-            {% if order.status == 'out_for_delivery' %}
-              <div class="compact-item">
+            {% if order.status == 'out_for_delivery' and active_role == 'customer' %}
+              <div class="compact-item content-stack">
                 <strong>Delivery OTP</strong>
                 <p>Share this OTP with the rider at handoff.</p>
                 <code>{{ order.customer_otp }}</code>
+                {% if order.customer_otp_valid_until %}
+                  <span class="tiny muted">Valid until {{ order.customer_otp_valid_until|date:"H:i" }}</span>
+                {% endif %}
+              </div>
+            {% elif order.status == 'out_for_delivery' and active_role == 'shop' %}
+              <div class="compact-item content-stack">
+                <strong>Delivery OTP</strong>
+                <p>Customer OTP stays hidden from the store team after dispatch starts.</p>
+                <code>{{ order.customer_otp_masked }}</code>
               </div>
             {% endif %}
 
@@ -93,7 +139,7 @@
                 <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap rider-action-form">
                   {% csrf_token %}
                   <input type="hidden" name="status" value="out_for_delivery" />
-                  <button class="button primary" type="submit">Arrived at Pickup</button>
+                  <button class="button primary" type="submit">Picked Up From Store</button>
                 </form>
               {% endif %}
               {% if order.status == 'out_for_delivery' %}
@@ -108,6 +154,9 @@
                   <label>Customer OTP
                     <input type="text" name="customer_otp" placeholder="Enter OTP before handoff" required />
                   </label>
+                  {% if order.customer_otp_valid_until %}
+                    <span class="tiny muted">Current OTP valid until {{ order.customer_otp_valid_until|date:"H:i" }}</span>
+                  {% endif %}
                   <button class="button primary" type="submit">Delivered</button>
                 </form>
               {% endif %}
@@ -115,9 +164,15 @@
           </div>
         </article>
 
-        <article class="card" data-appear>
+        <article class="card section-stack" data-appear>
           <span class="eyebrow">Updates</span>
           <h2 class="section-title">Recent notifications</h2>
+          <div class="compact-item content-stack">
+            <strong>{{ order.flow_headline }}</strong>
+            <p>{{ order.flow_detail }}</p>
+            <span class="tiny muted">Last update {{ order.last_update_label }}{% if order.last_update_timestamp_label %} • {{ order.last_update_timestamp_label }}{% endif %}</span>
+            <p class="utility-note">{{ order.latest_rider_update }}</p>
+          </div>
           <div class="stack small-gap">
             {% for note in related_notifications %}
               <div class="compact-item compact-item-notification{% if not note.is_read %} compact-item-notification-unread{% endif %}">
@@ -136,7 +191,7 @@
         </article>
 
         {% if show_customer_actions %}
-          <article class="card" data-appear>
+          <article class="card section-stack" data-appear>
             <span class="eyebrow">Actions</span>
             <h2 class="section-title">Order controls</h2>
             <div class="stack small-gap">
@@ -172,7 +227,7 @@
       </div>
     </section>
 
-    <article class="card" data-appear>
+    <article class="card section-stack" data-appear>
       <span class="eyebrow">Items</span>
       <h2 class="section-title">Items and billing</h2>
       <div class="stack">

@@ -25,23 +25,58 @@
     </aside>
   </section>
 
-  <section class="card" data-appear>
+  {% if active_orders %}
+    <section class="card section-stack" data-appear>
+      <div class="split-row">
+        <div class="content-stack">
+          <span class="eyebrow">Current Order</span>
+          <h2 class="section-title">{{ active_orders.0.display_id }} is in progress</h2>
+          <p class="subtle">{{ active_orders.0.flow_detail }}</p>
+        </div>
+        <div class="action-cluster">
+          <span class="status-chip info">{{ active_orders.0.get_status_display }}</span>
+          <span class="pill">Rs. {{ active_orders.0.total_amount }}</span>
+          <a class="button small secondary" href="{% url 'core:order_detail' active_orders.0.id %}">Open Current Order</a>
+        </div>
+      </div>
+
+      <div class="summary-grid">
+        <div class="focus-card content-stack">
+          <strong>Latest update</strong>
+          <p>{{ active_orders.0.latest_rider_update }}</p>
+          <span class="tiny muted">Updated {{ active_orders.0.last_update_label }}{% if active_orders.0.last_update_timestamp_label %} • {{ active_orders.0.last_update_timestamp_label }}{% endif %}</span>
+        </div>
+        <div class="focus-card content-stack">
+          <strong>What happens next</strong>
+          <p>{{ active_orders.0.flow_headline }}</p>
+          <div class="inline-actions">
+            <a class="button small secondary" href="{% url 'core:support' %}">Need Help?</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+  <section class="card section-stack" data-appear>
     <span class="eyebrow">Active Orders</span>
     <h2 class="section-title">Review line items and watch status changes</h2>
 
     <div class="stack">
       {% for order in active_orders %}
-        <div class="nested-panel order-card">
+        <div class="nested-panel order-card roomy-card">
           <div class="split-row">
-            <div>
-              <strong>Order #{{ order.id }}</strong>
+            <div class="content-stack">
+              <strong>{{ order.display_id }}</strong>
               <p>{{ order.shop.name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
               <p class="utility-note">{{ order.tracking_label }}</p>
               {% if order.status == 'out_for_delivery' %}
                 <p class="utility-note">Delivery OTP for handoff: <code>{{ order.customer_otp }}</code></p>
+                {% if order.customer_otp_valid_until %}
+                  <p class="utility-note">OTP valid until {{ order.customer_otp_valid_until|date:"H:i" }}</p>
+                {% endif %}
               {% endif %}
             </div>
-            <div class="inline-actions">
+            <div class="action-cluster">
               <span class="pill">Rs. {{ order.total_amount }}</span>
               <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
               {% if order.can_be_reordered %}
@@ -53,7 +88,30 @@
             </div>
           </div>
 
-          <div class="compact-list">
+          <div class="flow-strip" aria-label="Order flow">
+            {% for step in order.flow_steps %}
+              <span class="flow-step{% if step.completed %} flow-step-complete{% endif %}{% if step.current %} flow-step-current{% endif %}">{{ step.label }}</span>
+            {% endfor %}
+          </div>
+
+          <div class="summary-grid">
+          <div class="compact-item content-stack">
+            <strong>{{ order.flow_headline }}</strong>
+            <p>{{ order.flow_detail }}</p>
+            <span class="tiny muted">Last update {{ order.last_update_label }}{% if order.last_update_timestamp_label %} • {{ order.last_update_timestamp_label }}{% endif %}</span>
+            <p class="utility-note">{{ order.latest_rider_update }}</p>
+          </div>
+
+          <div class="compact-item content-stack">
+            <strong>{{ order.support_prompt }}</strong>
+            <p>{{ order.support_copy }}</p>
+            <div class="inline-actions">
+              <a class="button small secondary" href="{% url 'core:support' %}">Need Help?</a>
+            </div>
+          </div>
+          </div>
+
+          <div class="compact-list line-list">
             {% for item in order.items.all %}
               <div class="list-item compact-item">
                 <div>
@@ -89,19 +147,19 @@
     </div>
   </section>
 
-  <section class="card" data-appear id="history">
+  <section class="card section-stack" data-appear id="history">
     <span class="eyebrow">Previous Orders</span>
     <h2 class="section-title">Delivered and cancelled history</h2>
 
     <div class="stack">
       {% for order in previous_orders %}
-        <div class="nested-panel order-card">
+        <div class="nested-panel order-card roomy-card">
           <div class="split-row">
-            <div>
-              <strong>Order #{{ order.id }}</strong>
+            <div class="content-stack">
+              <strong>{{ order.display_id }}</strong>
               <p>{{ order.shop.name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
             </div>
-            <div class="inline-actions">
+            <div class="action-cluster">
               <span class="pill">Rs. {{ order.total_amount }}</span>
               <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
               {% if order.can_be_reordered %}
@@ -112,6 +170,12 @@
               {% endif %}
             </div>
           </div>
+          <div class="flow-strip" aria-label="Order flow">
+            {% for step in order.flow_steps %}
+              <span class="flow-step{% if step.completed %} flow-step-complete{% endif %}{% if step.current %} flow-step-current{% endif %}">{{ step.label }}</span>
+            {% endfor %}
+          </div>
+          <p class="utility-note">Last update {{ order.last_update_label }}{% if order.last_update_timestamp_label %} • {{ order.last_update_timestamp_label }}{% endif %}</p>
         </div>
       {% empty %}
         <div class="nested-panel">

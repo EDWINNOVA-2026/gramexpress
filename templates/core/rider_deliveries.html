@@ -11,11 +11,11 @@
     <article class="hero-card glass-card hero-card-rider" data-appear>
       <span class="eyebrow">Active Orders</span>
       <h1>Pickup to drop-off</h1>
-      <p class="hero-lead">This screen stays focused on only the orders you are currently handling, with clear map actions and status buttons.</p>
+      <p class="hero-lead">This screen stays focused on the job in hand, with one clear next action, pinned map links, and the latest delivery update.</p>
       <div class="hero-inline-facts">
         <span class="soft-pill">{{ active_order_count }} active</span>
         <span class="soft-pill">Today Rs. {{ today_earnings }}</span>
-        <span class="soft-pill">Email updates only</span>
+        <span class="soft-pill">Pinned maps only</span>
       </div>
     </article>
 
@@ -33,29 +33,113 @@
     </aside>
   </section>
 
-  <section class="card" data-appear>
+  {% if priority_order %}
+    <section class="card mission-card" data-appear>
+      <div class="split-row">
+        <div class="content-stack">
+          <span class="eyebrow">Current mission</span>
+          <h2 class="section-title">{{ priority_order.current_mission_title }}</h2>
+          <p class="subtle">{{ priority_order.current_mission_detail }}</p>
+        </div>
+        <div class="action-cluster">
+          <span class="status-chip {{ priority_order.status_chip }}">{{ priority_order.get_status_display }}</span>
+          <span class="soft-pill">{{ priority_order.display_id }}</span>
+        </div>
+      </div>
+
+      <div class="mission-grid">
+        <div class="compact-item">
+          <strong>{{ priority_order.shop.name }} to {{ priority_order.customer.full_name }}</strong>
+          <p>{{ priority_order.current_mission_meta }}</p>
+          <span class="tiny muted">Last update {{ priority_order.last_update_label }}{% if priority_order.last_update_timestamp_label %} • {{ priority_order.last_update_timestamp_label }}{% endif %}</span>
+        </div>
+        <div class="compact-item">
+          <strong>Latest customer update sent</strong>
+          <p>{{ priority_order.latest_rider_update }}</p>
+        </div>
+      </div>
+
+      <div class="mission-toolbar">
+        <a class="button secondary" href="{{ priority_order.current_mission_map_url }}" target="_blank" rel="noreferrer">{{ priority_order.current_mission_map_label }}</a>
+        <a class="button small secondary" href="{% url 'core:order_detail' priority_order.id %}">Open Order Detail</a>
+        <a class="button small secondary" href="{% url 'core:support' %}">Need Help?</a>
+      </div>
+
+      {% if priority_order.status != 'out_for_delivery' and priority_order.status != 'delivered' %}
+        <form method="post" action="{% url 'core:rider_update_order_status' priority_order.id %}" class="stack small-gap rider-action-form top-gap-sm">
+          {% csrf_token %}
+          <input type="hidden" name="status" value="out_for_delivery" />
+          <p class="utility-note">Pickup confirmation only works when you are close to the store.</p>
+          <button class="button primary" type="submit">Picked Up From Store</button>
+        </form>
+      {% elif priority_order.status == 'out_for_delivery' %}
+        <div class="mission-actions">
+          <form method="post" action="{% url 'core:rider_resend_customer_otp' priority_order.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'core:rider_deliveries' %}" />
+            <button class="button small secondary" type="submit">Resend OTP</button>
+          </form>
+          <form method="post" action="{% url 'core:rider_update_order_status' priority_order.id %}" class="stack small-gap rider-action-form mission-delivery-form">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="delivered" />
+            <label>Customer OTP
+              <input type="text" name="customer_otp" placeholder="Enter OTP before handoff" required />
+            </label>
+            {% if priority_order.customer_otp_valid_until %}
+              <span class="tiny muted">Current OTP valid until {{ priority_order.customer_otp_valid_until|date:"H:i" }}</span>
+            {% endif %}
+            <button class="button primary" type="submit">Delivered</button>
+          </form>
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <section class="card section-stack" data-appear>
     <div class="split-row">
-      <div>
-        <span class="eyebrow">Current Deliveries</span>
-        <h2 class="section-title">Act on the next step only</h2>
-        <p class="subtle">Confirm pickup when you arrive at the store, then finish the drop-off with the customer OTP.</p>
+      <div class="content-stack">
+        <span class="eyebrow">Active Queue</span>
+        <h2 class="section-title">Everything else you are handling</h2>
+        <p class="subtle">The list below keeps the same order flow visible, but the current mission above stays the main focus.</p>
       </div>
       <span class="status-chip info">{{ active_order_count }} active</span>
     </div>
 
     <div class="stack">
       {% for order in active_orders %}
-        <article class="nested-panel order-card rider-order-card">
+        {% if not forloop.first or active_orders|length == 1 %}
+        <article class="nested-panel order-card rider-order-card roomy-card">
           <div class="split-row">
-            <div>
+            <div class="content-stack">
               <strong>{{ order.display_id }}</strong>
               <p>{{ order.shop.name }} to {{ order.customer.full_name }}</p>
               <p class="utility-note">{{ order.status_hint }}</p>
             </div>
-            <div class="hero-inline-facts">
+            <div class="action-cluster">
               <span class="status-chip {{ order.status_chip }}">{{ order.get_status_display }}</span>
               <span class="soft-pill">Earn Rs. {{ order.delivery_fee }}</span>
             </div>
+          </div>
+
+          <div class="flow-strip" aria-label="Delivery flow">
+            {% for step in order.flow_steps %}
+              <span class="flow-step{% if step.completed %} flow-step-complete{% endif %}{% if step.current %} flow-step-current{% endif %}">{{ step.label }}</span>
+            {% endfor %}
+          </div>
+
+          <div class="summary-grid">
+          <div class="compact-item content-stack">
+            <strong>{{ order.flow_headline }}</strong>
+            <p>{{ order.flow_detail }}</p>
+            <span class="tiny muted">Last update {{ order.last_update_label }}{% if order.last_update_timestamp_label %} • {{ order.last_update_timestamp_label }}{% endif %}</span>
+          </div>
+          <div class="compact-item content-stack">
+            <strong>Latest customer update sent</strong>
+            <p>{{ order.latest_rider_update }}</p>
+            {% if order.latest_rider_notification %}
+              <span class="tiny muted">{{ order.latest_rider_notification.created_at|date:"M d, H:i" }}</span>
+            {% endif %}
+          </div>
           </div>
 
           <div class="rider-stop-grid">
@@ -85,8 +169,9 @@
             </div>
           </div>
 
-          <div class="inline-actions">
+          <div class="action-cluster">
             <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
+            <a class="button small secondary" href="{% url 'core:support' %}">Need Help?</a>
           </div>
 
           {% if order.status != 'out_for_delivery' and order.status != 'delivered' %}
@@ -94,7 +179,7 @@
               {% csrf_token %}
               <input type="hidden" name="status" value="out_for_delivery" />
               <p class="utility-note">Pickup confirmation only works when you are close to the store.</p>
-              <button class="button primary" type="submit">Arrived at Pickup</button>
+              <button class="button primary" type="submit">Picked Up From Store</button>
             </form>
           {% endif %}
 
@@ -110,10 +195,14 @@
               <label>Customer OTP
                 <input type="text" name="customer_otp" placeholder="Enter OTP before handoff" required />
               </label>
+              {% if order.customer_otp_valid_until %}
+                <span class="tiny muted">Current OTP valid until {{ order.customer_otp_valid_until|date:"H:i" }}</span>
+              {% endif %}
               <button class="button primary" type="submit">Delivered</button>
             </form>
           {% endif %}
         </article>
+        {% endif %}
       {% empty %}
         <div class="nested-panel">
           <strong>No active orders</strong>

@@ -74,6 +74,17 @@
               <span class="soft-pill">Status Ready</span>
             </div>
 
+            <div class="flow-strip" aria-label="Delivery flow">
+              {% for step in order.flow_steps %}
+                <span class="flow-step{% if step.completed %} flow-step-complete{% endif %}{% if step.current %} flow-step-current{% endif %}">{{ step.label }}</span>
+              {% endfor %}
+            </div>
+
+            <div class="compact-item">
+              <strong>{{ order.flow_headline }}</strong>
+              <p>{{ order.flow_detail }}</p>
+            </div>
+
             <div class="rider-map-actions">
               <a class="button small secondary" href="{{ order.pickup_map_url }}" target="_blank" rel="noreferrer">Pickup in Maps</a>
               <a class="button small secondary" href="{{ order.dropoff_map_url }}" target="_blank" rel="noreferrer">Drop-off in Maps</a>

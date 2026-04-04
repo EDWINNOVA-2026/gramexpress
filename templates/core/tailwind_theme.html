@@ -85,7 +85,7 @@
   }
 
   .site-main {
-    @apply pb-24 pt-2;
+    @apply grid gap-5 pb-24 pt-4;
   }
 
   .site-main.site-main-auth {
@@ -105,7 +105,7 @@
   }
 
   .topbar {
-    @apply flex items-center justify-between gap-4 rounded-xl px-4 py-3 backdrop-blur;
+    @apply flex items-center justify-between gap-4 rounded-xl px-4 py-4 backdrop-blur;
     background: rgba(255, 255, 255, 0.88);
   }
 
@@ -194,7 +194,11 @@
   .customer-home-badges,
   .customer-home-filters,
   .customer-home-strip {
-    @apply flex flex-wrap items-center gap-2;
+    @apply flex flex-wrap items-center gap-3;
+  }
+
+  .action-cluster {
+    @apply flex flex-wrap items-center gap-3 md:justify-end;
   }
 
   .nav {
@@ -422,6 +426,26 @@
 
   .page-stack,
   .stack {
+    @apply grid gap-5;
+  }
+
+  .section-stack {
+    @apply grid gap-6;
+  }
+
+  .section-stack-compact,
+  .content-stack,
+  .info-stack {
+    @apply grid gap-4;
+  }
+
+  .roomy-card {
+    @apply grid gap-5;
+  }
+
+  .meta-grid,
+  .summary-grid,
+  .info-grid {
     @apply grid gap-4;
   }
 
@@ -446,7 +470,7 @@
   .product-grid,
   .landing-hero-grid,
   .customer-home-shell {
-    @apply grid gap-4;
+    @apply grid gap-5;
   }
 
   .card,
@@ -468,7 +492,7 @@
   .customer-home-section,
   .store-card,
   .product-card {
-    @apply rounded-xl p-5;
+    @apply rounded-xl p-6;
   }
 
   .glass-card,
@@ -482,7 +506,7 @@
   .order-hero-card,
   .tracking-hero-card,
   .checkout-hero-card {
-    @apply rounded-xl border border-slate-200 bg-white p-6 shadow-soft;
+    @apply rounded-xl border border-slate-200 bg-white p-7 shadow-soft;
   }
 
   .hero-card h1,
@@ -503,7 +527,7 @@
   }
 
   .metric-card {
-    @apply grid gap-2 rounded-xl p-5;
+    @apply grid gap-3 rounded-xl p-6;
   }
 
   .metric-label {
@@ -515,7 +539,7 @@
   }
 
   .split-row {
-    @apply flex flex-col gap-3;
+    @apply flex flex-col gap-4;
   }
 
   .split-row-inline {
@@ -523,7 +547,11 @@
   }
 
   .compact-list {
-    @apply grid gap-3;
+    @apply grid gap-4;
+  }
+
+  .line-list {
+    @apply grid gap-2.5;
   }
 
   .list-item,
@@ -531,11 +559,21 @@
   .notification-item,
   .customer-home-category,
   .rider-stop-card {
-    @apply rounded-lg border border-slate-200 bg-slate-50 p-4;
+    @apply rounded-lg border border-slate-200 bg-slate-50 p-5;
   }
 
   .compact-item-tight {
     @apply px-3 py-2;
+  }
+
+  .support-callout,
+  .status-callout,
+  .focus-card {
+    @apply rounded-lg border border-slate-200 bg-slate-50 p-4;
+  }
+
+  .focus-card {
+    @apply border-slate-300 bg-white shadow-sm;
   }
 
   .compact-item-warning,
@@ -567,7 +605,7 @@
   .notification-shell,
   .notification-header,
   .notification-meta {
-    @apply flex items-start justify-between gap-3;
+    @apply flex items-start justify-between gap-4;
   }
 
   .notification-shell {
@@ -586,6 +624,42 @@
     @apply flex flex-col gap-4;
   }
 
+  .mission-card,
+  .mission-grid,
+  .mission-actions,
+  .mission-delivery-form {
+    @apply grid gap-5;
+  }
+
+  .mission-toolbar,
+  .mission-primary-actions {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .mission-grid {
+    @apply md:grid-cols-2;
+  }
+
+  .mission-actions {
+    @apply md:grid-cols-[auto,1fr] items-start;
+  }
+
+  .flow-strip {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .flow-step {
+    @apply inline-flex items-center rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500;
+  }
+
+  .flow-step-complete {
+    @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  }
+
+  .flow-step-current {
+    @apply border-slate-900 bg-slate-900 text-white;
+  }
+
   .profile-copy,
   .rider-account-copy,
   .rider-brand-copy {
@@ -598,7 +672,7 @@
   }
 
   .feature-nav {
-    @apply flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm;
+    @apply flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm;
   }
 
   .rider-segmented-nav {
@@ -617,13 +691,13 @@
   .hero-card-store,
   .hero-card-rider,
   .landing-hero-card {
-    @apply grid gap-4;
+    @apply grid gap-5;
   }
 
   .quick-card,
   .tracking-map-card,
   .profile-card {
-    @apply grid gap-3;
+    @apply grid gap-4;
   }
 
   .auth-stage,
@@ -677,7 +751,7 @@
 
   .auth-form,
   .auth-register-form {
-    @apply grid gap-4;
+    @apply grid gap-5;
   }
 
   .auth-form-tight {
@@ -686,7 +760,7 @@
 
   .auth-grid-two,
   .bill-grid {
-    @apply grid gap-4;
+    @apply grid gap-5;
   }
 
   .auth-field {
@@ -709,7 +783,7 @@
   .auth-role-section,
   .auth-pane,
   .auth-subsection {
-    @apply grid gap-4 rounded-lg border border-slate-200 bg-slate-50/60 p-4;
+    @apply grid gap-5 rounded-lg border border-slate-200 bg-slate-50/60 p-5;
   }
 
   .auth-section-head {
@@ -725,7 +799,7 @@
   }
 
   .form-actions {
-    @apply flex flex-wrap items-center gap-3;
+    @apply flex flex-wrap items-center gap-4;
   }
 
   .checkout-checklist {
@@ -776,7 +850,7 @@
   .product-copy,
   .store-card-body,
   .customer-home-card-body {
-    @apply grid gap-3 p-5;
+    @apply grid gap-4 p-6;
   }
 
   .store-card-placeholder {
@@ -865,7 +939,7 @@
   }
 
   .timeline-list {
-    @apply grid gap-4;
+    @apply grid gap-5;
   }
 
   .timeline-item {
@@ -943,7 +1017,7 @@
   .rider-order-list,
   .rider-job-card,
   .rider-order-card {
-    @apply grid gap-4;
+    @apply grid gap-5;
   }
 
   .rider-topbar-card {
@@ -951,7 +1025,7 @@
   }
 
   .rider-topbar-main {
-    @apply grid gap-4;
+    @apply grid gap-5;
   }
 
   .rider-brand-block,
@@ -962,12 +1036,12 @@
 
   .rider-job-head,
   .rider-section-head {
-    @apply flex flex-col gap-3;
+    @apply flex flex-col gap-4;
   }
 
   .rider-route-points,
   .rider-stop-grid {
-    @apply grid gap-3;
+    @apply grid gap-4;
   }
 
   .rider-route-copy {
@@ -983,9 +1057,17 @@
     @apply rounded-lg border border-slate-200 bg-slate-50 p-4;
   }
 
+  .rider-order-card-priority {
+    @apply border-slate-900 bg-slate-50 shadow-md;
+  }
+
   .rider-job-accept,
   .rider-action-form {
-    @apply grid gap-3;
+    @apply grid gap-4;
+  }
+
+  .rider-action-form {
+    @apply rounded-lg border border-slate-200 bg-slate-50 p-4;
   }
 
   .rider-accept-button {
@@ -1033,11 +1115,11 @@
   }
 
   .toast-stack {
-    @apply mb-4 grid gap-3;
+    @apply mb-5 grid gap-4;
   }
 
   .toast {
-    @apply rounded-lg px-4 py-3 text-sm font-medium;
+    @apply rounded-lg px-4 py-3.5 text-sm font-medium;
   }
 
   .toast {
@@ -1092,6 +1174,15 @@
 
   .rider-stop-grid,
   .rider-route-points {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .meta-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .summary-grid,
+  .info-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
