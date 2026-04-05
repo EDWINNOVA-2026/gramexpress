@@ -1317,6 +1317,246 @@
   }
 
   .quick-card,
+  .shop-dashboard-hero-v2,
+  .shop-dashboard-hero-v2-grid,
+  .shop-dashboard-hero-copy,
+  .shop-dashboard-hero-summary,
+  .shop-dashboard-hero-actions,
+  .shop-dashboard-status-hero,
+  .shop-dashboard-status-hero-actions,
+  .shop-dashboard-grid-v2,
+  .shop-dashboard-section,
+  .shop-dashboard-section-head,
+  .shop-dashboard-status-layout,
+  .shop-dashboard-timeline,
+  .shop-dashboard-progress-panel,
+  .shop-dashboard-checklist,
+  .shop-dashboard-approval-grid,
+  .shop-dashboard-quick-actions-grid,
+  .shop-dashboard-action-card,
+  .shop-dashboard-action-footer,
+  .shop-dashboard-metric-grid,
+  .shop-dashboard-attention-grid,
+  .shop-dashboard-storefront-showcase,
+  .shop-dashboard-store-link,
+  .shop-dashboard-notification-group {
+    @apply grid gap-4;
+  }
+
+  .shop-dashboard-hero-v2 {
+    @apply rounded-[2rem] border-0 p-5 shadow-float md:p-7;
+    background:
+      radial-gradient(circle at top left, rgba(11, 95, 255, 0.18), transparent 32%),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(245, 247, 250, 0.98));
+  }
+
+  .shop-dashboard-hero-v2-grid {
+    @apply items-start gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(19rem,0.95fr)];
+  }
+
+  .shop-dashboard-hero-copy,
+  .shop-dashboard-hero-summary {
+    @apply gap-5;
+  }
+
+  .shop-dashboard-hero-actions {
+    @apply flex flex-wrap gap-3;
+  }
+
+  .shop-dashboard-hero-actions .button {
+    @apply min-w-[10rem];
+  }
+
+  .shop-dashboard-status-hero {
+    @apply rounded-[1.5rem] border px-5 py-5 shadow-soft;
+  }
+
+  .shop-dashboard-status-hero strong {
+    @apply text-2xl font-display font-bold tracking-tight text-slate-950;
+  }
+
+  .shop-dashboard-status-hero p,
+  .shop-dashboard-timeline-copy p,
+  .shop-dashboard-checklist-item p,
+  .shop-dashboard-action-card p,
+  .shop-dashboard-metric-card p,
+  .shop-dashboard-attention-card p,
+  .shop-dashboard-store-link code {
+    @apply text-sm leading-6 text-slate-600;
+  }
+
+  .shop-dashboard-status-hero-actions {
+    @apply flex flex-wrap gap-3;
+  }
+
+  .shop-dashboard-status-hero-success {
+    @apply border-emerald-200 bg-emerald-50;
+  }
+
+  .shop-dashboard-status-hero-warn {
+    @apply border-amber-200 bg-amber-50;
+  }
+
+  .shop-dashboard-status-hero-info {
+    @apply border-blue-200 bg-blue-50;
+  }
+
+  .shop-dashboard-summary-grid-v2 {
+    @apply grid-cols-2;
+  }
+
+  .shop-dashboard-grid-v2 {
+    @apply gap-5;
+  }
+
+  .shop-dashboard-section {
+    @apply rounded-[1.75rem] p-5 md:p-6;
+  }
+
+  .shop-dashboard-section-head {
+    @apply flex flex-wrap items-start justify-between gap-3;
+  }
+
+  .shop-dashboard-section-head .section-title {
+    @apply text-2xl;
+  }
+
+  .shop-dashboard-status-layout {
+    @apply gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.95fr)];
+  }
+
+  .shop-dashboard-timeline {
+    @apply gap-4;
+  }
+
+  .shop-dashboard-timeline-item {
+    @apply relative flex gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4;
+  }
+
+  .shop-dashboard-timeline-item:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 1.15rem;
+    top: calc(100% + 0.25rem);
+    height: 1rem;
+    width: 2px;
+    background: rgba(148, 163, 184, 0.45);
+  }
+
+  .shop-dashboard-timeline-marker {
+    @apply mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold;
+  }
+
+  .shop-dashboard-timeline-copy {
+    @apply grid gap-2;
+  }
+
+  .shop-dashboard-inline-head {
+    @apply flex items-start justify-between gap-3;
+  }
+
+  .shop-dashboard-progress-panel {
+    @apply rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4;
+  }
+
+  .shop-dashboard-progress-bar-shell strong {
+    @apply text-xl font-display font-bold tracking-tight text-slate-950;
+  }
+
+  .shop-dashboard-progress-bar {
+    @apply h-3 overflow-hidden rounded-full bg-slate-200;
+  }
+
+  .shop-dashboard-progress-bar span {
+    @apply block h-full rounded-full;
+    background: linear-gradient(90deg, #0b5fff 0%, #3b82f6 55%, #93c5fd 100%);
+  }
+
+  .shop-dashboard-checklist {
+    @apply gap-3;
+  }
+
+  .shop-dashboard-checklist-item {
+    @apply flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4;
+  }
+
+  .shop-dashboard-checklist-item.is-complete {
+    @apply border-emerald-200 bg-emerald-50;
+  }
+
+  .shop-dashboard-checklist-icon {
+    @apply grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-900 text-white;
+  }
+
+  .shop-dashboard-checklist-item.is-complete .shop-dashboard-checklist-icon {
+    @apply bg-emerald-600;
+  }
+
+  .shop-dashboard-approval-grid,
+  .shop-dashboard-quick-actions-grid,
+  .shop-dashboard-attention-grid,
+  .shop-dashboard-metric-grid-4,
+  .shop-dashboard-metric-grid-3 {
+    @apply md:grid-cols-2;
+  }
+
+  .shop-dashboard-metric-grid-5 {
+    @apply md:grid-cols-2 xl:grid-cols-5;
+  }
+
+  .shop-dashboard-action-card,
+  .shop-dashboard-metric-card,
+  .shop-dashboard-attention-card,
+  .shop-dashboard-notification-group {
+    @apply rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 shadow-soft;
+  }
+
+  .shop-dashboard-action-card strong,
+  .shop-dashboard-metric-card strong,
+  .shop-dashboard-attention-card strong,
+  .shop-dashboard-notification-group strong {
+    @apply text-lg font-semibold text-slate-950;
+  }
+
+  .shop-dashboard-action-icon {
+    @apply grid h-11 w-11 place-items-center rounded-2xl bg-blue-600 text-white shadow-soft;
+  }
+
+  .shop-dashboard-action-footer {
+    @apply flex flex-wrap gap-3;
+  }
+
+  .shop-dashboard-action-footer .button {
+    @apply min-w-[8.5rem];
+  }
+
+  .shop-dashboard-metric-card {
+    @apply gap-2;
+  }
+
+  .shop-dashboard-metric-card > strong {
+    @apply text-3xl font-display font-bold tracking-tight text-slate-950;
+  }
+
+  .shop-dashboard-attention-card {
+    @apply transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white;
+  }
+
+  .shop-dashboard-storefront-showcase {
+    @apply gap-5 lg:grid-cols-[minmax(12rem,15rem)_minmax(0,1fr)];
+  }
+
+  .shop-dashboard-store-link code {
+    @apply block overflow-x-auto rounded-2xl bg-slate-900/5 px-4 py-3;
+  }
+
+  .shop-dashboard-notification-grid {
+    @apply md:grid-cols-2;
+  }
+
+  .shop-dashboard-notification-group .compact-list {
+    @apply grid gap-3;
+  }
   .tracking-map-card,
   .profile-card {
     @apply grid gap-4;
@@ -2112,6 +2352,17 @@
   }
 
   .feature-nav {
+
+  .shop-dashboard-grid-v2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .shop-dashboard-section-status,
+  .shop-khatabook-dashboard-card,
+  .shop-dashboard-storefront-card,
+  .shop-dashboard-panel-wide {
+    grid-column: 1 / -1;
+  }
     @apply gap-3 p-4;
   }
 
@@ -2250,6 +2501,16 @@
   .card,
   .glass-card,
   .metric-card,
+  .shop-dashboard-notification-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .shop-dashboard-notification-grid > * {
+    min-width: 0;
+  }
+
   .quick-card,
   .hero-card,
   .auth-card,
