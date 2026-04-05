@@ -54,6 +54,7 @@ from .views import (
     PENDING_GOOGLE_AUTH_SESSION_KEY,
     PENDING_PASSWORD_RESET_SESSION_KEY,
     RIDER_LIVE_CAPTURE_SOURCE,
+    create_checkout_payment_link,
     get_dashboard_url_for_user,
     reverse_geocode_location,
 )
@@ -234,7 +235,23 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Choose Your Role')
         self.assertContains(response, 'Open customer onboarding')
+        self.assertContains(response, 'Use Current Location')
         self.assertEqual(response['Cache-Control'], 'no-store, no-cache, must-revalidate, max-age=0')
+
+    def test_register_details_prefills_coordinates_from_query_params(self):
+        response = self.client.get(
+            reverse('core:register_details'),
+            {
+                'account_type': RoleType.CUSTOMER,
+                'latitude': '12.918800',
+                'longitude': '76.650100',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        form = response.context['form']
+        self.assertEqual(str(form['latitude'].value()), '12.918800')
+        self.assertEqual(str(form['longitude'].value()), '76.650100')
 
     @patch('core.views.verify_google_credential')
     def test_google_auth_logs_in_existing_user_by_email(self, verify_google_credential_mock):
@@ -2798,6 +2815,40 @@ class CoreFlowTests(TestCase):
 
         self.assertEqual(launch_response.status_code, 302)
         self.assertEqual(launch_response['Location'], 'https://rzp.io/i/checkout-test')
+
+    @override_settings(RAZORPAY_KEY_ID='rzp_test_123', RAZORPAY_KEY_SECRET='secret_123')
+    @patch('core.views.razorpay_api_request')
+    def test_checkout_payment_link_hides_hosted_page_topbar(self, mock_razorpay_api_request):
+        mock_razorpay_api_request.return_value = {
+            'id': 'plink_test_launch',
+            'short_url': 'https://rzp.io/i/checkout-test',
+            'status': 'created',
+            'reference_id': 'grx-test-link',
+        }
+        request = RequestFactory().get(
+            reverse('core:customer_razorpay_launch'),
+            secure=True,
+        )
+        checkout_session = CheckoutSession.objects.create(
+            customer=self.customer,
+            payment_method=PaymentMethod.RAZORPAY,
+            payment_status=PaymentStatus.PENDING,
+            amount=Decimal('53.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            customer_notes='',
+            cart_snapshot={},
+            cart_signature='snapshot-signature',
+            receipt='grx-test-link',
+        )
+
+        create_checkout_payment_link(request=request, checkout_session=checkout_session)
+
+        payload = mock_razorpay_api_request.call_args.kwargs['payload']
+        self.assertTrue(payload['options']['checkout']['theme']['hide_topbar'])
+        self.assertEqual(
+            payload['callback_url'],
+            'https://testserver/customer/checkout/razorpay/callback/',
+        )
 
     @override_settings(RAZORPAY_KEY_SECRET='secret_123')
     def test_razorpay_callback_finalizes_paid_checkout(self):

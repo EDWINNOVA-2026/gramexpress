@@ -3469,6 +3469,13 @@ def create_checkout_payment_link(*, request: HttpRequest, checkout_session: Chec
             'checkout_session_id': str(checkout_session.id),
             'flow': 'customer_checkout',
         },
+        'options': {
+            'checkout': {
+                'theme': {
+                    'hide_topbar': True,
+                }
+            }
+        },
     }
     payment_link = razorpay_api_request(path='/payment_links', method='POST', payload=payload)
     payment_link['reference_id'] = payment_link.get('reference_id', checkout_session.receipt)
@@ -5731,6 +5738,13 @@ def register_details_view(request: HttpRequest) -> HttpResponse:
         'latitude': DEFAULT_LATITUDE,
         'longitude': DEFAULT_LONGITUDE,
     }
+    for query_key, field_name in [('latitude', 'latitude'), ('longitude', 'longitude')]:
+        raw_value = request.GET.get(query_key, '').strip()
+        if raw_value:
+            try:
+                initial_data[field_name] = Decimal(raw_value)
+            except Exception:
+                pass
     if pending_registration.get('account_type') == selected_role and not google_onboarding:
         initial_data.update(pending_registration)
 

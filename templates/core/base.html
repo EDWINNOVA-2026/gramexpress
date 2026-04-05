@@ -564,6 +564,46 @@
               }
             }
 
+            function locationErrorMessage(error) {
+              if (!error) {
+                return 'Location access failed. You can still move the map pin manually.';
+              }
+              if (error.code === 1) {
+                return 'Location access was blocked. Allow location permission in your browser and try again.';
+              }
+              if (error.code === 2) {
+                return 'Your live location could not be detected right now. Move to an open area and try again.';
+              }
+              if (error.code === 3) {
+                return 'Finding an exact GPS point took too long. Trying a faster location fix instead.';
+              }
+              return 'Location access failed. You can still move the map pin manually.';
+            }
+
+            function requestLiveLocation(onSuccess, onFailure) {
+              if (!navigator.geolocation) {
+                onFailure({ code: 0 });
+                return;
+              }
+
+              navigator.geolocation.getCurrentPosition(
+                onSuccess,
+                function (error) {
+                  if (error && error.code === 3) {
+                    setStatus(locationErrorMessage(error));
+                    navigator.geolocation.getCurrentPosition(
+                      onSuccess,
+                      onFailure,
+                      { enableHighAccuracy: false, timeout: 20000, maximumAge: 120000 }
+                    );
+                    return;
+                  }
+                  onFailure(error);
+                },
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+              );
+            }
+
             function readCoordinates() {
               return {
                 lat: Number(latInput.value || editor.getAttribute('data-default-lat') || '12.915300'),
@@ -709,7 +749,7 @@
                 currentButton.disabled = true;
                 currentButton.classList.add('is-loading');
                 setStatus('Detecting your live location...');
-                navigator.geolocation.getCurrentPosition(
+                requestLiveLocation(
                   function (position) {
                     syncPosition(
                       position.coords.latitude,
@@ -721,12 +761,11 @@
                     currentButton.disabled = false;
                     currentButton.classList.remove('is-loading');
                   },
-                  function () {
+                  function (error) {
                     currentButton.disabled = false;
                     currentButton.classList.remove('is-loading');
-                    setStatus('Location access failed. You can still move the map pin manually.');
-                  },
-                  { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+                    setStatus(locationErrorMessage(error));
+                  }
                 );
               });
             }

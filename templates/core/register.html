@@ -55,9 +55,19 @@
         <span class="soft-pill">{% if pending_google_auth %}3. Start workspace{% else %}3. Verify email OTP{% endif %}</span>
       </div>
 
+      <section class="auth-note-panel" data-register-location-panel>
+        <div>
+          <strong>Set current location first</strong>
+          <p data-register-location-status>Your live coordinates will be carried into the onboarding form after you choose a role.</p>
+        </div>
+        <div class="form-actions">
+          <button class="auth-secondary-button" type="button" data-register-location-button>Use Current Location</button>
+        </div>
+      </section>
+
       <div class="auth-role-grid">
         {% for card in role_cards %}
-          <a class="auth-role-choice{% if card.selected %} auth-role-choice-active{% endif %}" href="{{ card.url }}">
+          <a class="auth-role-choice{% if card.selected %} auth-role-choice-active{% endif %}" href="{{ card.url }}" data-register-role-link>
             <div class="split-row">
               <strong>{{ card.label }}</strong>
               {% if card.selected %}<span class="soft-pill">Selected</span>{% endif %}
@@ -76,4 +86,75 @@
       </form>
     </article>
   </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  {{ block.super }}
+  <script>
+    (function () {
+      var locationButton = document.querySelector('[data-register-location-button]');
+      var statusNode = document.querySelector('[data-register-location-status]');
+      var roleLinks = Array.prototype.slice.call(document.querySelectorAll('[data-register-role-link]'));
+      if (!locationButton || !roleLinks.length) {
+        return;
+      }
+
+      function setStatus(message) {
+        if (statusNode) {
+          statusNode.textContent = message;
+        }
+      }
+
+      function applyCoordinates(lat, lng) {
+        roleLinks.forEach(function (link) {
+          var url = new URL(link.href, window.location.origin);
+          url.searchParams.set('latitude', Number(lat).toFixed(6));
+          url.searchParams.set('longitude', Number(lng).toFixed(6));
+          link.href = url.toString();
+        });
+      }
+
+      locationButton.addEventListener('click', function () {
+        if (!navigator.geolocation) {
+          setStatus('Geolocation is not available in this browser.');
+          return;
+        }
+        locationButton.disabled = true;
+        locationButton.classList.add('is-loading');
+        setStatus('Capturing your live location...');
+
+        function finish() {
+          locationButton.disabled = false;
+          locationButton.classList.remove('is-loading');
+        }
+
+        function onSuccess(position) {
+          applyCoordinates(position.coords.latitude, position.coords.longitude);
+          setStatus('Current location captured. Choose any role and the onboarding form will open with these coordinates.');
+          finish();
+        }
+
+        function onFailure() {
+          setStatus('Location access failed. You can still choose a role and set the current location on the next screen.');
+          finish();
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          onSuccess,
+          function (error) {
+            if (error && error.code === 3) {
+              navigator.geolocation.getCurrentPosition(
+                onSuccess,
+                onFailure,
+                { enableHighAccuracy: false, timeout: 20000, maximumAge: 120000 }
+              );
+              return;
+            }
+            onFailure();
+          },
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+      });
+    })();
+  </script>
 {% endblock %}
