@@ -48,14 +48,104 @@
       <form method="post" class="stack">
         {% csrf_token %}
         <input type="hidden" name="action" value="update_profile" />
-        {{ profile_form.as_p }}
-        <div class="helper-actions">
-          <button class="button secondary" type="button" data-location-trigger>
-            <span class="ui-icon icon-locate-fixed" aria-hidden="true"></span>
-            <span>Use Current Location</span>
-          </button>
-          <span class="muted tiny" data-location-status>Refresh the customer location before checking nearby stores.</span>
+        <div class="auth-grid-two">
+          <div class="auth-field">
+            <label for="{{ profile_form.full_name.id_for_label }}">Full Name</label>
+            {{ profile_form.full_name }}
+            {% for error in profile_form.full_name.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+          </div>
+          <div class="auth-field">
+            <label for="{{ profile_form.email.id_for_label }}">Email Address</label>
+            {{ profile_form.email }}
+            {% for error in profile_form.email.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+          </div>
         </div>
+
+        <div class="auth-grid-two">
+          <div class="auth-field">
+            <label for="{{ profile_form.preferred_language.id_for_label }}">Preferred Language</label>
+            {{ profile_form.preferred_language }}
+            {% for error in profile_form.preferred_language.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+          </div>
+        </div>
+
+        <section class="location-editor-card" data-precise-location-editor data-maps-key="{{ google_maps_browser_api_key|default:'' }}" data-default-lat="{{ customer.latitude }}" data-default-lng="{{ customer.longitude }}">
+          <div class="split-row">
+            <div>
+              <span class="eyebrow">Precise Delivery Pin</span>
+              <h3 class="section-title">Use the map for an exact customer address</h3>
+            </div>
+            <div class="location-editor-toolbar">
+              <button class="button secondary" type="button" data-location-current>
+                <span class="ui-icon icon-locate-fixed" aria-hidden="true"></span>
+                <span>Use Current Location</span>
+              </button>
+              <a class="button secondary" href="https://www.google.com/maps/search/?api=1&query={{ customer.latitude }},{{ customer.longitude }}" target="_blank" rel="noreferrer" data-location-open-maps>
+                <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+                <span>Open Google Maps</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="hidden">
+            {{ profile_form.latitude }}
+            {{ profile_form.longitude }}
+          </div>
+
+          <div class="location-editor-status-row">
+            <span class="soft-pill">
+              <span class="ui-icon icon-map-pin" aria-hidden="true"></span>
+              <span data-location-coordinates>{{ customer.latitude }}, {{ customer.longitude }}</span>
+            </span>
+            <span class="muted tiny" data-location-status>Refresh the customer location before checking nearby stores, then drag the pin if you need a more exact address.</span>
+          </div>
+
+          <div class="location-editor-preview">
+            <strong class="location-editor-preview-main" data-location-preview-main>{% if address_summary %}{{ address_summary }}{% else %}Your saved address will appear here automatically.{% endif %}</strong>
+            <p class="location-editor-preview-sub" data-location-preview-sub>{% if location_heading %}{{ location_heading }}{% if location_subtitle %} • {{ location_subtitle }}{% endif %}{% else %}Move the pin or use current location to refresh the address line.{% endif %}</p>
+          </div>
+
+          <div class="location-editor-map-shell">
+            <div class="location-editor-map-canvas" data-location-map>
+              <div class="location-editor-map-fallback">
+                <div>
+                  <strong>Map loading</strong>
+                  <p>The draggable customer location pin will appear here when Google Maps is available.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="auth-grid-two">
+          <div class="auth-field">
+            <label for="{{ profile_form.address_line_1.id_for_label }}">Address Line 1</label>
+            {{ profile_form.address_line_1 }}
+            {% for error in profile_form.address_line_1.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+          </div>
+          <div class="auth-field">
+            <label for="{{ profile_form.address_line_2.id_for_label }}">Address Line 2</label>
+            {{ profile_form.address_line_2 }}
+            {% for error in profile_form.address_line_2.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+          </div>
+        </div>
+
+        <div class="auth-grid-two">
+          <div class="auth-field">
+            <label for="{{ profile_form.district.id_for_label }}">District</label>
+            {{ profile_form.district }}
+            {% for error in profile_form.district.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+          </div>
+          <div class="auth-field">
+            <label for="{{ profile_form.pincode.id_for_label }}">Pincode</label>
+            {{ profile_form.pincode }}
+            {% for error in profile_form.pincode.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+          </div>
+        </div>
+
+        {% for error in profile_form.latitude.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+        {% for error in profile_form.longitude.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+        {% for error in profile_form.non_field_errors %}<small class="field-error">{{ error }}</small>{% endfor %}
         <button class="button primary" type="submit">
           <span class="ui-icon icon-square-pen" aria-hidden="true"></span>
           <span>Save Customer Profile</span>

@@ -489,10 +489,19 @@ class ProductForm(forms.ModelForm, BaseStyledForm):
         return product
 
 
-class CustomerOrderMetaForm(forms.Form, BaseStyledForm):
+class CartDeliverySlotForm(forms.Form, BaseStyledForm):
     delivery_slot = forms.ChoiceField(choices=DeliverySlot.choices)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['delivery_slot'].initial = self.initial.get('delivery_slot', DEFAULT_DELIVERY_SLOT)
+        self._style_fields()
+
+
+class CheckoutDetailsForm(forms.Form, BaseStyledForm):
     payment_method = forms.ChoiceField(choices=PaymentMethod.choices)
-    customer_notes = forms.CharField(max_length=200, required=False)
+    delivery_address = forms.CharField(max_length=240, widget=forms.Textarea(attrs={'rows': 3}))
+    customer_notes = forms.CharField(max_length=200, required=False, widget=forms.Textarea(attrs={'rows': 2}))
 
     def __init__(self, *args, **kwargs):
         enable_razorpay = kwargs.pop('enable_razorpay', True)
@@ -501,9 +510,12 @@ class CustomerOrderMetaForm(forms.Form, BaseStyledForm):
             self.fields['payment_method'].choices = [
                 choice for choice in PaymentMethod.choices if choice[0] != PaymentMethod.RAZORPAY
             ]
-        self.fields['delivery_slot'].initial = self.initial.get('delivery_slot', DEFAULT_DELIVERY_SLOT)
         self.fields['payment_method'].initial = self.initial.get('payment_method', PaymentMethod.COD)
         self._style_fields()
+        self.fields['delivery_address'].label = 'Delivery address'
+        self.fields['delivery_address'].widget.attrs['placeholder'] = 'House, street, landmark, area, district, pincode'
+        self.fields['customer_notes'].label = 'Delivery notes'
+        self.fields['customer_notes'].widget.attrs['placeholder'] = 'Gate, landmark, or handoff note'
 
 
 class RatingForm(forms.ModelForm, BaseStyledForm):

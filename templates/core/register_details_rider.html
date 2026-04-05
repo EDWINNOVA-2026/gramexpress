@@ -125,26 +125,46 @@
         </section>
 
         <section class="auth-role-section auth-role-section-location">
-          <div class="auth-location-card">
-            <div>
-              <strong>Current location</strong>
-              <p>Capture your rider coordinates before we send the OTP.</p>
-            </div>
-            <button class="auth-link-button" type="button" data-location-trigger>Use Current Location</button>
+          <div class="auth-section-head">
+            <strong>Current location</strong>
+            <p>Capture your rider location, verify the exact dispatch address on the map, and keep the pin accurate before we send the OTP.</p>
           </div>
-          <div class="auth-grid-two">
-            <div class="auth-field">
-              <label for="{{ form.latitude.id_for_label }}">Latitude</label>
+          <div class="location-editor-card" data-precise-location-editor data-maps-key="{{ google_maps_browser_api_key|default:'' }}" data-default-lat="{{ form.latitude.value|default:'12.915300' }}" data-default-lng="{{ form.longitude.value|default:'76.643800' }}" data-location-autoload>
+            <div class="location-editor-toolbar">
+              <button class="auth-link-button" type="button" data-location-current>Use Current Location</button>
+              <a class="button secondary" href="https://www.google.com/maps/search/?api=1&query={{ form.latitude.value|default:'12.915300' }},{{ form.longitude.value|default:'76.643800' }}" target="_blank" rel="noreferrer" data-location-open-maps>
+                <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+                <span>Open Google Maps</span>
+              </a>
+            </div>
+            <div class="hidden">
               {{ form.latitude }}
-              {% for error in form.latitude.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
-            </div>
-            <div class="auth-field">
-              <label for="{{ form.longitude.id_for_label }}">Longitude</label>
               {{ form.longitude }}
-              {% for error in form.longitude.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+            <div class="location-editor-status-row">
+              <span class="soft-pill">
+                <span class="ui-icon icon-map-pin" aria-hidden="true"></span>
+                <span data-location-coordinates>{{ form.latitude.value|default:'12.915300' }}, {{ form.longitude.value|default:'76.643800' }}</span>
+              </span>
+              <small class="field-help" data-location-status>Move the pin or use current location to refresh the exact dispatch address automatically.</small>
+            </div>
+            <div class="location-editor-preview">
+              <strong class="location-editor-preview-main" data-location-preview-main>Fetching your rider dispatch address...</strong>
+              <p class="location-editor-preview-sub" data-location-preview-sub>Use the map pin to fine-tune the exact rider dispatch address.</p>
+            </div>
+            <div class="location-editor-map-shell">
+              <div class="location-editor-map-canvas" data-location-map>
+                <div class="location-editor-map-fallback">
+                  <div>
+                    <strong>Map loading</strong>
+                    <p>The draggable rider location pin will appear here when Google Maps is available.</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          <small class="field-help" data-location-status>Location coordinates will stay here after capture.</small>
+          {% for error in form.latitude.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+          {% for error in form.longitude.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
         </section>
 
         {% for error in form.non_field_errors %}<small class="field-error">{{ error }}</small>{% endfor %}

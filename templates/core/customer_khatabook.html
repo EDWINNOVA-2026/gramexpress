@@ -106,6 +106,51 @@
 
       <div class="stack">
         <article class="card" data-appear>
+          <span class="eyebrow">Credit Boost</span>
+          <h2 class="section-title">Increase your KhataBook line</h2>
+          <p>Every customer starts with Rs. {{ khatabook_free_plan.credit_limit }} credit. Repay within 7 days or when the full line is used, whichever comes first.</p>
+          <div class="summary-grid">
+            <div class="metric-card checkout-summary-card">
+              <span class="metric-label">Current line</span>
+              <strong class="metric-value">Rs. {{ khatabook_balance.plan.credit_limit }}</strong>
+              <p>{{ khatabook_balance.plan.name }}</p>
+            </div>
+            <div class="metric-card checkout-summary-card">
+              <span class="metric-label">Available now</span>
+              <strong class="metric-value">Rs. {{ khatabook_balance.available_credit }}</strong>
+              <p>Open due Rs. {{ khatabook_balance.open_balance }}</p>
+            </div>
+            <div class="metric-card checkout-summary-card">
+              <span class="metric-label">Next repayment</span>
+              <strong class="metric-value">{{ khatabook_balance.next_due_date|date:"M d" }}</strong>
+              <p>Earlier of 7 days or full usage</p>
+            </div>
+          </div>
+          <div class="stack">
+            {% for option in khatabook_plan_options %}
+              <div class="compact-item">
+                <div class="split-row">
+                  <div>
+                    <strong>{{ option.name }}</strong>
+                    <p>Credit up to Rs. {{ option.credit_limit }} | Fee Rs. {{ option.subscription_fee }}</p>
+                  </div>
+                  {% if option.is_current %}
+                    <span class="status-chip success">Current plan</span>
+                  {% elif option.checkout %}
+                    <button class="button primary small" type="button" data-khatabook-plan-button data-plan="{{ option.code }}">
+                      Activate With Razorpay
+                    </button>
+                  {% else %}
+                    <span class="soft-pill">Unavailable</span>
+                  {% endif %}
+                </div>
+                <p class="utility-note">Razorpay only. COD is not available for plan activation.</p>
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+
+        <article class="card" data-appear>
           <span class="eyebrow">Repay Now</span>
           <h2 class="section-title">Choose how to settle this week</h2>
           {% if khatabook_collection_request %}
@@ -175,51 +220,110 @@
 
   {% if khatabook_razorpay_checkout %}
     {{ khatabook_razorpay_checkout|json_script:"khatabook-razorpay-options" }}
+  {% endif %}
+  {% if khatabook_subscription_checkout_map %}
+    {{ khatabook_subscription_checkout_map|json_script:"khatabook-subscription-razorpay-options" }}
+  {% endif %}
+  {% if khatabook_razorpay_checkout or khatabook_subscription_checkout_map %}
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <script>
       (function () {
         var payButton = document.getElementById('khatabook-razorpay-button');
         var optionsNode = document.getElementById('khatabook-razorpay-options');
-        if (!payButton || !optionsNode || !window.Razorpay) {
+        if (!window.Razorpay) {
           return;
         }
 
-        var options = JSON.parse(optionsNode.textContent);
-        options.handler = function (response) {
-          var form = document.createElement('form');
-          form.method = 'post';
-          form.action = '{% url "core:customer_khatabook_razorpay_complete" %}';
-          form.innerHTML = '<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">' +
-            '<input type="hidden" name="khatabook_cycle_id" value="' + (options.khatabook_cycle_id || '') + '">' +
-            '<input type="hidden" name="razorpay_payment_id" value="' + (response.razorpay_payment_id || '') + '">' +
-            '<input type="hidden" name="razorpay_order_id" value="' + (response.razorpay_order_id || '') + '">' +
-            '<input type="hidden" name="razorpay_signature" value="' + (response.razorpay_signature || '') + '">';
-          document.body.appendChild(form);
-          form.submit();
-        };
-        options.modal = {
-          ondismiss: function () {
-            payButton.disabled = false;
-          }
-        };
+        if (payButton && optionsNode) {
+          var options = JSON.parse(optionsNode.textContent);
+          options.handler = function (response) {
+            var form = document.createElement('form');
+            form.method = 'post';
+            form.action = '{% url "core:customer_khatabook_razorpay_complete" %}';
+            form.innerHTML = '<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">' +
+              '<input type="hidden" name="khatabook_cycle_id" value="' + (options.khatabook_cycle_id || '') + '">' +
+              '<input type="hidden" name="razorpay_payment_id" value="' + (response.razorpay_payment_id || '') + '">' +
+              '<input type="hidden" name="razorpay_order_id" value="' + (response.razorpay_order_id || '') + '">' +
+              '<input type="hidden" name="razorpay_signature" value="' + (response.razorpay_signature || '') + '">';
+            document.body.appendChild(form);
+            form.submit();
+          };
+          options.modal = {
+            ondismiss: function () {
+              payButton.disabled = false;
+            }
+          };
 
-        var razorpayCheckout = new window.Razorpay(options);
-        razorpayCheckout.on('payment.failed', function (response) {
-          var error = (response && response.error) || {};
-          var form = document.createElement('form');
-          form.method = 'post';
-          form.action = '{% url "core:customer_khatabook_razorpay_failed" %}';
-          form.innerHTML = '<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">' +
-            '<input type="hidden" name="khatabook_cycle_id" value="' + (options.khatabook_cycle_id || '') + '">' +
-            '<input type="hidden" name="error_description" value="' + (error.description || 'The KhataBook UPI payment was not completed.') + '">' +
-            '<input type="hidden" name="error_reason" value="' + (error.reason || '') + '">';
-          document.body.appendChild(form);
-          form.submit();
-        });
+          var razorpayCheckout = new window.Razorpay(options);
+          razorpayCheckout.on('payment.failed', function (response) {
+            var error = (response && response.error) || {};
+            var form = document.createElement('form');
+            form.method = 'post';
+            form.action = '{% url "core:customer_khatabook_razorpay_failed" %}';
+            form.innerHTML = '<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">' +
+              '<input type="hidden" name="khatabook_cycle_id" value="' + (options.khatabook_cycle_id || '') + '">' +
+              '<input type="hidden" name="error_description" value="' + (error.description || 'The KhataBook UPI payment was not completed.') + '">' +
+              '<input type="hidden" name="error_reason" value="' + (error.reason || '') + '">';
+            document.body.appendChild(form);
+            form.submit();
+          });
 
-        payButton.addEventListener('click', function () {
-          payButton.disabled = true;
-          razorpayCheckout.open();
+          payButton.addEventListener('click', function () {
+            payButton.disabled = true;
+            razorpayCheckout.open();
+          });
+        }
+
+        var subscriptionOptionsNode = document.getElementById('khatabook-subscription-razorpay-options');
+        if (!subscriptionOptionsNode) {
+          return;
+        }
+
+        var subscriptionOptions = JSON.parse(subscriptionOptionsNode.textContent);
+        var subscriptionButtons = document.querySelectorAll('[data-khatabook-plan-button]');
+        subscriptionButtons.forEach(function (button) {
+          button.addEventListener('click', function () {
+            var planCode = button.getAttribute('data-plan');
+            var planOptions = subscriptionOptions[planCode];
+            if (!planOptions) {
+              return;
+            }
+
+            planOptions.handler = function (response) {
+              var form = document.createElement('form');
+              form.method = 'post';
+              form.action = '{% url "core:customer_khatabook_subscription_complete" %}';
+              form.innerHTML = '<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">' +
+                '<input type="hidden" name="purchase_id" value="' + (planOptions.khatabook_subscription_purchase_id || '') + '">' +
+                '<input type="hidden" name="razorpay_payment_id" value="' + (response.razorpay_payment_id || '') + '">' +
+                '<input type="hidden" name="razorpay_order_id" value="' + (response.razorpay_order_id || '') + '">' +
+                '<input type="hidden" name="razorpay_signature" value="' + (response.razorpay_signature || '') + '">';
+              document.body.appendChild(form);
+              form.submit();
+            };
+            planOptions.modal = {
+              ondismiss: function () {
+                button.disabled = false;
+              }
+            };
+
+            var planCheckout = new window.Razorpay(planOptions);
+            planCheckout.on('payment.failed', function (response) {
+              var error = (response && response.error) || {};
+              var form = document.createElement('form');
+              form.method = 'post';
+              form.action = '{% url "core:customer_khatabook_subscription_failed" %}';
+              form.innerHTML = '<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">' +
+                '<input type="hidden" name="purchase_id" value="' + (planOptions.khatabook_subscription_purchase_id || '') + '">' +
+                '<input type="hidden" name="error_description" value="' + (error.description || 'The KhataBook subscription payment was not completed.') + '">' +
+                '<input type="hidden" name="error_reason" value="' + (error.reason || '') + '">';
+              document.body.appendChild(form);
+              form.submit();
+            });
+
+            button.disabled = true;
+            planCheckout.open();
+          });
         });
       })();
     </script>

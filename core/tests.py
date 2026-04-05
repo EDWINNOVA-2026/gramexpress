@@ -23,10 +23,13 @@ from .models import (
     CustomerProfile,
     DeliverySlot,
     DeliverySlotSetting,
+    KhataBookPlan,
     KhataBookCollectionRequest,
     KhataBookCollectionStatus,
     KhataBookCycle,
     KhataBookCycleStatus,
+    KhataBookSubscriptionPurchase,
+    KhataBookSubscriptionStatus,
     KhataBookSettlementMethod,
     Notification,
     NotificationType,
@@ -190,6 +193,14 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, 'Confirm Location')
         self.assertContains(response, 'State')
 
+    def test_register_details_customer_shows_precise_location_editor(self):
+        response = self.client.get(f'{reverse("core:register_details")}?account_type={RoleType.CUSTOMER}')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Open Google Maps')
+        self.assertContains(response, 'Your live address will appear here automatically.')
+        self.assertContains(response, 'Move the pin or use current location to refresh the address line automatically.')
+
     def test_register_details_rider_shows_live_photo_capture_controls(self):
         response = self.client.get(f'{reverse("core:register_details")}?account_type={RoleType.RIDER}')
 
@@ -198,6 +209,8 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, 'Open Front Camera')
         self.assertContains(response, 'Capture')
         self.assertContains(response, 'Save selfie')
+        self.assertContains(response, 'Open Google Maps')
+        self.assertContains(response, 'Fetching your rider dispatch address...')
         self.assertNotContains(response, 'data-rider-photo-file', html=False)
 
     def test_root_renders_landing_page_for_anonymous_users(self):
@@ -428,23 +441,27 @@ class CoreFlowTests(TestCase):
         add_response = self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '2'})
         self.assertEqual(add_response.status_code, 302)
 
-        review_response = self.client.post(
+        cart_response = self.client.post(
             reverse('core:customer_checkout'),
             {
-                'action': 'review',
+                'action': 'setup',
                 'delivery_slot': DeliverySlot.PRIORITY,
-                'payment_method': 'cod',
-                'customer_notes': 'Leave at gate',
             },
             follow=True,
         )
-        self.assertEqual(review_response.status_code, 200)
-        self.assertContains(review_response, 'Review your order')
-        self.assertContains(review_response, 'Priority Delivery')
+        self.assertEqual(cart_response.status_code, 200)
+        self.assertContains(cart_response, 'Finish address and payment details')
+        self.assertContains(cart_response, 'Priority Delivery')
 
+        custom_address = '22 Residency Road, Near Clock Tower, Mandya 571401'
         checkout_response = self.client.post(
             reverse('core:customer_checkout'),
-            {'action': 'confirm'},
+            {
+                'action': 'confirm',
+                'payment_method': PaymentMethod.COD,
+                'customer_notes': 'Leave at gate',
+                'delivery_address': custom_address,
+            },
             follow=True,
         )
         self.assertEqual(checkout_response.status_code, 200)
@@ -457,6 +474,8 @@ class CoreFlowTests(TestCase):
         self.assertEqual(order.status, OrderStatus.CONFIRMED)
         self.assertEqual(order.delivery_slot, DeliverySlot.PRIORITY)
         self.assertEqual(order.delivery_fee, Decimal('20.00'))
+        self.assertEqual(order.delivery_address, custom_address)
+        self.assertEqual(order.customer_notes, 'Leave at gate')
         self.assertAlmostEqual((order.delivery_deadline - order.created_at).total_seconds(), 40 * 60, delta=5)
         self.assertEqual(order.items.get().quantity, 2)
         self.product.refresh_from_db()
@@ -471,19 +490,22 @@ class CoreFlowTests(TestCase):
         review_response = self.client.post(
             reverse('core:customer_checkout'),
             {
-                'action': 'review',
+                'action': 'setup',
                 'delivery_slot': DeliverySlot.BUDGET,
-                'payment_method': 'khata',
-                'customer_notes': 'Add to weekly credit',
             },
             follow=True,
         )
         self.assertEqual(review_response.status_code, 200)
-        self.assertContains(review_response, 'Added to KhataBook')
+        self.assertContains(review_response, 'Finish address and payment details')
 
         checkout_response = self.client.post(
             reverse('core:customer_checkout'),
-            {'action': 'confirm'},
+            {
+                'action': 'confirm',
+                'payment_method': PaymentMethod.KHATABOOK,
+                'customer_notes': 'Add to weekly credit',
+                'delivery_address': '1 MG Road, Mandya 571401',
+            },
             follow=True,
         )
         self.assertEqual(checkout_response.status_code, 200)
@@ -500,6 +522,87 @@ class CoreFlowTests(TestCase):
         self.assertEqual(cycle.total_amount, order.total_amount)
         self.assertEqual(cycle.status, KhataBookCycleStatus.OPEN)
 
+    def test_customer_khatabook_checkout_blocks_when_credit_limit_is_exhausted(self):
+        cycle = KhataBookCycle.objects.create(
+            customer=self.customer,
+            week_start=timezone.localdate(),
+            due_date=timezone.localdate() + timedelta(days=4),
+            total_amount=Decimal('980.00'),
+        )
+        Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            khata_cycle=cycle,
+            status=OrderStatus.CONFIRMED,
+            payment_method=PaymentMethod.KHATABOOK,
+            payment_status=PaymentStatus.PENDING,
+            total_amount=Decimal('980.00'),
+            delivery_fee=Decimal('0.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            credit_due_date=cycle.due_date,
+        )
+        self.client.force_login(self.customer_user)
+        self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '1'})
+        self.client.post(
+            reverse('core:customer_checkout'),
+            {
+                'action': 'setup',
+                'delivery_slot': DeliverySlot.BUDGET,
+            },
+        )
+        existing_khata_orders = Order.objects.filter(payment_method=PaymentMethod.KHATABOOK).count()
+
+        response = self.client.post(
+            reverse('core:customer_checkout'),
+            {
+                'action': 'confirm',
+                'payment_method': PaymentMethod.KHATABOOK,
+                'customer_notes': 'Use credit',
+                'delivery_address': '1 MG Road, Mandya 571401',
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'KhataBook limit is Rs. 1000.00.')
+        self.assertEqual(Order.objects.filter(payment_method=PaymentMethod.KHATABOOK).count(), existing_khata_orders)
+
+    def test_customer_order_create_api_blocks_khatabook_when_credit_limit_is_exhausted(self):
+        cycle = KhataBookCycle.objects.create(
+            customer=self.customer,
+            week_start=timezone.localdate(),
+            due_date=timezone.localdate() + timedelta(days=4),
+            total_amount=Decimal('980.00'),
+        )
+        Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            khata_cycle=cycle,
+            status=OrderStatus.CONFIRMED,
+            payment_method=PaymentMethod.KHATABOOK,
+            payment_status=PaymentStatus.PENDING,
+            total_amount=Decimal('980.00'),
+            delivery_fee=Decimal('0.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            credit_due_date=cycle.due_date,
+        )
+        self.client.force_login(self.customer_user)
+        self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '1'})
+
+        response = self.client.post(
+            reverse('core:api_orders_create'),
+            data=json.dumps(
+                {
+                    'delivery_slot': DeliverySlot.BUDGET,
+                    'payment_method': PaymentMethod.KHATABOOK,
+                }
+            ),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('KhataBook limit is Rs. 1000.00.', response.json()['error'])
+
     def test_customer_cart_shows_delivery_slot_options(self):
         self.client.force_login(self.customer_user)
         self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '1'})
@@ -507,11 +610,11 @@ class CoreFlowTests(TestCase):
         response = self.client.get(reverse('core:customer_cart'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Choose Delivery Speed')
+        self.assertContains(response, 'Choose delivery speed here')
         self.assertContains(response, 'Priority Delivery')
         self.assertContains(response, 'Eco Delivery')
-        self.assertContains(response, 'Saver Delivery')
-        self.assertContains(response, 'Next Day')
+        self.assertEqual(len(response.context['delivery_slot_options']), 4)
+        self.assertContains(response, 'Move To Checkout')
 
     def test_customer_cart_uses_admin_delivery_slot_fee_overrides(self):
         DeliverySlotSetting.objects.update_or_create(
@@ -557,16 +660,19 @@ class CoreFlowTests(TestCase):
         self.client.post(
             reverse('core:customer_checkout'),
             {
-                'action': 'review',
+                'action': 'setup',
                 'delivery_slot': DeliverySlot.PRIORITY,
-                'payment_method': PaymentMethod.COD,
-                'customer_notes': 'Ring the bell',
             },
             follow=True,
         )
         self.client.post(
             reverse('core:customer_checkout'),
-            {'action': 'confirm'},
+            {
+                'action': 'confirm',
+                'payment_method': PaymentMethod.COD,
+                'customer_notes': 'Ring the bell',
+                'delivery_address': '1 MG Road, Mandya 571401',
+            },
             follow=True,
         )
 
@@ -690,6 +796,8 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, 'Use a live front-camera selfie only.')
         self.assertContains(response, 'Open Front Camera')
         self.assertContains(response, 'Save selfie')
+        self.assertContains(response, 'Use the map for an exact dispatch point')
+        self.assertContains(response, 'Open Google Maps')
         self.assertNotContains(response, 'data-rider-photo-file', html=False)
 
     def test_rider_profile_api_returns_photo_payload(self):
@@ -716,16 +824,32 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, 'Only 1 unit(s) are available right now.')
 
     @override_settings(RAZORPAY_KEY_ID='rzp_test_123', RAZORPAY_KEY_SECRET='secret_123')
-    def test_customer_cart_shows_payment_buttons(self):
+    def test_customer_cart_moves_payment_choices_to_checkout_page(self):
         self.client.force_login(self.customer_user)
         self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '1'})
 
-        response = self.client.get(reverse('core:customer_cart'))
+        cart_response = self.client.get(reverse('core:customer_cart'))
+        checkout_response = self.client.post(
+            reverse('core:customer_checkout'),
+            {
+                'action': 'setup',
+                'delivery_slot': DeliverySlot.ECO,
+            },
+            follow=True,
+        )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'RazorPay')
-        self.assertContains(response, 'KhataBook')
-        self.assertContains(response, 'Cash/UPI on delivery')
+        self.assertEqual(cart_response.status_code, 200)
+        self.assertNotContains(cart_response, 'Choose how you want to complete this order.')
+        self.assertNotContains(cart_response, 'Pay online before dispatch.')
+        self.assertNotContains(cart_response, 'Pay the rider at handoff.')
+        self.assertContains(cart_response, 'Move To Checkout')
+
+        self.assertEqual(checkout_response.status_code, 200)
+        self.assertContains(checkout_response, 'Address, notes, and payment')
+        self.assertContains(checkout_response, 'Razorpay')
+        self.assertContains(checkout_response, 'KhataBook')
+        self.assertContains(checkout_response, 'Cash / UPI on delivery')
+        self.assertContains(checkout_response, 'Delivery address')
 
     def test_customer_can_update_cart_quantity_inline(self):
         self.client.force_login(self.customer_user)
@@ -753,6 +877,8 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.shop.name)
         self.assertContains(response, self.product.name)
+        self.assertContains(response, 'Back To Stores')
+        self.assertNotContains(response, 'Open Cart')
 
     def test_hidden_product_is_not_shown_on_customer_storefront(self):
         hidden_product = Product.objects.create(
@@ -786,6 +912,8 @@ class CoreFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Location needed before we show stores')
+        self.assertContains(response, 'Save Exact Location')
+        self.assertContains(response, 'Open Google Maps')
         self.assertNotContains(response, self.shop.name)
 
     def test_customer_can_update_location_from_dashboard(self):
@@ -837,6 +965,16 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '4.0')
         self.assertContains(response, '1 rating')
+
+    def test_customer_profile_shows_precise_location_editor(self):
+        self.client.force_login(self.customer_user)
+
+        response = self.client.get(reverse('core:customer_profile'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Use the map for an exact customer address')
+        self.assertContains(response, 'Open Google Maps')
+        self.assertContains(response, 'Address Line 1')
 
     @override_settings(GOOGLE_MAPS_BROWSER_API_KEY='')
     def test_reverse_geocode_location_uses_openstreetmap_fallback_without_google_key(self):
@@ -1642,6 +1780,16 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, 'You can receive new orders')
         self.assertContains(response, reverse('core:rider_toggle_availability'))
 
+    def test_rider_dashboard_shows_precise_dispatch_map_editor(self):
+        self.client.force_login(self.rider_user)
+
+        response = self.client.get(reverse('core:rider_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Confirm Dispatch Location')
+        self.assertContains(response, 'Open Google Maps')
+        self.assertContains(response, 'Fetching your current dispatch address...')
+
     def test_rider_location_update_can_return_to_dashboard(self):
         self.client.force_login(self.rider_user)
 
@@ -1905,6 +2053,74 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, 'Track your weekly credit clearly')
         self.assertContains(response, khata_order.display_id)
         self.assertContains(response, 'Request COD / UPI Collection')
+
+    @override_settings(RAZORPAY_KEY_ID='rzp_test_123', RAZORPAY_KEY_SECRET='secret_123')
+    def test_customer_khatabook_page_shows_credit_boost_options(self):
+        self.client.force_login(self.customer_user)
+
+        def fake_create_subscription_order(purchase):
+            purchase.razorpay_order_id = f'order_plan_{purchase.id}'
+            purchase.save(update_fields=['razorpay_order_id', 'updated_at'])
+            return {'id': purchase.razorpay_order_id}
+
+        with patch('core.views.create_razorpay_order_for_khatabook_subscription_purchase', side_effect=fake_create_subscription_order):
+            response = self.client.get(reverse('core:customer_khatabook'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Increase your KhataBook line')
+        self.assertContains(response, 'Credit up to Rs. 3000.00 | Fee Rs. 60.00')
+        self.assertContains(response, 'Credit up to Rs. 5000.00 | Fee Rs. 80.00')
+        self.assertContains(response, 'Razorpay only. COD is not available for plan activation.')
+
+    @override_settings(RAZORPAY_KEY_ID='rzp_test_123', RAZORPAY_KEY_SECRET='secret_123')
+    def test_customer_can_activate_khatabook_credit_boost_with_razorpay(self):
+        purchase = KhataBookSubscriptionPurchase.objects.create(
+            customer=self.customer,
+            tier=KhataBookPlan.BOOST_3000,
+            credit_limit=Decimal('3000.00'),
+            subscription_fee=Decimal('60.00'),
+            status=KhataBookSubscriptionStatus.PENDING,
+            razorpay_order_id='order_plan_123',
+        )
+        self.client.force_login(self.customer_user)
+        signature = hmac.new(
+            b'secret_123',
+            b'order_plan_123|pay_plan_123',
+            hashlib.sha256,
+        ).hexdigest()
+
+        with patch(
+            'core.views.fetch_razorpay_payment',
+            return_value={'id': 'pay_plan_123', 'order_id': 'order_plan_123', 'amount': 6000, 'status': 'captured'},
+        ), patch(
+            'core.views.fetch_razorpay_order',
+            return_value={'id': 'order_plan_123', 'amount': 6000},
+        ):
+            response = self.client.post(
+                reverse('core:customer_khatabook_subscription_complete'),
+                {
+                    'purchase_id': purchase.id,
+                    'razorpay_payment_id': 'pay_plan_123',
+                    'razorpay_order_id': 'order_plan_123',
+                    'razorpay_signature': signature,
+                },
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'KhataBook credit boost activated.')
+        purchase.refresh_from_db()
+        self.customer.refresh_from_db()
+        self.assertEqual(purchase.status, KhataBookSubscriptionStatus.ACTIVE)
+        self.assertEqual(self.customer.khatabook_plan, KhataBookPlan.BOOST_3000)
+        self.assertEqual(self.customer.khatabook_credit_limit, Decimal('3000.00'))
+        self.assertTrue(
+            Notification.objects.filter(
+                customer=self.customer,
+                title='KhataBook credit boost active',
+                notification_type=NotificationType.PAYMENT,
+            ).exists()
+        )
 
     def test_customer_dashboard_shows_khatabook_default_warning(self):
         overdue_cycle = KhataBookCycle.objects.create(
@@ -2217,16 +2433,19 @@ class CoreFlowTests(TestCase):
         self.client.post(
             reverse('core:customer_checkout'),
             {
-                'action': 'review',
+                'action': 'setup',
                 'delivery_slot': DeliverySlot.ECO,
-                'payment_method': 'cod',
-                'customer_notes': 'Ring the bell',
             },
             follow=True,
         )
         self.client.post(
             reverse('core:customer_checkout'),
-            {'action': 'confirm'},
+            {
+                'action': 'confirm',
+                'payment_method': PaymentMethod.COD,
+                'customer_notes': 'Ring the bell',
+                'delivery_address': '1 MG Road, Mandya 571401',
+            },
             follow=True,
         )
 
@@ -2262,16 +2481,23 @@ class CoreFlowTests(TestCase):
             self.client.post(
                 reverse('core:customer_checkout'),
                 {
-                    'action': 'review',
+                    'action': 'setup',
                     'delivery_slot': DeliverySlot.COST_SAVER,
+                },
+            )
+            self.client.post(
+                reverse('core:customer_checkout'),
+                {
+                    'action': 'confirm',
                     'payment_method': 'razorpay',
                     'customer_notes': 'Leave at gate',
+                    'delivery_address': '1 MG Road, Mandya 571401',
                 },
             )
             review_response = self.client.get(reverse('core:customer_checkout'))
 
         self.assertEqual(review_response.status_code, 200)
-        self.assertContains(review_response, 'Pay Rs.')
+        self.assertContains(review_response, 'Continue To Razorpay')
 
         checkout_session = CheckoutSession.objects.latest('id')
         signature = hmac.new(

@@ -1039,7 +1039,7 @@
   }
 
   .customer-home-location-card-actions {
-    @apply flex flex-wrap items-center gap-3;
+    @apply grid justify-start gap-3;
   }
 
   .mission-card,
@@ -1756,6 +1756,50 @@
     background:
       linear-gradient(135deg, rgba(11, 95, 255, 0.08), rgba(255, 255, 255, 0.85)),
       radial-gradient(circle at 20% 20%, rgba(14, 165, 233, 0.12), transparent 25%);
+  }
+
+  .location-editor-card {
+    @apply grid gap-4 rounded-[1.75rem] border border-slate-200 bg-slate-50/80 p-4 shadow-soft;
+  }
+
+  .location-editor-toolbar {
+    @apply flex flex-wrap gap-3;
+  }
+
+  .location-editor-status-row {
+    @apply flex flex-wrap items-center gap-3;
+  }
+
+  .location-editor-preview {
+    @apply grid gap-2 rounded-[1.5rem] border border-slate-200 bg-white/90 p-4 shadow-soft;
+  }
+
+  .location-editor-preview-main {
+    @apply text-base font-semibold text-slate-900;
+  }
+
+  .location-editor-preview-sub {
+    @apply text-sm text-slate-500;
+  }
+
+  .location-editor-link {
+    @apply inline-flex w-max items-center gap-2 text-sm font-semibold text-emerald-700 transition hover:text-emerald-800;
+  }
+
+  .location-editor-map-shell {
+    @apply grid gap-3;
+  }
+
+  .location-editor-map-canvas {
+    @apply relative overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-100 shadow-soft;
+    min-height: 21rem;
+  }
+
+  .location-editor-map-fallback {
+    @apply grid h-full min-h-[21rem] place-items-center gap-2 px-6 text-center text-slate-600;
+    background:
+      linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(255, 255, 255, 0.9)),
+      radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.12), transparent 25%);
   }
 
   .shop-settings-location-guidance {
@@ -2564,7 +2608,7 @@
   }
 
   .customer-home-location-card {
-    @apply md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-center;
+    @apply grid gap-4;
   }
 
   .customer-home-location-card-copy,
@@ -2586,7 +2630,7 @@
   }
 
   .customer-home-card-badges {
-    @apply absolute left-3 top-3 flex flex-wrap gap-2;
+    @apply flex flex-wrap gap-2;
   }
 
   .customer-home-card-offer {

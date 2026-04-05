@@ -33,9 +33,10 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from .forms import (
+    CartDeliverySlotForm,
+    CheckoutDetailsForm,
     CustomerOnboardingForm,
     CustomerLocationForm,
-    CustomerOrderMetaForm,
     CustomerProfileForm,
     EmailOtpRequestForm,
     EmailOtpVerifyForm,
@@ -65,7 +66,11 @@ from .models import (
     KhataBookCollectionStatus,
     KhataBookCycle,
     KhataBookCycleStatus,
+    KhataBookPlan,
     KhataBookSettlementMethod,
+    KhataBookSubscriptionPurchase,
+    KhataBookSubscriptionStatus,
+    KHATABOOK_PLAN_RULES,
     Notification,
     NotificationType,
     Order,
@@ -2101,6 +2106,72 @@ def get_or_create_khatabook_cycle(*, customer: CustomerProfile, reference_date: 
     return refresh_khatabook_cycle(cycle)
 
 
+def khatabook_plan_config(plan_code: str | None) -> dict[str, Any]:
+    normalized_code = plan_code if plan_code in KHATABOOK_PLAN_RULES else KhataBookPlan.FREE
+    plan = KHATABOOK_PLAN_RULES[normalized_code]
+    return {
+        'code': normalized_code,
+        'name': plan['name'],
+        'credit_limit': quantize_money(Decimal(plan['credit_limit'])),
+        'subscription_fee': quantize_money(Decimal(plan['subscription_fee'])),
+        'tag': plan['tag'],
+    }
+
+
+def current_customer_khatabook_plan(customer: CustomerProfile) -> dict[str, Any]:
+    plan = khatabook_plan_config(customer.khatabook_plan)
+    if customer.khatabook_credit_limit and customer.khatabook_credit_limit > Decimal('0.00'):
+        plan['credit_limit'] = quantize_money(customer.khatabook_credit_limit)
+    plan['paid_at'] = customer.khatabook_subscription_paid_at
+    return plan
+
+
+def customer_khatabook_balance_state(customer: CustomerProfile) -> dict[str, Any]:
+    today = timezone.localdate()
+    open_cycles = []
+    open_balance = Decimal('0.00')
+    overdue_balance = Decimal('0.00')
+    for cycle in customer.khatabook_cycles.all().order_by('-week_start'):
+        cycle = refresh_khatabook_cycle(cycle)
+        if cycle.outstanding_amount <= Decimal('0.00'):
+            continue
+        open_cycles.append(cycle)
+        open_balance += cycle.outstanding_amount
+        if cycle.due_date < today:
+            overdue_balance += cycle.outstanding_amount
+
+    plan = current_customer_khatabook_plan(customer)
+    open_balance = quantize_money(open_balance)
+    overdue_balance = quantize_money(overdue_balance)
+    available_credit = quantize_money(plan['credit_limit'] - open_balance)
+    if available_credit < Decimal('0.00'):
+        available_credit = Decimal('0.00')
+    next_due_date = min((cycle.due_date for cycle in open_cycles), default=next_monday(today))
+    return {
+        'plan': plan,
+        'open_cycles': open_cycles,
+        'open_balance': open_balance,
+        'overdue_balance': overdue_balance,
+        'available_credit': available_credit,
+        'has_overdue': overdue_balance > Decimal('0.00'),
+        'next_due_date': next_due_date,
+    }
+
+
+def validate_customer_khatabook_checkout(*, customer: CustomerProfile, projected_amount: Decimal) -> dict[str, Any]:
+    balance = customer_khatabook_balance_state(customer)
+    if balance['has_overdue']:
+        raise CheckoutValidationError('Clear your overdue KhataBook due before using more credit.')
+    projected_balance = quantize_money(balance['open_balance'] + projected_amount)
+    if projected_balance > balance['plan']['credit_limit']:
+        raise CheckoutValidationError(
+            f'KhataBook limit is Rs. {balance["plan"]["credit_limit"]}. '
+            f'Available credit is Rs. {balance["available_credit"]}. Pay pending due or upgrade the credit plan first.'
+        )
+    balance['projected_balance'] = projected_balance
+    return balance
+
+
 def mark_khatabook_cycle_paid(
     cycle: KhataBookCycle,
     *,
@@ -2878,7 +2949,7 @@ def enrich_khatabook_collection_request(
 def build_checkout_session_payload(*, customer: CustomerProfile, cart: dict[str, Any], checkout_data: dict[str, str]) -> dict[str, Any]:
     delivery_slot = normalize_delivery_slot(checkout_data.get('delivery_slot', DEFAULT_DELIVERY_SLOT))
     snapshot = build_cart_snapshot(cart, delivery_slot=delivery_slot)
-    delivery_address = build_delivery_address(customer)
+    delivery_address = str(checkout_data.get('delivery_address') or build_delivery_address(customer)).strip()
     payment_method = checkout_data.get('payment_method', PaymentMethod.COD)
     customer_notes = checkout_data.get('customer_notes', '')
     amount = sum(Decimal(group['total']) for group in snapshot['groups']) if snapshot['groups'] else Decimal('0.00')
@@ -2900,11 +2971,19 @@ def build_checkout_session_payload(*, customer: CustomerProfile, cart: dict[str,
     }
 
 
-def save_pending_checkout(request: HttpRequest, *, payment_method: str, customer_notes: str, delivery_slot: str) -> None:
+def save_pending_checkout(
+    request: HttpRequest,
+    *,
+    payment_method: str,
+    customer_notes: str,
+    delivery_slot: str,
+    delivery_address: str,
+) -> None:
     request.session[PENDING_CHECKOUT_SESSION_KEY] = {
         'delivery_slot': normalize_delivery_slot(delivery_slot),
         'payment_method': payment_method,
         'customer_notes': customer_notes,
+        'delivery_address': delivery_address.strip(),
     }
     request.session.modified = True
 
@@ -3019,6 +3098,57 @@ def create_razorpay_order_for_khatabook_cycle(cycle: KhataBookCycle) -> dict[str
     cycle.razorpay_order_id = razorpay_order.get('id', '')
     cycle.failure_reason = ''
     cycle.save(update_fields=['razorpay_order_id', 'failure_reason', 'updated_at'])
+    return razorpay_order
+
+
+def get_or_create_pending_khatabook_subscription_purchase(
+    *,
+    customer: CustomerProfile,
+    tier: str,
+) -> KhataBookSubscriptionPurchase:
+    plan = khatabook_plan_config(tier)
+    purchase = (
+        customer.khatabook_subscription_purchases.filter(
+            tier=tier,
+            status=KhataBookSubscriptionStatus.PENDING,
+        )
+        .order_by('-created_at')
+        .first()
+    )
+    if purchase:
+        if purchase.subscription_fee != plan['subscription_fee'] or purchase.credit_limit != plan['credit_limit']:
+            purchase.subscription_fee = plan['subscription_fee']
+            purchase.credit_limit = plan['credit_limit']
+            purchase.save(update_fields=['subscription_fee', 'credit_limit', 'updated_at'])
+        return purchase
+    return KhataBookSubscriptionPurchase.objects.create(
+        customer=customer,
+        tier=tier,
+        credit_limit=plan['credit_limit'],
+        subscription_fee=plan['subscription_fee'],
+    )
+
+
+def create_razorpay_order_for_khatabook_subscription_purchase(
+    purchase: KhataBookSubscriptionPurchase,
+) -> dict[str, Any]:
+    if purchase.subscription_fee <= Decimal('0.00'):
+        raise CheckoutValidationError('This KhataBook plan does not need a Razorpay payment.')
+    payload = {
+        'amount': int((purchase.subscription_fee * 100).quantize(Decimal('1'))),
+        'currency': 'INR',
+        'receipt': f'grx-khata-plan-{purchase.id}',
+        'notes': {
+            'khatabook_subscription_purchase_id': str(purchase.id),
+            'customer_phone': purchase.customer.phone,
+            'flow': 'khatabook_subscription',
+            'tier': purchase.tier,
+        },
+    }
+    razorpay_order = razorpay_api_request(path='/orders', method='POST', payload=payload)
+    purchase.razorpay_order_id = razorpay_order.get('id', '')
+    purchase.failure_reason = ''
+    purchase.save(update_fields=['razorpay_order_id', 'failure_reason', 'updated_at'])
     return razorpay_order
 
 
@@ -3225,6 +3355,65 @@ def build_khatabook_razorpay_context(cycle: KhataBookCycle, customer: CustomerPr
     }
 
 
+def build_khatabook_subscription_razorpay_context(
+    purchase: KhataBookSubscriptionPurchase,
+    customer: CustomerProfile,
+) -> dict[str, Any]:
+    plan = khatabook_plan_config(purchase.tier)
+    return {
+        'key': getattr(settings, 'RAZORPAY_KEY_ID', ''),
+        'amount': int((purchase.subscription_fee * 100).quantize(Decimal('1'))),
+        'currency': 'INR',
+        'name': getattr(settings, 'GRAMEXPRESS_APP_NAME', 'GramExpress'),
+        'description': f'{plan["name"]} KhataBook subscription',
+        'order_id': purchase.razorpay_order_id,
+        'prefill': {
+            'name': customer.full_name,
+            'email': customer.email,
+            'contact': customer.phone,
+        },
+        'notes': {
+            'khatabook_subscription_purchase_id': str(purchase.id),
+            'tier': purchase.tier,
+        },
+        'theme': {
+            'color': '#14532d',
+        },
+        'khatabook_subscription_purchase_id': purchase.id,
+    }
+
+
+def activate_khatabook_subscription_purchase(
+    purchase: KhataBookSubscriptionPurchase,
+    *,
+    razorpay_payment_id: str,
+    razorpay_signature: str,
+) -> KhataBookSubscriptionPurchase:
+    activated_at = timezone.now()
+    purchase.status = KhataBookSubscriptionStatus.ACTIVE
+    purchase.razorpay_payment_id = razorpay_payment_id
+    purchase.razorpay_signature = razorpay_signature
+    purchase.failure_reason = ''
+    purchase.activated_at = activated_at
+    purchase.save(
+        update_fields=[
+            'status',
+            'razorpay_payment_id',
+            'razorpay_signature',
+            'failure_reason',
+            'activated_at',
+            'updated_at',
+        ]
+    )
+    CustomerProfile.objects.filter(pk=purchase.customer_id).update(
+        khatabook_plan=purchase.tier,
+        khatabook_credit_limit=purchase.credit_limit,
+        khatabook_subscription_paid_at=activated_at,
+        updated_at=activated_at,
+    )
+    return purchase
+
+
 def get_or_create_online_checkout_session(*, request: HttpRequest, customer: CustomerProfile, cart: dict[str, Any], checkout_data: dict[str, str]) -> CheckoutSession:
     payload = build_checkout_session_payload(customer=customer, cart=cart, checkout_data=checkout_data)
     existing_session = None
@@ -3302,7 +3491,9 @@ def build_checkout_context(
     selected_slot_config = delivery_slot_config(selected_slot)
     payment_method = checkout_data.get('payment_method', PaymentMethod.COD)
     customer_notes = checkout_data.get('customer_notes', '')
+    delivery_address = str(checkout_data.get('delivery_address') or build_delivery_address(customer)).strip()
     razorpay_enabled = is_razorpay_ready()
+    khatabook_balance = customer_khatabook_balance_state(customer)
     totals = []
     estimated_total = Decimal('0.00')
     estimated_subtotal = Decimal('0.00')
@@ -3340,7 +3531,7 @@ def build_checkout_context(
         'payment_method': payment_method,
         'payment_method_label': dict(PaymentMethod.choices).get(payment_method, payment_method),
         'customer_notes': customer_notes,
-        'delivery_address': build_delivery_address(customer),
+        'delivery_address': delivery_address,
         'group_totals': totals,
         'estimated_total': estimated_total,
         'estimated_subtotal': estimated_subtotal,
@@ -3355,6 +3546,7 @@ def build_checkout_context(
         'checkout_session': checkout_session,
         'khatabook_due_date': next_monday(timezone.localdate()),
         'khatabook_credit_window_days': 7,
+        'khatabook_balance': khatabook_balance,
         'razorpay_checkout': (
             build_razorpay_checkout_context(checkout_session, customer)
             if checkout_session and payment_method == PaymentMethod.RAZORPAY and checkout_session.razorpay_order_id
@@ -3620,6 +3812,7 @@ def customer_workspace_context(request: HttpRequest) -> dict[str, Any]:
         'cart_estimated_total': cart_estimated_total,
         'show_customer_floating_cart': cart['item_count'] > 0,
         'notifications': user_notifications(request.user),
+        'google_maps_browser_api_key': getattr(settings, 'GOOGLE_MAPS_BROWSER_API_KEY', ''),
         'google_maps_embed_api_key': getattr(settings, 'GOOGLE_MAPS_EMBED_API_KEY', ''),
         'delivery_radius_km': DEFAULT_DELIVERY_RADIUS_KM,
         'address_summary': customer_address_summary(customer),
@@ -5644,10 +5837,12 @@ def customer_store_detail_view(request: HttpRequest, shop_slug: str) -> HttpResp
 @role_required(RoleType.CUSTOMER)
 def customer_cart_view(request: HttpRequest) -> HttpResponse:
     context = customer_workspace_context(request)
+    customer = request.role_profile
     checkout_data = pending_checkout_data(request) or {
         'delivery_slot': DEFAULT_DELIVERY_SLOT,
         'payment_method': PaymentMethod.COD,
         'customer_notes': '',
+        'delivery_address': build_delivery_address(customer),
     }
     context['cart'] = build_cart_context(request, delivery_slot=checkout_data.get('delivery_slot'))
     context['cart_fixed_total'] = sum(
@@ -5657,16 +5852,14 @@ def customer_cart_view(request: HttpRequest) -> HttpResponse:
         ),
         Decimal('0.00'),
     )
+    context['cart_service_fee_total'] = context['cart_fixed_total'] - Decimal(str(context['cart']['subtotal']))
     context['cart_estimated_total'] = context['cart_fixed_total'] + (
         context['cart']['delivery_slot_fee'] * len(context['cart']['groups'])
     )
     context['delivery_slot_options'] = delivery_slot_options(checkout_data.get('delivery_slot'))
     context['selected_delivery_slot'] = normalize_delivery_slot(checkout_data.get('delivery_slot', DEFAULT_DELIVERY_SLOT))
     context['selected_delivery_slot_config'] = delivery_slot_config(context['selected_delivery_slot'])
-    context['order_form'] = CustomerOrderMetaForm(
-        initial=checkout_data,
-        enable_razorpay=context['razorpay_enabled'],
-    )
+    context['slot_form'] = CartDeliverySlotForm(initial={'delivery_slot': checkout_data.get('delivery_slot', DEFAULT_DELIVERY_SLOT)})
     return render(request, 'core/customer_cart.html', context)
 
 
@@ -5678,6 +5871,7 @@ def customer_khatabook_view(request: HttpRequest) -> HttpResponse:
     if khata_cycle:
         khata_cycle = refresh_khatabook_cycle(khata_cycle)
     collection_request = active_khatabook_collection_request(khata_cycle)
+    khatabook_balance = customer_khatabook_balance_state(customer)
 
     khatabook_razorpay_checkout = None
     if khata_cycle and khata_cycle.outstanding_amount > Decimal('0.00') and context['razorpay_enabled']:
@@ -5687,6 +5881,29 @@ def customer_khatabook_view(request: HttpRequest) -> HttpResponse:
             khatabook_razorpay_checkout = build_khatabook_razorpay_context(khata_cycle, customer)
         except CheckoutValidationError as error:
             messages.warning(request, str(error))
+
+    khatabook_subscription_checkout_map = {}
+    khatabook_plan_options = []
+    for tier in [KhataBookPlan.BOOST_3000, KhataBookPlan.BOOST_5000]:
+        plan = khatabook_plan_config(tier)
+        is_current = khatabook_balance['plan']['code'] == tier
+        checkout = None
+        if context['razorpay_enabled'] and not is_current:
+            try:
+                purchase = get_or_create_pending_khatabook_subscription_purchase(customer=customer, tier=tier)
+                if not purchase.razorpay_order_id:
+                    create_razorpay_order_for_khatabook_subscription_purchase(purchase)
+                checkout = build_khatabook_subscription_razorpay_context(purchase, customer)
+                khatabook_subscription_checkout_map[tier] = checkout
+            except CheckoutValidationError as error:
+                messages.warning(request, str(error))
+        khatabook_plan_options.append(
+            {
+                **plan,
+                'is_current': is_current,
+                'checkout': checkout,
+            }
+        )
 
     context.update(
         {
@@ -5699,8 +5916,12 @@ def customer_khatabook_view(request: HttpRequest) -> HttpResponse:
                 if khata_cycle
                 else []
             ),
+            'khatabook_balance': khatabook_balance,
+            'khatabook_free_plan': khatabook_plan_config(KhataBookPlan.FREE),
+            'khatabook_plan_options': khatabook_plan_options,
             'khatabook_collection_request': collection_request,
             'khatabook_razorpay_checkout': khatabook_razorpay_checkout,
+            'khatabook_subscription_checkout_map': khatabook_subscription_checkout_map,
         }
     )
     return disable_html_cache(render(request, 'core/customer_khatabook.html', context))
@@ -5874,6 +6095,103 @@ def customer_khatabook_razorpay_failed(request: HttpRequest) -> HttpResponse:
     cycle.failure_reason = error_message[:240]
     cycle.save(update_fields=['failure_reason', 'updated_at'])
     messages.error(request, cycle.failure_reason)
+    return redirect('core:customer_khatabook')
+
+
+@role_required(RoleType.CUSTOMER)
+@require_POST
+def customer_khatabook_subscription_complete(request: HttpRequest) -> HttpResponse:
+    customer = request.role_profile
+    purchase = get_object_or_404(
+        KhataBookSubscriptionPurchase.objects.select_related('customer'),
+        pk=request.POST.get('purchase_id'),
+        customer=customer,
+    )
+    if purchase.status == KhataBookSubscriptionStatus.ACTIVE:
+        messages.success(request, 'This KhataBook credit boost is already active.')
+        return redirect('core:customer_khatabook')
+
+    razorpay_payment_id = request.POST.get('razorpay_payment_id', '').strip()
+    razorpay_order_id = request.POST.get('razorpay_order_id', '').strip()
+    razorpay_signature = request.POST.get('razorpay_signature', '').strip()
+    if not all([razorpay_payment_id, razorpay_order_id, razorpay_signature]):
+        messages.error(request, 'Razorpay did not return the subscription payment confirmation details.')
+        return redirect('core:customer_khatabook')
+    if razorpay_order_id != purchase.razorpay_order_id:
+        messages.error(request, 'The KhataBook credit boost order did not match this payment.')
+        return redirect('core:customer_khatabook')
+    if not verify_razorpay_payment_signature(
+        razorpay_order_id=razorpay_order_id,
+        razorpay_payment_id=razorpay_payment_id,
+        razorpay_signature=razorpay_signature,
+    ):
+        purchase.status = KhataBookSubscriptionStatus.FAILED
+        purchase.failure_reason = 'KhataBook subscription payment signature verification failed.'
+        purchase.save(update_fields=['status', 'failure_reason', 'updated_at'])
+        messages.error(request, 'We could not verify the KhataBook subscription payment signature. Please try again.')
+        return redirect('core:customer_khatabook')
+
+    try:
+        razorpay_payment = fetch_razorpay_payment(razorpay_payment_id)
+        razorpay_order = fetch_razorpay_order(razorpay_order_id)
+    except CheckoutValidationError as error:
+        messages.error(request, str(error))
+        return redirect('core:customer_khatabook')
+
+    expected_amount = int((purchase.subscription_fee * 100).quantize(Decimal('1')))
+    payment_status = razorpay_payment.get('status', '')
+    if (
+        razorpay_payment.get('order_id') != razorpay_order_id
+        or razorpay_order.get('id') != razorpay_order_id
+        or int(razorpay_order.get('amount', 0)) != expected_amount
+        or int(razorpay_payment.get('amount', 0)) != expected_amount
+        or payment_status not in ['authorized', 'captured']
+    ):
+        purchase.status = KhataBookSubscriptionStatus.FAILED
+        purchase.failure_reason = 'KhataBook subscription payment verification did not pass all checks.'
+        purchase.save(update_fields=['status', 'failure_reason', 'updated_at'])
+        messages.error(request, 'KhataBook credit boost verification failed. No plan change was applied.')
+        return redirect('core:customer_khatabook')
+
+    activate_khatabook_subscription_purchase(
+        purchase,
+        razorpay_payment_id=razorpay_payment_id,
+        razorpay_signature=razorpay_signature,
+    )
+    customer.refresh_from_db(fields=['khatabook_plan', 'khatabook_credit_limit', 'khatabook_subscription_paid_at'])
+    create_notification(
+        customer=customer,
+        title='KhataBook credit boost active',
+        body=(
+            f'Your {khatabook_plan_config(purchase.tier)["name"]} plan is active. '
+            f'KhataBook credit is now available up to Rs. {purchase.credit_limit}.'
+        ),
+        notification_type=NotificationType.PAYMENT,
+    )
+    messages.success(
+        request,
+        f'KhataBook credit boost activated. Your limit is now Rs. {purchase.credit_limit}.',
+    )
+    return redirect('core:customer_khatabook')
+
+
+@role_required(RoleType.CUSTOMER)
+@require_POST
+def customer_khatabook_subscription_failed(request: HttpRequest) -> HttpResponse:
+    purchase = get_object_or_404(
+        KhataBookSubscriptionPurchase,
+        pk=request.POST.get('purchase_id'),
+        customer=request.role_profile,
+    )
+    error_message = (
+        request.POST.get('error_description')
+        or request.POST.get('error_reason')
+        or 'The KhataBook subscription payment was not completed.'
+    )
+    purchase.status = KhataBookSubscriptionStatus.FAILED
+    purchase.failure_reason = error_message[:240]
+    purchase.save(update_fields=['status', 'failure_reason', 'updated_at'])
+    messages.error(request, purchase.failure_reason)
     return redirect('core:customer_khatabook')
 
 
@@ -6085,11 +6403,13 @@ def cart_clear(request: HttpRequest) -> HttpResponse:
 @role_required(RoleType.CUSTOMER)
 def customer_checkout(request: HttpRequest) -> HttpResponse:
     customer = request.role_profile
-    checkout_data = pending_checkout_data(request) or {
+    default_checkout_data = {
         'delivery_slot': DEFAULT_DELIVERY_SLOT,
         'payment_method': PaymentMethod.COD,
         'customer_notes': '',
+        'delivery_address': build_delivery_address(customer),
     }
+    checkout_data = pending_checkout_data(request) or default_checkout_data
     cart = build_cart_context(request, delivery_slot=checkout_data.get('delivery_slot'))
     razorpay_enabled = is_razorpay_ready()
     try:
@@ -6097,68 +6417,115 @@ def customer_checkout(request: HttpRequest) -> HttpResponse:
     except CheckoutValidationError as error:
         messages.error(request, str(error))
         return redirect('core:customer_cart')
+
     if request.method == 'POST':
         action = request.POST.get('action', 'review')
-        if action == 'review':
-            form = CustomerOrderMetaForm(request.POST, enable_razorpay=razorpay_enabled)
-            if form.is_valid():
-                checkout_data = {
-                    'delivery_slot': form.cleaned_data['delivery_slot'],
-                    'payment_method': form.cleaned_data['payment_method'],
-                    'customer_notes': form.cleaned_data['customer_notes'],
-                }
-                cart = build_cart_context(request, delivery_slot=checkout_data['delivery_slot'])
-                save_pending_checkout(request, **checkout_data)
-                if checkout_data['payment_method'] != PaymentMethod.RAZORPAY:
-                    save_active_checkout_session(request, None)
-            else:
-                messages.error(request, 'Choose a valid payment method before checkout.')
+        if action == 'setup':
+            slot_form = CartDeliverySlotForm(request.POST)
+            if not slot_form.is_valid():
+                messages.error(request, 'Choose a delivery slot before moving to checkout.')
                 return redirect('core:customer_cart')
-        elif action == 'confirm':
-            checkout_data = pending_checkout_data(request)
-            if not checkout_data:
-                messages.error(request, 'Your checkout session expired. Please review the cart again.')
-                return redirect('core:customer_cart')
-            cart = build_cart_context(request, delivery_slot=checkout_data.get('delivery_slot'))
-            if checkout_data['payment_method'] == PaymentMethod.RAZORPAY:
-                messages.info(request, 'Use the Razorpay payment button to complete your online order.')
-                return redirect('core:customer_checkout')
 
-            if checkout_data['payment_method'] == PaymentMethod.KHATABOOK:
-                checkout_session = create_khatabook_checkout_session(customer=customer, cart=cart, checkout_data=checkout_data)
-            else:
-                checkout_session = create_cod_checkout_session(customer=customer, cart=cart, checkout_data=checkout_data)
-            try:
-                created_orders = finalize_checkout_session(checkout_session)
-            except CheckoutValidationError as error:
-                checkout_session.failure_reason = str(error)
-                checkout_session.save(update_fields=['failure_reason', 'updated_at'])
-                messages.error(request, str(error))
-                refreshed_cart = build_cart_context(request, delivery_slot=checkout_data.get('delivery_slot'))
-                context = build_checkout_context(
-                    customer=customer,
-                    cart=refreshed_cart,
-                    checkout_data=checkout_data,
-                    checkout_session=checkout_session,
-                )
-                context['order_form'] = CustomerOrderMetaForm(initial=checkout_data, enable_razorpay=razorpay_enabled)
-                return render(request, 'core/checkout_review.html', context)
+            checkout_data = {
+                **default_checkout_data,
+                **checkout_data,
+                'delivery_slot': slot_form.cleaned_data['delivery_slot'],
+            }
+            save_pending_checkout(request, **checkout_data)
+            return redirect('core:customer_checkout')
 
-            save_cart(request, {})
-            set_last_checkout_payload(
-                request,
-                orders=created_orders,
-                payment_method=checkout_data['payment_method'],
-                checkout_session=checkout_session,
+        form = CheckoutDetailsForm(request.POST, enable_razorpay=razorpay_enabled)
+        if form.is_valid():
+            checkout_data = {
+                'delivery_slot': normalize_delivery_slot(checkout_data.get('delivery_slot', DEFAULT_DELIVERY_SLOT)),
+                'payment_method': form.cleaned_data['payment_method'],
+                'customer_notes': form.cleaned_data['customer_notes'],
+                'delivery_address': form.cleaned_data['delivery_address'],
+            }
+            cart = build_cart_context(request, delivery_slot=checkout_data['delivery_slot'])
+            save_pending_checkout(request, **checkout_data)
+            if checkout_data['payment_method'] != PaymentMethod.RAZORPAY:
+                save_active_checkout_session(request, None)
+
+            if action == 'confirm':
+                if checkout_data['payment_method'] == PaymentMethod.RAZORPAY:
+                    messages.info(request, 'Use the Razorpay payment button below to complete your online order.')
+                else:
+                    if checkout_data['payment_method'] == PaymentMethod.KHATABOOK:
+                        try:
+                            checkout_context = build_checkout_context(
+                                customer=customer,
+                                cart=cart,
+                                checkout_data=checkout_data,
+                                checkout_session=None,
+                            )
+                            validate_customer_khatabook_checkout(
+                                customer=customer,
+                                projected_amount=checkout_context['estimated_total'],
+                            )
+                        except CheckoutValidationError as error:
+                            messages.error(request, str(error))
+                            refreshed_cart = build_cart_context(request, delivery_slot=checkout_data.get('delivery_slot'))
+                            context = build_checkout_context(
+                                customer=customer,
+                                cart=refreshed_cart,
+                                checkout_data=checkout_data,
+                                checkout_session=None,
+                            )
+                            context['checkout_form'] = form
+                            return render(request, 'core/checkout_review.html', context)
+                        checkout_session = create_khatabook_checkout_session(customer=customer, cart=cart, checkout_data=checkout_data)
+                    else:
+                        checkout_session = create_cod_checkout_session(customer=customer, cart=cart, checkout_data=checkout_data)
+                    try:
+                        created_orders = finalize_checkout_session(checkout_session)
+                    except CheckoutValidationError as error:
+                        checkout_session.failure_reason = str(error)
+                        checkout_session.save(update_fields=['failure_reason', 'updated_at'])
+                        messages.error(request, str(error))
+                        refreshed_cart = build_cart_context(request, delivery_slot=checkout_data.get('delivery_slot'))
+                        context = build_checkout_context(
+                            customer=customer,
+                            cart=refreshed_cart,
+                            checkout_data=checkout_data,
+                            checkout_session=checkout_session,
+                        )
+                        context['checkout_form'] = form
+                        return render(request, 'core/checkout_review.html', context)
+
+                    save_cart(request, {})
+                    set_last_checkout_payload(
+                        request,
+                        orders=created_orders,
+                        payment_method=checkout_data['payment_method'],
+                        checkout_session=checkout_session,
+                    )
+                    clear_pending_checkout(request)
+                    if checkout_data['payment_method'] == PaymentMethod.KHATABOOK:
+                        khata_due_date = next((order.credit_due_date for order in created_orders if order.credit_due_date), None)
+                        due_copy = f' Repayment is due by {khata_due_date.strftime("%b %d")}.' if khata_due_date else ''
+                        messages.success(request, f'{len(created_orders)} order(s) were added to KhataBook.{due_copy}')
+                    else:
+                        messages.success(request, f'{len(created_orders)} order(s) placed across your selected stores.')
+                    return redirect('core:customer_checkout_success')
+        else:
+            messages.error(request, 'Enter a valid delivery address and payment method to continue.')
+            checkout_data = {
+                'delivery_slot': normalize_delivery_slot(checkout_data.get('delivery_slot', DEFAULT_DELIVERY_SLOT)),
+                'payment_method': request.POST.get('payment_method', checkout_data.get('payment_method', PaymentMethod.COD)),
+                'customer_notes': request.POST.get('customer_notes', checkout_data.get('customer_notes', '')),
+                'delivery_address': request.POST.get('delivery_address', checkout_data.get('delivery_address', default_checkout_data['delivery_address'])),
+            }
+            cart = build_cart_context(request, delivery_slot=checkout_data['delivery_slot'])
+            context = build_checkout_context(
+                customer=customer,
+                cart=cart,
+                checkout_data=checkout_data,
+                checkout_session=None,
             )
-            clear_pending_checkout(request)
-            if checkout_data['payment_method'] == PaymentMethod.KHATABOOK:
-                khata_due_date = next((order.credit_due_date for order in created_orders if order.credit_due_date), None)
-                due_copy = f' Repayment is due by {khata_due_date.strftime("%b %d")}.' if khata_due_date else ''
-                messages.success(request, f'{len(created_orders)} order(s) were added to KhataBook.{due_copy}')
-            else:
-                messages.success(request, f'{len(created_orders)} order(s) placed across your selected stores.')
-            return redirect('core:customer_checkout_success')
+            context['checkout_form'] = form
+            return render(request, 'core/checkout_review.html', context)
+
     checkout_data = pending_checkout_data(request) or checkout_data
     cart = build_cart_context(request, delivery_slot=checkout_data.get('delivery_slot'))
 
@@ -6180,7 +6547,7 @@ def customer_checkout(request: HttpRequest) -> HttpResponse:
         checkout_data=checkout_data,
         checkout_session=checkout_session,
     )
-    context['order_form'] = CustomerOrderMetaForm(initial=checkout_data, enable_razorpay=razorpay_enabled)
+    context['checkout_form'] = CheckoutDetailsForm(initial=checkout_data, enable_razorpay=razorpay_enabled)
     return render(request, 'core/checkout_review.html', context)
 
 
@@ -6592,6 +6959,21 @@ def customer_order_create_api(request: HttpRequest) -> JsonResponse:
         'payment_method': payment_method,
         'customer_notes': customer_notes,
     }
+    if payment_method == PaymentMethod.KHATABOOK:
+        estimated_total = sum(
+            (
+                checkout_fee_breakup(subtotal=group['subtotal'], delivery_fee=delivery_slot_fee(delivery_slot))['total']
+                for group in cart['groups']
+            ),
+            Decimal('0.00'),
+        )
+        try:
+            validate_customer_khatabook_checkout(
+                customer=request.role_profile,
+                projected_amount=quantize_money(estimated_total),
+            )
+        except CheckoutValidationError as error:
+            return JsonResponse({'error': str(error)}, status=400)
     checkout_session = (
         create_khatabook_checkout_session(customer=request.role_profile, cart=cart, checkout_data=checkout_data)
         if payment_method == PaymentMethod.KHATABOOK

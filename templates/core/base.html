@@ -450,6 +450,285 @@
           });
         }
 
+        function attachPreciseLocationEditors() {
+          var editors = document.querySelectorAll('[data-precise-location-editor]');
+          if (!editors.length) {
+            return;
+          }
+
+          var mapsLoadQueued = false;
+          var mapsReady = false;
+          var mapsFailed = false;
+          var initQueue = [];
+
+          function buildMapsUrl(lat, lng) {
+            return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(lat + ',' + lng);
+          }
+
+          function loadMapsScript(key) {
+            if (!key || mapsLoadQueued || mapsReady || mapsFailed) {
+              return;
+            }
+            mapsLoadQueued = true;
+            window.initGramExpressLocationEditors = function () {
+              mapsReady = true;
+              initQueue.forEach(function (callback) {
+                callback();
+              });
+              initQueue = [];
+            };
+            var script = document.createElement('script');
+            script.id = 'gram-location-maps-script';
+            script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(key) + '&libraries=maps&callback=initGramExpressLocationEditors';
+            script.async = true;
+            script.defer = true;
+            script.onerror = function () {
+              mapsFailed = true;
+              initQueue.forEach(function (callback) {
+                callback();
+              });
+              initQueue = [];
+            };
+            document.head.appendChild(script);
+          }
+
+          editors.forEach(function (editor, index) {
+            var formSelector = editor.getAttribute('data-location-form');
+            var form = formSelector ? document.querySelector(formSelector) : editor.closest('form');
+            if (!form) {
+              return;
+            }
+
+            var latInput = form.querySelector('[name="latitude"]');
+            var lngInput = form.querySelector('[name="longitude"]');
+            if (!latInput || !lngInput) {
+              return;
+            }
+
+            var addressLine1Input = form.querySelector('[name="address_line_1"]');
+            var addressLine2Input = form.querySelector('[name="address_line_2"]');
+            var districtInput = form.querySelector('[name="district"]');
+            var pincodeInput = form.querySelector('[name="pincode"]');
+            var areaInput = form.querySelector('[name="area"]');
+            var currentButton = editor.querySelector('[data-location-current]');
+            var pickButton = editor.querySelector('[data-location-pick]');
+            var statusNode = editor.querySelector('[data-location-status]');
+            var coordinatesNode = editor.querySelector('[data-location-coordinates]');
+            var previewMainNode = editor.querySelector('[data-location-preview-main]');
+            var previewSubNode = editor.querySelector('[data-location-preview-sub]');
+            var openMapsLink = editor.querySelector('[data-location-open-maps]');
+            var mapNode = editor.querySelector('[data-location-map]');
+            var mapsKey = editor.getAttribute('data-maps-key') || '';
+            var marker = null;
+            var map = null;
+            var lookupSequence = 0;
+
+            function fillInput(input, value) {
+              if (!input || !value) {
+                return;
+              }
+              input.value = value;
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            function setStatus(message) {
+              if (statusNode && message) {
+                statusNode.textContent = message;
+              }
+            }
+
+            function readCoordinates() {
+              return {
+                lat: Number(latInput.value || editor.getAttribute('data-default-lat') || '12.915300'),
+                lng: Number(lngInput.value || editor.getAttribute('data-default-lng') || '76.643800')
+              };
+            }
+
+            function writeCoordinates(lat, lng) {
+              var latValue = Number(lat).toFixed(6);
+              var lngValue = Number(lng).toFixed(6);
+              latInput.value = latValue;
+              lngInput.value = lngValue;
+              latInput.dispatchEvent(new Event('input', { bubbles: true }));
+              lngInput.dispatchEvent(new Event('input', { bubbles: true }));
+              if (coordinatesNode) {
+                coordinatesNode.textContent = latValue + ', ' + lngValue;
+              }
+              if (openMapsLink) {
+                openMapsLink.href = buildMapsUrl(latValue, lngValue);
+              }
+            }
+
+            function updatePreview(details) {
+              if (!details) {
+                return;
+              }
+              var secondaryLine = details.locality || details.city || details.district || '';
+              fillInput(addressLine1Input, details.address_line_1);
+              fillInput(addressLine2Input, secondaryLine);
+              fillInput(districtInput, details.district);
+              fillInput(pincodeInput, details.pincode);
+              fillInput(areaInput, details.locality || details.city || details.district);
+              if (previewMainNode) {
+                previewMainNode.textContent = details.formatted_address || details.address_line_1 || 'Address preview unavailable';
+              }
+              if (previewSubNode) {
+                previewSubNode.textContent = [
+                  secondaryLine,
+                  details.pincode || ''
+                ].filter(Boolean).join(' • ') || 'Drag the pin or use current location to refresh this address.';
+              }
+            }
+
+            function reverseLookup(lat, lng, successMessage, failureMessage) {
+              lookupSequence += 1;
+              var currentLookup = lookupSequence;
+              fetch("{% url 'core:reverse_geocode_location_api' %}?latitude=" + encodeURIComponent(Number(lat).toFixed(6)) + "&longitude=" + encodeURIComponent(Number(lng).toFixed(6)), {
+                headers: {
+                  'X-Requested-With': 'XMLHttpRequest'
+                }
+              })
+                .then(function (response) {
+                  if (!response.ok) {
+                    throw new Error('lookup_failed');
+                  }
+                  return response.json();
+                })
+                .then(function (details) {
+                  if (currentLookup !== lookupSequence) {
+                    return;
+                  }
+                  updatePreview(details);
+                  setStatus(successMessage || 'Address line updated from the selected map pin.');
+                })
+                .catch(function () {
+                  if (currentLookup !== lookupSequence) {
+                    return;
+                  }
+                  setStatus(failureMessage || 'Location updated, but the address preview could not be fetched right now.');
+                });
+            }
+
+            function syncPosition(lat, lng, successMessage) {
+              writeCoordinates(lat, lng);
+              if (marker) {
+                marker.setPosition({ lat: lat, lng: lng });
+              }
+              if (map) {
+                map.panTo({ lat: lat, lng: lng });
+              }
+              reverseLookup(
+                lat,
+                lng,
+                successMessage,
+                'Pin updated, but the address preview could not be refreshed right now.'
+              );
+            }
+
+            function initMap() {
+              if (!(window.google && window.google.maps && mapNode)) {
+                setStatus('Google Maps is unavailable right now. You can still capture your location.');
+                return;
+              }
+
+              var coordinates = readCoordinates();
+              map = new google.maps.Map(mapNode, {
+                center: coordinates,
+                zoom: 16,
+                mapTypeControl: false,
+                streetViewControl: false,
+                fullscreenControl: false
+              });
+              marker = new google.maps.Marker({
+                position: coordinates,
+                map: map,
+                draggable: true,
+                title: 'Selected location'
+              });
+
+              marker.addListener('dragend', function (event) {
+                syncPosition(event.latLng.lat(), event.latLng.lng(), 'Pin moved. Address line updated automatically.');
+              });
+
+              map.addListener('click', function (event) {
+                syncPosition(event.latLng.lat(), event.latLng.lng(), 'Pin moved. Address line updated automatically.');
+              });
+
+              if (!previewMainNode || !previewMainNode.textContent.trim() || editor.hasAttribute('data-location-autoload')) {
+                reverseLookup(
+                  coordinates.lat,
+                  coordinates.lng,
+                  'Map ready. Drag the pin to fine-tune the exact address.',
+                  'Map ready. Drag the pin to fine-tune the exact address.'
+                );
+              } else {
+                writeCoordinates(coordinates.lat, coordinates.lng);
+                setStatus('Map ready. Drag the pin to fine-tune the exact address.');
+              }
+            }
+
+            if (pickButton && mapNode) {
+              pickButton.addEventListener('click', function () {
+                mapNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              });
+            }
+
+            if (currentButton) {
+              currentButton.addEventListener('click', function () {
+                if (!navigator.geolocation) {
+                  setStatus('Geolocation is not available in this browser.');
+                  return;
+                }
+                currentButton.disabled = true;
+                currentButton.classList.add('is-loading');
+                setStatus('Detecting your live location...');
+                navigator.geolocation.getCurrentPosition(
+                  function (position) {
+                    syncPosition(
+                      position.coords.latitude,
+                      position.coords.longitude,
+                      position.coords.accuracy > 100
+                        ? 'GPS found a rough point. Drag the pin if you want a more exact address.'
+                        : 'Current location captured. The address line was refreshed automatically.'
+                    );
+                    currentButton.disabled = false;
+                    currentButton.classList.remove('is-loading');
+                  },
+                  function () {
+                    currentButton.disabled = false;
+                    currentButton.classList.remove('is-loading');
+                    setStatus('Location access failed. You can still move the map pin manually.');
+                  },
+                  { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+                );
+              });
+            }
+
+            if (mapsKey && mapNode) {
+              if (mapsReady) {
+                initMap();
+              } else {
+                initQueue.push(initMap);
+                loadMapsScript(mapsKey);
+              }
+            } else {
+              var fallbackCoordinates = readCoordinates();
+              writeCoordinates(fallbackCoordinates.lat, fallbackCoordinates.lng);
+              if (!previewMainNode || !previewMainNode.textContent.trim() || editor.hasAttribute('data-location-autoload')) {
+                reverseLookup(
+                  fallbackCoordinates.lat,
+                  fallbackCoordinates.lng,
+                  'Address preview refreshed from your saved coordinates.',
+                  'Address preview is unavailable until the location service responds.'
+                );
+              } else {
+                setStatus('Google Maps is unavailable right now. You can still capture and save coordinates.');
+              }
+            }
+          });
+        }
+
         function attachAppearObserver() {
           var items = document.querySelectorAll('[data-appear]');
           if (!('IntersectionObserver' in window)) {
@@ -1106,6 +1385,7 @@
 
         attachNavToggle();
         attachLocationButtons();
+        attachPreciseLocationEditors();
         attachAppearObserver();
         focusFirstFormError();
         attachToasts();

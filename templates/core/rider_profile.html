@@ -64,14 +64,56 @@
 
       <form method="post" action="{% url 'core:rider_update_location' %}" class="stack small-gap top-gap">
         {% csrf_token %}
-        {{ location_form.as_p }}
-        <div class="helper-actions">
-          <button class="button secondary" type="button" data-location-trigger>
-            <span class="ui-icon icon-locate-fixed" aria-hidden="true"></span>
-            <span>Use Current Location</span>
-          </button>
-          <span class="muted tiny" data-location-status>Capture your latest dispatch location from the browser.</span>
-        </div>
+        <section class="location-editor-card" data-precise-location-editor data-maps-key="{{ google_maps_browser_api_key|default:'' }}" data-default-lat="{{ rider.latitude }}" data-default-lng="{{ rider.longitude }}" data-location-autoload>
+          <div class="split-row">
+            <div>
+              <span class="eyebrow">Dispatch Address</span>
+              <h3 class="section-title">Use the map for an exact dispatch point</h3>
+            </div>
+            <div class="location-editor-toolbar">
+              <button class="button secondary" type="button" data-location-current>
+                <span class="ui-icon icon-locate-fixed" aria-hidden="true"></span>
+                <span>Use Current Location</span>
+              </button>
+              <a class="button secondary" href="https://www.google.com/maps/search/?api=1&query={{ rider.latitude }},{{ rider.longitude }}" target="_blank" rel="noreferrer" data-location-open-maps>
+                <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+                <span>Open Google Maps</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="hidden">
+            {{ location_form.latitude }}
+            {{ location_form.longitude }}
+          </div>
+
+          <div class="location-editor-status-row">
+            <span class="soft-pill">
+              <span class="ui-icon icon-map-pin" aria-hidden="true"></span>
+              <span data-location-coordinates>{{ rider.latitude }}, {{ rider.longitude }}</span>
+            </span>
+            <span class="muted tiny" data-location-status>Capture your latest dispatch location from the browser, then drag the pin if you need a more exact pickup point.</span>
+          </div>
+
+          <div class="location-editor-preview">
+            <strong class="location-editor-preview-main" data-location-preview-main>Fetching your current dispatch address...</strong>
+            <p class="location-editor-preview-sub" data-location-preview-sub>Move the pin or use current location to refresh the exact address line automatically.</p>
+          </div>
+
+          <div class="location-editor-map-shell">
+            <div class="location-editor-map-canvas" data-location-map>
+              <div class="location-editor-map-fallback">
+                <div>
+                  <strong>Map loading</strong>
+                  <p>The draggable rider dispatch pin will appear here when Google Maps is available.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {% for error in location_form.latitude.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+        {% for error in location_form.longitude.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
         <button class="button primary" type="submit">
           <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
           <span>Update Dispatch Location</span>

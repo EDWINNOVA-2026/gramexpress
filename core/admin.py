@@ -6,6 +6,7 @@ from .models import (
     CustomerProfile,
     DeliverySlotSetting,
     EmailOtpToken,
+    KhataBookSubscriptionPurchase,
     Notification,
     Order,
     OrderItem,
@@ -45,8 +46,15 @@ def reject_riders(modeladmin, request, queryset):
 
 @admin.register(CustomerProfile)
 class CustomerProfileAdmin(admin.ModelAdmin):
-    list_display = ('full_name', 'phone', 'district', 'preferred_language')
+    list_display = ('full_name', 'phone', 'district', 'preferred_language', 'khatabook_plan', 'khatabook_credit_limit')
     search_fields = ('full_name', 'phone', 'email')
+
+
+@admin.register(KhataBookSubscriptionPurchase)
+class KhataBookSubscriptionPurchaseAdmin(admin.ModelAdmin):
+    list_display = ('customer', 'tier', 'credit_limit', 'subscription_fee', 'status', 'activated_at')
+    list_filter = ('tier', 'status')
+    search_fields = ('customer__full_name', 'customer__phone', 'razorpay_order_id', 'razorpay_payment_id')
 
 
 @admin.register(ShopOwnerProfile)

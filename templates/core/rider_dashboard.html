@@ -329,38 +329,50 @@
         <form method="post" action="{% url 'core:rider_update_location' %}" class="rider-dispatch-form" data-rider-location-form>
           {% csrf_token %}
           <input type="hidden" name="next" value="{% url 'core:rider_dashboard' %}" />
-          <div class="hidden">
-            {{ location_form.latitude }}
-            {{ location_form.longitude }}
-          </div>
+          <div class="location-editor-card" data-precise-location-editor data-maps-key="{{ google_maps_browser_api_key|default:'' }}" data-default-lat="{{ rider.latitude }}" data-default-lng="{{ rider.longitude }}" data-location-autoload>
+            <div class="hidden">
+              {{ location_form.latitude }}
+              {{ location_form.longitude }}
+            </div>
 
-          <div class="rider-dispatch-actions">
-            <button class="button secondary" type="button" data-rider-location-current>
-              <span class="ui-icon icon-locate-fixed" aria-hidden="true"></span>
-              <span>Use Current Location</span>
-            </button>
-            <button class="button primary" type="submit" data-rider-location-confirm>
-              <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
-              <span>Confirm Dispatch Location</span>
-            </button>
-          </div>
+            <div class="location-editor-toolbar">
+              <button class="button secondary" type="button" data-location-current>
+                <span class="ui-icon icon-locate-fixed" aria-hidden="true"></span>
+                <span>Use Current Location</span>
+              </button>
+              <button class="button primary" type="submit">
+                <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
+                <span>Confirm Dispatch Location</span>
+              </button>
+              <a class="button secondary" href="https://www.google.com/maps/search/?api=1&query={{ rider.latitude }},{{ rider.longitude }}" target="_blank" rel="noreferrer" data-location-open-maps>
+                <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+                <span>Open Google Maps</span>
+              </a>
+            </div>
 
-          <div class="rider-dispatch-note">
-            <strong>Dispatch Pin</strong>
-            <p data-rider-location-status>
-              {% if google_maps_browser_api_key %}
+            <div class="location-editor-status-row">
+              <span class="soft-pill">
+                <span class="ui-icon icon-map-pin" aria-hidden="true"></span>
+                <span data-location-coordinates>{{ rider.latitude }}, {{ rider.longitude }}</span>
+              </span>
+              <span class="muted tiny" data-location-status>
                 Drag the map pin if your current location needs a more exact dispatch point.
-              {% else %}
-                Map not loading. Add a Google Maps browser key to enable the dispatch pin editor.
-              {% endif %}
-            </p>
-          </div>
+              </span>
+            </div>
 
-          <div class="rider-dispatch-map-shell">
-            <div class="rider-dispatch-map" data-rider-location-map>
-              <div class="shop-settings-map-fallback">
-                <strong>Map loading</strong>
-                <p>The draggable dispatch pin will appear here when Google Maps is available.</p>
+            <div class="location-editor-preview">
+              <strong class="location-editor-preview-main" data-location-preview-main>Fetching your current dispatch address...</strong>
+              <p class="location-editor-preview-sub" data-location-preview-sub>Move the pin or use current location to refresh the exact address line automatically.</p>
+            </div>
+
+            <div class="location-editor-map-shell">
+              <div class="location-editor-map-canvas" data-location-map>
+                <div class="location-editor-map-fallback">
+                  <div>
+                    <strong>Map loading</strong>
+                    <p>The draggable dispatch pin will appear here when Google Maps is available.</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -425,132 +437,4 @@
       </div>
     </article>
   </section>
-{% endblock %}
-
-{% block extra_scripts %}
-  <script>
-    (function () {
-      var editor = document.querySelector('[data-rider-dispatch-editor]');
-      if (!editor) {
-        return;
-      }
-
-      var form = editor.querySelector('[data-rider-location-form]');
-      var mapNode = editor.querySelector('[data-rider-location-map]');
-      var currentButton = editor.querySelector('[data-rider-location-current]');
-      var statusNode = editor.querySelector('[data-rider-location-status]');
-      var latInput = form && form.querySelector('[name="latitude"]');
-      var lngInput = form && form.querySelector('[name="longitude"]');
-      var mapsKey = '{{ google_maps_browser_api_key|escapejs }}';
-      var map;
-      var marker;
-
-      function setStatus(message) {
-        if (statusNode) {
-          statusNode.textContent = message;
-        }
-      }
-
-      function readCoordinates() {
-        return {
-          lat: Number(latInput && latInput.value) || 12.9153,
-          lng: Number(lngInput && lngInput.value) || 76.6438
-        };
-      }
-
-      function writeCoordinates(lat, lng) {
-        if (latInput) {
-          latInput.value = Number(lat).toFixed(6);
-        }
-        if (lngInput) {
-          lngInput.value = Number(lng).toFixed(6);
-        }
-      }
-
-      function updateMarkerPosition(lat, lng, message) {
-        writeCoordinates(lat, lng);
-        if (marker) {
-          marker.setPosition({ lat: lat, lng: lng });
-        }
-        if (map) {
-          map.panTo({ lat: lat, lng: lng });
-        }
-        if (message) {
-          setStatus(message);
-        }
-      }
-
-      function initMap() {
-        if (!window.google || !window.google.maps || !mapNode) {
-          setStatus('Map not loading. Add a Google Maps browser key to enable the dispatch pin editor.');
-          return;
-        }
-
-        var coordinates = readCoordinates();
-        map = new google.maps.Map(mapNode, {
-          center: coordinates,
-          zoom: 16,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: false
-        });
-        marker = new google.maps.Marker({
-          position: coordinates,
-          map: map,
-          draggable: true,
-          title: 'Dispatch location'
-        });
-
-        marker.addListener('dragend', function (event) {
-          updateMarkerPosition(event.latLng.lat(), event.latLng.lng(), 'Dispatch pin updated. Confirm location to save it.');
-        });
-
-        setStatus('Drag the map pin if your current location needs a more exact dispatch point.');
-      }
-
-      if (currentButton) {
-        currentButton.addEventListener('click', function () {
-          if (!navigator.geolocation) {
-            setStatus('Geolocation is not supported in this browser.');
-            return;
-          }
-
-          currentButton.disabled = true;
-          setStatus('Detecting your current dispatch location...');
-          navigator.geolocation.getCurrentPosition(
-            function (position) {
-              updateMarkerPosition(
-                position.coords.latitude,
-                position.coords.longitude,
-                position.coords.accuracy > 100
-                  ? 'GPS found a rough point. Drag the pin to the exact dispatch spot if needed.'
-                  : 'Current location captured. Confirm it to save your dispatch pin.'
-              );
-              currentButton.disabled = false;
-            },
-            function () {
-              currentButton.disabled = false;
-              setStatus('Location permission denied. Enable location access and try again.');
-            },
-            { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
-          );
-        });
-      }
-
-      if (!mapsKey) {
-        setStatus('Map not loading. Add a Google Maps browser key to enable the dispatch pin editor.');
-        return;
-      }
-
-      var script = document.createElement('script');
-      script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(mapsKey) + '&libraries=maps';
-      script.async = true;
-      script.defer = true;
-      script.onload = initMap;
-      script.onerror = function () {
-        setStatus('Map could not load right now. You can still use current location and confirm.');
-      };
-      document.head.appendChild(script);
-    })();
-  </script>
 {% endblock %}

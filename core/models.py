@@ -86,6 +86,18 @@ class KhataBookCollectionStatus(models.TextChoices):
     CANCELLED = 'cancelled', 'Cancelled'
 
 
+class KhataBookPlan(models.TextChoices):
+    FREE = 'free', 'Free Rs. 1,000'
+    BOOST_3000 = 'boost_3000', 'Boost Rs. 3,000'
+    BOOST_5000 = 'boost_5000', 'Boost Rs. 5,000'
+
+
+class KhataBookSubscriptionStatus(models.TextChoices):
+    PENDING = 'pending', 'Pending'
+    ACTIVE = 'active', 'Active'
+    FAILED = 'failed', 'Failed'
+
+
 class RoleType(models.TextChoices):
     CUSTOMER = 'customer', 'Customer'
     SHOP = 'shop', 'Store Owner'
@@ -103,6 +115,27 @@ class NotificationType(models.TextChoices):
 
 
 DEFAULT_DELIVERY_SLOT = DeliverySlot.ECO
+DEFAULT_KHATABOOK_PLAN = KhataBookPlan.FREE
+KHATABOOK_PLAN_RULES = {
+    KhataBookPlan.FREE: {
+        'name': 'Base Credit',
+        'credit_limit': Decimal('1000.00'),
+        'subscription_fee': Decimal('0.00'),
+        'tag': 'Included',
+    },
+    KhataBookPlan.BOOST_3000: {
+        'name': 'Boost 3K',
+        'credit_limit': Decimal('3000.00'),
+        'subscription_fee': Decimal('60.00'),
+        'tag': 'Best Value',
+    },
+    KhataBookPlan.BOOST_5000: {
+        'name': 'Boost 5K',
+        'credit_limit': Decimal('5000.00'),
+        'subscription_fee': Decimal('80.00'),
+        'tag': 'Highest Limit',
+    },
+}
 DELIVERY_SLOT_RULES = {
     DeliverySlot.PRIORITY: {
         'name': 'Priority Delivery',
@@ -277,6 +310,13 @@ class CustomerProfile(TimeStampedModel, LocationMixin):
     address_line_2 = models.CharField(max_length=160, blank=True)
     district = models.CharField(max_length=80)
     pincode = models.CharField(max_length=12)
+    khatabook_plan = models.CharField(
+        max_length=20,
+        choices=KhataBookPlan.choices,
+        default=DEFAULT_KHATABOOK_PLAN,
+    )
+    khatabook_credit_limit = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('1000.00'))
+    khatabook_subscription_paid_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['full_name']
@@ -509,6 +549,33 @@ class KhataBookCycle(TimeStampedModel):
     def outstanding_amount(self) -> Decimal:
         remaining = self.total_amount - self.paid_amount
         return remaining if remaining > Decimal('0.00') else Decimal('0.00')
+
+
+class KhataBookSubscriptionPurchase(TimeStampedModel):
+    customer = models.ForeignKey(
+        CustomerProfile,
+        on_delete=models.CASCADE,
+        related_name='khatabook_subscription_purchases',
+    )
+    tier = models.CharField(max_length=20, choices=KhataBookPlan.choices)
+    credit_limit = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('1000.00'))
+    subscription_fee = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    status = models.CharField(
+        max_length=16,
+        choices=KhataBookSubscriptionStatus.choices,
+        default=KhataBookSubscriptionStatus.PENDING,
+    )
+    razorpay_order_id = models.CharField(max_length=80, blank=True, db_index=True)
+    razorpay_payment_id = models.CharField(max_length=80, blank=True)
+    razorpay_signature = models.CharField(max_length=160, blank=True)
+    failure_reason = models.CharField(max_length=240, blank=True)
+    activated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'KhataBook plan {self.customer.full_name} - {self.tier}'
 
 
 class KhataBookCollectionRequest(TimeStampedModel, LocationMixin):
