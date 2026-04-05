@@ -4,7 +4,7 @@
   <section class="auth-stage" data-appear>
     <article class="auth-card auth-card-wide">
       <div class="auth-lockmark" aria-hidden="true">
-        <span class="auth-lock-body"></span>
+        <img src="/static/core/gramexpress.webp?v={{ shell_asset_version }}" alt="" loading="eager" decoding="async" />
       </div>
       <h1>Store Onboarding</h1>
       <p class="auth-subtitle">This page is only for store owner setup.</p>
@@ -135,17 +135,19 @@
           </div>
         </section>
 
-        <section class="auth-role-section auth-role-section-location" data-store-registration-location-editor>
-          <div class="auth-location-card">
+        <section class="auth-role-section auth-role-section-location shop-registration-location-section" data-store-registration-location-editor>
+          <div class="shop-registration-location-header">
             <div>
-              <strong>Store location pin</strong>
-              <p>Capture GPS, then drag the pin to the exact shop entrance before we send the OTP.</p>
+              <span class="eyebrow">Store Location</span>
+              <strong>Set the exact shop pickup point</strong>
+              <p>Use GPS first, then drag the map pin to the exact entrance so riders and customers see the correct store location.</p>
             </div>
-            <div class="shop-settings-location-toolbar">
-              <button class="button shop-location-button-blue" type="button" data-store-location-current>Use Current Location</button>
-              <button class="button secondary" type="button" data-store-location-pick>Pick On Map</button>
-              <button class="button primary" type="button" data-store-location-confirm>Confirm Location</button>
-            </div>
+            <span class="soft-pill" data-store-location-accuracy-badge>Accuracy: Awaiting location</span>
+          </div>
+
+          <div class="shop-registration-location-actions shop-settings-location-toolbar">
+            <button class="button shop-location-button-blue" type="button" data-store-location-current>Use Current Location</button>
+            <button class="button primary" type="button" data-store-location-confirm>Confirm Location</button>
           </div>
 
           <div class="hidden">
@@ -158,12 +160,11 @@
               <span class="ui-icon icon-map-pin" aria-hidden="true"></span>
               <span data-store-location-coordinates>{{ form.latitude.value|default:'12.915300' }}, {{ form.longitude.value|default:'76.643800' }}</span>
             </span>
-            <span class="soft-pill" data-store-location-accuracy-badge>Accuracy: Awaiting location</span>
             <span class="tiny muted" data-store-location-status>
               {% if google_maps_browser_api_key %}
-                Use current location or move the map pin to the exact shop entrance.
+                Use current location, check the accuracy badge, then drag the pin if the GPS point is not exact.
               {% else %}
-                Add a Google Maps browser key to enable the live map pin editor.
+                Map not loading. Add a Google Maps browser key to enable the live map pin editor.
               {% endif %}
             </span>
           </div>
@@ -227,7 +228,6 @@
       var mapCanvas = editor.querySelector('[data-store-location-map]');
       var searchInput = editor.querySelector('[data-store-location-search]');
       var currentButton = editor.querySelector('[data-store-location-current]');
-      var pickButton = editor.querySelector('[data-store-location-pick]');
       var confirmButton = editor.querySelector('[data-store-location-confirm]');
       var mapsKey = '{{ google_maps_browser_api_key|escapejs }}';
       var map;
@@ -413,7 +413,11 @@
       }
 
       function loadMapsScript() {
-        if (!mapsKey || document.getElementById('register-store-maps-script')) {
+        if (!mapsKey) {
+          setStatus('Map not loading. Add a Google Maps browser key or enter the address manually.');
+          return;
+        }
+        if (document.getElementById('register-store-maps-script')) {
           return;
         }
         window.initRegisterStoreMap = loadMap;
@@ -426,14 +430,14 @@
       }
 
       if (currentButton) {
-        currentButton.addEventListener('click', function () {
-          if (!navigator.geolocation) {
-            setStatus('Enable location or place the pin manually on the map.');
-            return;
-          }
-          currentButton.disabled = true;
-          setStatus('Requesting browser location permission...');
-          navigator.geolocation.getCurrentPosition(
+          currentButton.addEventListener('click', function () {
+            if (!navigator.geolocation) {
+              setStatus('GPS is not available in this browser. Use the map to place the exact shop point.');
+              return;
+            }
+            currentButton.disabled = true;
+            setStatus('Requesting browser location permission...');
+            navigator.geolocation.getCurrentPosition(
             function (position) {
               var lat = position.coords.latitude;
               var lng = position.coords.longitude;
@@ -441,24 +445,16 @@
               setAccuracyLabel(position.coords.accuracy);
               syncMarker(lat, lng);
               autofillAddress(lat, lng, position.coords.accuracy > 60
-                ? 'GPS looks imprecise. Move the pin to the exact store entrance.'
+                ? 'GPS accuracy is low. Move the pin to the exact store entrance.'
                 : 'GPS captured. Drag the pin if the entrance needs adjustment.');
               currentButton.disabled = false;
             },
             function () {
               currentButton.disabled = false;
-              setStatus('Enable location or place the pin manually on the map.');
+              setStatus('Location permission denied. Enable location or drag the map pin manually.');
             },
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
           );
-        });
-      }
-
-      if (pickButton) {
-        pickButton.addEventListener('click', function () {
-          if (mapCanvas) {
-            mapCanvas.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
         });
       }
 
