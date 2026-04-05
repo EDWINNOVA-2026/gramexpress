@@ -5,8 +5,8 @@
     <article class="card section-stack customer-checkout-panel" data-appear>
       <div class="content-stack">
         <span class="eyebrow">Razorpay</span>
-        <h1 class="page-title">Redirecting to secure payment</h1>
-        <p class="subtle">GramExpress is opening Razorpay in a dedicated step so the payment screen launches more reliably on mobile browsers and installed app mode.</p>
+        <h1 class="page-title">Open secure payment</h1>
+        <p class="subtle">Use the button below to open Razorpay. This keeps the payment launch tied to your tap, which works more reliably on mobile browsers and installed app mode.</p>
       </div>
 
       <div class="grid gap-4 lg:grid-cols-3">
@@ -28,8 +28,8 @@
       </div>
 
       <div class="checkout-cod-panel">
-        <strong>Nothing opened?</strong>
-        <p>If Razorpay does not appear automatically in a moment, use the button below to retry from this page.</p>
+        <strong>Payment window will open on your tap</strong>
+        <p>If your browser blocks popups after navigation, tapping the button here will still launch Razorpay correctly.</p>
       </div>
 
       <div class="form-actions">
@@ -81,10 +81,12 @@
       function openCheckout() {
         payButton.disabled = true;
         razorpayCheckout.open();
+        window.setTimeout(function () {
+          payButton.disabled = false;
+        }, 1500);
       }
 
       payButton.addEventListener('click', openCheckout);
-      window.setTimeout(openCheckout, 250);
     })();
   </script>
   <form method="post" action="{% url 'core:customer_razorpay_complete' %}" id="razorpay-success-form" hidden>

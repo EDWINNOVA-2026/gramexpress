@@ -205,7 +205,7 @@ class UnifiedRegistrationForm(forms.Form, BaseStyledForm):
     offer = forms.CharField(max_length=160, required=False)
     age = forms.IntegerField(min_value=18, max_value=80, required=False)
     vehicle_type = forms.ChoiceField(choices=VehicleType.choices, required=False)
-    photo_url = forms.URLField(required=False)
+    photo_url = forms.CharField(required=False)
 
     def __init__(self, *args, **kwargs):
         selected_role = kwargs.pop('selected_role', '')
@@ -410,7 +410,7 @@ class RiderOnboardingForm(forms.Form, BaseStyledForm):
     password2 = forms.CharField(widget=forms.PasswordInput)
     age = forms.IntegerField(min_value=18, max_value=80)
     vehicle_type = forms.ChoiceField(choices=VehicleType.choices)
-    photo_url = forms.URLField(required=False)
+    photo_url = forms.CharField(required=False)
     photo = forms.FileField(required=False)
     latitude = forms.DecimalField(max_digits=9, decimal_places=6)
     longitude = forms.DecimalField(max_digits=9, decimal_places=6)

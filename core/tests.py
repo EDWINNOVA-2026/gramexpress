@@ -426,6 +426,26 @@ class CoreFlowTests(TestCase):
         self.assertIn('user', error.exception.message_dict)
         self.assertIn('customer', error.exception.message_dict['user'][0].lower())
 
+    def test_rider_registration_accepts_relative_selfie_photo_path(self):
+        form = UnifiedRegistrationForm(
+            data={
+                'account_type': RoleType.RIDER,
+                'full_name': 'Rider Selfie',
+                'phone': '9000012345',
+                'email': 'rider-selfie@example.com',
+                'password1': 'demo12345',
+                'password2': 'demo12345',
+                'age': '25',
+                'vehicle_type': VehicleType.ELECTRIC,
+                'photo_url': '/media/riders/live/rider-selfie.jpg',
+                'latitude': '12.915300',
+                'longitude': '76.643800',
+            },
+            selected_role=RoleType.RIDER,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+
     def test_registration_phone_requires_exactly_ten_digits(self):
         form = UnifiedRegistrationForm(
             data={
@@ -2737,7 +2757,7 @@ class CoreFlowTests(TestCase):
         self.assertEqual(self.product.stock, 18)
 
     @override_settings(RAZORPAY_KEY_ID='rzp_test_123', RAZORPAY_KEY_SECRET='secret_123')
-    def test_razorpay_launch_page_renders_for_ready_checkout(self):
+    def test_razorpay_launch_redirects_to_hosted_payment_link(self):
         self.client.force_login(self.customer_user)
         self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '1'})
 
@@ -2746,7 +2766,18 @@ class CoreFlowTests(TestCase):
             checkout_session.save(update_fields=['razorpay_order_id', 'updated_at'])
             return {'id': 'order_test_launch'}
 
-        with patch('core.views.create_razorpay_order_for_checkout', side_effect=fake_create_razorpay_order):
+        with (
+            patch('core.views.create_razorpay_order_for_checkout', side_effect=fake_create_razorpay_order),
+            patch(
+                'core.views.create_checkout_payment_link',
+                return_value={
+                    'id': 'plink_test_launch',
+                    'short_url': 'https://rzp.io/i/checkout-test',
+                    'status': 'created',
+                    'reference_id': 'grx-1-test',
+                },
+            ),
+        ):
             self.client.post(
                 reverse('core:customer_checkout'),
                 {
@@ -2765,10 +2796,71 @@ class CoreFlowTests(TestCase):
             )
             launch_response = self.client.get(reverse('core:customer_razorpay_launch'))
 
-        self.assertEqual(launch_response.status_code, 200)
-        self.assertContains(launch_response, 'Redirecting to secure payment')
-        self.assertContains(launch_response, 'Open Razorpay Now')
-        self.assertContains(launch_response, 'order_test_launch')
+        self.assertEqual(launch_response.status_code, 302)
+        self.assertEqual(launch_response['Location'], 'https://rzp.io/i/checkout-test')
+
+    @override_settings(RAZORPAY_KEY_SECRET='secret_123')
+    def test_razorpay_callback_finalizes_paid_checkout(self):
+        snapshot = {
+            'item_count': 1,
+            'subtotal': '28.00',
+            'groups': [
+                {
+                    'shop_id': self.shop.id,
+                    'delivery_fee': '15.00',
+                    'shopkeeper_commission_fee': '5.00',
+                    'platform_fee': '5.00',
+                    'subtotal': '28.00',
+                    'shop_credit_exposure': '33.00',
+                    'total': '53.00',
+                    'items': [
+                        {
+                            'product_id': self.product.id,
+                            'product_name': self.product.name,
+                            'quantity': 1,
+                            'unit_price': '28.00',
+                        }
+                    ],
+                }
+            ],
+            '_payment_link': {
+                'id': 'plink_test_checkout_123',
+                'short_url': 'https://rzp.io/i/checkout-test',
+                'status': 'created',
+                'reference_id': 'grx-webhook-2',
+            },
+        }
+        checkout_session = CheckoutSession.objects.create(
+            customer=self.customer,
+            payment_method=PaymentMethod.RAZORPAY,
+            payment_status=PaymentStatus.PENDING,
+            amount=Decimal('53.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            customer_notes='',
+            cart_snapshot=snapshot,
+            cart_signature='snapshot-signature',
+            receipt='grx-webhook-2',
+        )
+        self.client.force_login(self.customer_user)
+        raw_signature = 'plink_test_checkout_123|grx-webhook-2|paid|pay_test_checkout_123'
+        signature = hmac.new(b'secret_123', raw_signature.encode('utf-8'), hashlib.sha256).hexdigest()
+
+        response = self.client.get(
+            reverse('core:customer_razorpay_callback'),
+            {
+                'razorpay_payment_id': 'pay_test_checkout_123',
+                'razorpay_payment_link_id': 'plink_test_checkout_123',
+                'razorpay_payment_link_reference_id': 'grx-webhook-2',
+                'razorpay_payment_link_status': 'paid',
+                'razorpay_signature': signature,
+            },
+        )
+
+        self.assertRedirects(response, reverse('core:customer_checkout_success'))
+        checkout_session.refresh_from_db()
+        self.assertEqual(checkout_session.payment_status, PaymentStatus.PAID)
+        self.assertEqual(checkout_session.razorpay_payment_id, 'pay_test_checkout_123')
+        self.assertTrue(Order.objects.filter(checkout_session=checkout_session).exists())
 
     @override_settings(RAZORPAY_WEBHOOK_SECRET='webhook_secret_123')
     def test_razorpay_webhook_can_finalize_paid_checkout(self):
@@ -2831,6 +2923,84 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         checkout_session.refresh_from_db()
         self.assertEqual(checkout_session.payment_status, PaymentStatus.PAID)
+        self.assertTrue(Order.objects.filter(checkout_session=checkout_session).exists())
+
+    @override_settings(RAZORPAY_WEBHOOK_SECRET='webhook_secret_123')
+    def test_payment_link_webhook_can_finalize_paid_checkout(self):
+        snapshot = {
+            'item_count': 1,
+            'subtotal': '28.00',
+            'groups': [
+                {
+                    'shop_id': self.shop.id,
+                    'delivery_fee': '15.00',
+                    'shopkeeper_commission_fee': '5.00',
+                    'platform_fee': '5.00',
+                    'subtotal': '28.00',
+                    'shop_credit_exposure': '33.00',
+                    'total': '53.00',
+                    'items': [
+                        {
+                            'product_id': self.product.id,
+                            'product_name': self.product.name,
+                            'quantity': 1,
+                            'unit_price': '28.00',
+                        }
+                    ],
+                }
+            ],
+            '_payment_link': {
+                'id': 'plink_checkout_123',
+                'short_url': 'https://rzp.io/i/checkout-hosted',
+                'status': 'created',
+                'reference_id': 'grx-webhook-3',
+            },
+        }
+        checkout_session = CheckoutSession.objects.create(
+            customer=self.customer,
+            payment_method=PaymentMethod.RAZORPAY,
+            payment_status=PaymentStatus.PENDING,
+            amount=Decimal('53.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            customer_notes='',
+            cart_snapshot=snapshot,
+            cart_signature='snapshot-signature',
+            receipt='grx-webhook-3',
+        )
+        payload = {
+            'event': 'payment_link.paid',
+            'payload': {
+                'payment_link': {
+                    'entity': {
+                        'id': 'plink_checkout_123',
+                        'status': 'paid',
+                        'reference_id': 'grx-webhook-3',
+                        'notes': {
+                            'checkout_session_id': str(checkout_session.id),
+                        },
+                    }
+                },
+                'payment': {
+                    'entity': {
+                        'id': 'pay_checkout_123',
+                    }
+                },
+            },
+        }
+        raw_body = json.dumps(payload).encode('utf-8')
+        signature = hmac.new(b'webhook_secret_123', raw_body, hashlib.sha256).hexdigest()
+
+        response = self.client.post(
+            reverse('core:razorpay_webhook'),
+            data=raw_body,
+            content_type='application/json',
+            HTTP_X_RAZORPAY_SIGNATURE=signature,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        checkout_session.refresh_from_db()
+        self.assertEqual(checkout_session.payment_status, PaymentStatus.PAID)
+        self.assertEqual(checkout_session.razorpay_payment_id, 'pay_checkout_123')
         self.assertTrue(Order.objects.filter(checkout_session=checkout_session).exists())
 
     @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')

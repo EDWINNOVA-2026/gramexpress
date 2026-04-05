@@ -3419,6 +3419,102 @@ def create_cod_payment_link(*, request: HttpRequest, order: Order) -> dict[str, 
     return payment_link
 
 
+def checkout_session_payment_link_meta(checkout_session: CheckoutSession) -> dict[str, Any]:
+    snapshot = checkout_session.cart_snapshot if isinstance(checkout_session.cart_snapshot, dict) else {}
+    payment_link = snapshot.get('_payment_link')
+    if isinstance(payment_link, dict):
+        return payment_link
+    return {}
+
+
+def save_checkout_session_payment_link(checkout_session: CheckoutSession, payment_link: dict[str, Any]) -> dict[str, Any]:
+    snapshot = dict(checkout_session.cart_snapshot or {})
+    link_meta = {
+        'id': payment_link.get('id', ''),
+        'short_url': payment_link.get('short_url', ''),
+        'status': payment_link.get('status', 'created'),
+        'reference_id': payment_link.get('reference_id', checkout_session.receipt),
+    }
+    snapshot['_payment_link'] = link_meta
+    checkout_session.cart_snapshot = snapshot
+    checkout_session.save(update_fields=['cart_snapshot', 'updated_at'])
+    return link_meta
+
+
+def create_checkout_payment_link(*, request: HttpRequest, checkout_session: CheckoutSession) -> dict[str, Any]:
+    existing_payment_link = checkout_session_payment_link_meta(checkout_session)
+    if existing_payment_link.get('short_url') and existing_payment_link.get('status') in ['', 'created', 'partially_paid']:
+        return existing_payment_link
+
+    callback_url = request.build_absolute_uri(reverse('core:customer_razorpay_callback'))
+    payload = {
+        'amount': int((checkout_session.amount * 100).quantize(Decimal('1'))),
+        'currency': checkout_session.currency,
+        'accept_partial': False,
+        'description': f'GramExpress checkout #{checkout_session.id}',
+        'reference_id': checkout_session.receipt,
+        'customer': {
+            'name': checkout_session.customer.full_name,
+            'email': checkout_session.customer.email,
+            'contact': checkout_session.customer.phone,
+        },
+        'notify': {
+            'email': False,
+            'sms': False,
+        },
+        'reminder_enable': False,
+        'callback_url': callback_url,
+        'callback_method': 'get',
+        'notes': {
+            'checkout_session_id': str(checkout_session.id),
+            'flow': 'customer_checkout',
+        },
+    }
+    payment_link = razorpay_api_request(path='/payment_links', method='POST', payload=payload)
+    payment_link['reference_id'] = payment_link.get('reference_id', checkout_session.receipt)
+    save_checkout_session_payment_link(checkout_session, payment_link)
+    return payment_link
+
+
+def verify_razorpay_payment_link_signature(
+    *,
+    razorpay_payment_link_id: str,
+    razorpay_payment_link_reference_id: str,
+    razorpay_payment_link_status: str,
+    razorpay_payment_id: str,
+    razorpay_signature: str,
+) -> bool:
+    generated_signature = hmac.new(
+        getattr(settings, 'RAZORPAY_KEY_SECRET', '').encode('utf-8'),
+        (
+            f'{razorpay_payment_link_id}|{razorpay_payment_link_reference_id}|'
+            f'{razorpay_payment_link_status}|{razorpay_payment_id}'
+        ).encode('utf-8'),
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(generated_signature, razorpay_signature)
+
+
+def mark_checkout_session_paid(
+    *,
+    checkout_session: CheckoutSession,
+    razorpay_payment_id: str,
+    razorpay_signature: str = '',
+) -> list[Order]:
+    if checkout_session.is_completed:
+        return list(checkout_session.orders.all())
+
+    checkout_session.razorpay_payment_id = razorpay_payment_id or checkout_session.razorpay_payment_id
+    if razorpay_signature:
+        checkout_session.razorpay_signature = razorpay_signature
+    checkout_session.payment_status = PaymentStatus.PAID
+    checkout_session.failure_reason = ''
+    checkout_session.save(
+        update_fields=['razorpay_payment_id', 'razorpay_signature', 'payment_status', 'failure_reason', 'updated_at']
+    )
+    return finalize_checkout_session(checkout_session)
+
+
 def build_settlement_upi_url(order: Order) -> str:
     upi_id = getattr(settings, 'RAZORPAY_SETTLEMENT_UPI_ID', '').strip()
     if not upi_id:
@@ -6989,19 +7085,100 @@ def customer_razorpay_launch(request: HttpRequest) -> HttpResponse:
             cart=cart,
             checkout_data=checkout_data,
         )
+        payment_link = create_checkout_payment_link(request=request, checkout_session=checkout_session)
     except CheckoutValidationError as error:
         messages.error(request, str(error))
         return redirect('core:customer_checkout')
 
-    return render(
-        request,
-        'core/razorpay_launch.html',
+    payment_link_url = payment_link.get('short_url', '')
+    if not payment_link_url:
+        messages.error(request, 'Razorpay did not return a hosted payment URL for this checkout.')
+        return redirect('core:customer_checkout')
+    return redirect(payment_link_url)
+
+
+@role_required(RoleType.CUSTOMER)
+def customer_razorpay_callback(request: HttpRequest) -> HttpResponse:
+    customer = request.role_profile
+    razorpay_payment_id = request.GET.get('razorpay_payment_id', '').strip()
+    razorpay_payment_link_id = request.GET.get('razorpay_payment_link_id', '').strip()
+    razorpay_payment_link_reference_id = request.GET.get('razorpay_payment_link_reference_id', '').strip()
+    razorpay_payment_link_status = request.GET.get('razorpay_payment_link_status', '').strip()
+    razorpay_signature = request.GET.get('razorpay_signature', '').strip()
+
+    if not all([
+        razorpay_payment_id,
+        razorpay_payment_link_id,
+        razorpay_payment_link_reference_id,
+        razorpay_payment_link_status,
+        razorpay_signature,
+    ]):
+        messages.error(request, 'Razorpay did not return the hosted payment confirmation details.')
+        return redirect('core:customer_checkout')
+
+    checkout_session = CheckoutSession.objects.filter(
+        customer=customer,
+        payment_method=PaymentMethod.RAZORPAY,
+        receipt=razorpay_payment_link_reference_id,
+    ).first()
+    if not checkout_session:
+        messages.error(request, 'The hosted payment link does not match your active checkout.')
+        return redirect('core:customer_checkout')
+
+    link_meta = checkout_session_payment_link_meta(checkout_session)
+    if link_meta.get('id') and link_meta.get('id') != razorpay_payment_link_id:
+        messages.error(request, 'The Razorpay payment link did not match this checkout session.')
+        return redirect('core:customer_checkout')
+
+    if not verify_razorpay_payment_link_signature(
+        razorpay_payment_link_id=razorpay_payment_link_id,
+        razorpay_payment_link_reference_id=razorpay_payment_link_reference_id,
+        razorpay_payment_link_status=razorpay_payment_link_status,
+        razorpay_payment_id=razorpay_payment_id,
+        razorpay_signature=razorpay_signature,
+    ):
+        messages.error(request, 'Razorpay hosted payment signature verification failed.')
+        return redirect('core:customer_checkout')
+
+    updated_payment_link = dict(link_meta or {})
+    updated_payment_link.update(
         {
-            'checkout_session': checkout_session,
-            'razorpay_checkout': build_razorpay_checkout_context(checkout_session, customer),
-            'estimated_total': checkout_session.amount,
-        },
+            'id': razorpay_payment_link_id,
+            'status': razorpay_payment_link_status,
+            'reference_id': razorpay_payment_link_reference_id,
+        }
     )
+    save_checkout_session_payment_link(checkout_session, updated_payment_link)
+
+    if razorpay_payment_link_status != 'paid':
+        checkout_session.payment_status = PaymentStatus.FAILED
+        checkout_session.failure_reason = f'Hosted payment status returned as {razorpay_payment_link_status}.'
+        checkout_session.save(update_fields=['payment_status', 'failure_reason', 'updated_at'])
+        messages.error(request, 'The Razorpay payment was not completed.')
+        return redirect('core:customer_checkout')
+
+    try:
+        created_orders = mark_checkout_session_paid(
+            checkout_session=checkout_session,
+            razorpay_payment_id=razorpay_payment_id,
+            razorpay_signature=razorpay_signature,
+        )
+    except CheckoutValidationError as error:
+        checkout_session.failure_reason = str(error)
+        checkout_session.save(update_fields=['failure_reason', 'updated_at'])
+        messages.error(request, f'Payment was verified, but order creation needs manual review: {error}')
+        return redirect('core:customer_cart')
+
+    save_cart(request, {})
+    set_last_checkout_payload(
+        request,
+        orders=created_orders,
+        payment_method=checkout_session.payment_method,
+        checkout_session=checkout_session,
+    )
+    clear_pending_checkout(request)
+    messages.success(request, f'Payment confirmed and {len(created_orders)} order(s) were placed successfully.')
+    return redirect('core:customer_checkout_success')
 
 
 @role_required(RoleType.CUSTOMER)
@@ -7134,7 +7311,48 @@ def razorpay_webhook(request: HttpRequest) -> HttpResponse:
     if payment_link_entity.get('id'):
         order = Order.objects.filter(cod_payment_link_id=payment_link_entity.get('id')).select_related('customer', 'rider', 'shop__owner').first()
         if not order:
-            return JsonResponse({'status': 'ignored'})
+            checkout_session_id = payment_link_entity.get('notes', {}).get('checkout_session_id')
+            checkout_session = None
+            if checkout_session_id:
+                checkout_session = CheckoutSession.objects.filter(
+                    pk=checkout_session_id,
+                    payment_method=PaymentMethod.RAZORPAY,
+                ).first()
+            if not checkout_session and payment_link_entity.get('reference_id'):
+                checkout_session = CheckoutSession.objects.filter(
+                    receipt=payment_link_entity.get('reference_id'),
+                    payment_method=PaymentMethod.RAZORPAY,
+                ).first()
+            if not checkout_session:
+                return JsonResponse({'status': 'ignored'})
+
+            payment_link_meta = checkout_session_payment_link_meta(checkout_session)
+            payment_link_meta.update(
+                {
+                    'id': payment_link_entity.get('id', payment_link_meta.get('id', '')),
+                    'short_url': payment_link_meta.get('short_url', ''),
+                    'status': payment_link_entity.get('status', payment_link_meta.get('status', '')),
+                    'reference_id': payment_link_entity.get('reference_id', checkout_session.receipt),
+                }
+            )
+            save_checkout_session_payment_link(checkout_session, payment_link_meta)
+
+            if event_name == 'payment_link.paid':
+                try:
+                    mark_checkout_session_paid(
+                        checkout_session=checkout_session,
+                        razorpay_payment_id=payment_entity.get('id', checkout_session.razorpay_payment_id),
+                    )
+                except CheckoutValidationError as error:
+                    checkout_session.failure_reason = str(error)
+                    checkout_session.save(update_fields=['failure_reason', 'updated_at'])
+                    return JsonResponse({'status': 'manual_review'}, status=202)
+            elif event_name in ['payment_link.cancelled', 'payment_link.expired', 'payment_link.partially_paid']:
+                checkout_session.failure_reason = (
+                    f'Hosted payment link status changed to {payment_link_entity.get("status", "unknown")}.'
+                )[:240]
+                checkout_session.save(update_fields=['failure_reason', 'updated_at'])
+            return JsonResponse({'status': 'ok'})
         if event_name == 'payment_link.paid':
             order.cod_collection_mode = CodCollectionMode.ONLINE
             order.cod_payment_link_status = payment_link_entity.get('status', 'paid')
@@ -7246,12 +7464,11 @@ def razorpay_webhook(request: HttpRequest) -> HttpResponse:
         return JsonResponse({'status': 'ok'})
 
     if event_name in ['payment.captured', 'order.paid']:
-        checkout_session.razorpay_payment_id = payment_entity.get('id', checkout_session.razorpay_payment_id)
-        checkout_session.payment_status = PaymentStatus.PAID
-        checkout_session.failure_reason = ''
-        checkout_session.save(update_fields=['razorpay_payment_id', 'payment_status', 'failure_reason', 'updated_at'])
         try:
-            finalize_checkout_session(checkout_session)
+            mark_checkout_session_paid(
+                checkout_session=checkout_session,
+                razorpay_payment_id=payment_entity.get('id', checkout_session.razorpay_payment_id),
+            )
         except CheckoutValidationError as error:
             checkout_session.failure_reason = str(error)
             checkout_session.save(update_fields=['failure_reason', 'updated_at'])

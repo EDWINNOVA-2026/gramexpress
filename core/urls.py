@@ -39,6 +39,7 @@ urlpatterns = [
     path('customer/cart/clear/', views.cart_clear, name='cart_clear'),
     path('customer/checkout/', views.customer_checkout, name='customer_checkout'),
     path('customer/checkout/razorpay/launch/', views.customer_razorpay_launch, name='customer_razorpay_launch'),
+    path('customer/checkout/razorpay/callback/', views.customer_razorpay_callback, name='customer_razorpay_callback'),
     path('customer/checkout/razorpay/complete/', views.customer_razorpay_complete, name='customer_razorpay_complete'),
     path('customer/checkout/razorpay/failed/', views.customer_razorpay_failed, name='customer_razorpay_failed'),
     path('customer/checkout/success/', views.customer_checkout_success, name='customer_checkout_success'),
