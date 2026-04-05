@@ -15,7 +15,16 @@
       <span class="eyebrow">Profile</span>
       <h2 class="section-title">Dispatch location</h2>
       <div class="profile-summary">
-        <div class="avatar-badge">{{ rider.full_name|first|upper }}</div>
+        {% if rider.photo_source %}
+          <img
+            class="rider-photo-avatar rider-photo-avatar-lg"
+            src="{{ rider.photo_source }}"
+            alt="{{ rider.full_name }}"
+            data-rider-photo-target
+          />
+        {% else %}
+          <div class="avatar-badge" data-rider-photo-fallback>{{ rider.full_name|first|upper }}</div>
+        {% endif %}
         <div class="profile-copy">
           <strong>{{ rider.full_name }}</strong>
           <p>{{ rider.phone }}{% if rider.email %} | {{ rider.email }}{% endif %}</p>
@@ -25,6 +34,34 @@
             <span class="soft-pill">{{ rider.get_approval_status_display }}</span>
           </div>
         </div>
+      </div>
+      <div
+        class="rider-photo-panel rider-photo-panel-compact top-gap"
+        data-rider-photo-panel
+        data-upload-url="{% url 'core:api_rider_update_photo' %}"
+      >
+        <div class="rider-photo-panel-copy">
+          <strong>Update rider photo</strong>
+          <p class="subtle">This is the face customers and shops will see after order assignment.</p>
+        </div>
+        <div class="rider-photo-stage rider-photo-stage-compact">
+          <video class="rider-photo-video" data-rider-photo-video playsinline autoplay muted></video>
+          <canvas data-rider-photo-canvas hidden></canvas>
+          <img
+            class="rider-photo-preview"
+            data-rider-photo-preview
+            alt="Rider photo preview"
+            {% if rider.photo_source %}src="{{ rider.photo_source }}"{% endif %}
+          />
+        </div>
+        <div class="rider-photo-actions">
+          <button class="button secondary" type="button" data-rider-photo-open>Open Camera</button>
+          <button class="button secondary" type="button" data-rider-photo-capture disabled>Capture</button>
+          <button class="button secondary" type="button" data-rider-photo-retake disabled>Retake</button>
+          <button class="button primary" type="button" data-rider-photo-upload disabled>Update photo</button>
+          <input type="file" accept="image/jpeg,image/png,image/webp" capture="user" data-rider-photo-file hidden />
+        </div>
+        <p class="field-help" data-rider-photo-status>Capture or retake a clear photo and upload it to refresh every assigned-order screen.</p>
       </div>
       <p class="subtle">Switch between online and offline from the top-right account menu so the control stays available on every rider screen.</p>
 

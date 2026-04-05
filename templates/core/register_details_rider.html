@@ -80,6 +80,51 @@
           </div>
         </section>
 
+        <section class="auth-role-section">
+          <div class="auth-section-head">
+            <strong>Verify Your Identity</strong>
+            <p>Capture a clear live photo now so shops and customers can recognize the rider assigned to their order.</p>
+          </div>
+          <div
+            class="rider-photo-panel"
+            data-rider-photo-panel
+            data-upload-url="{% url 'core:api_rider_upload_photo' %}"
+            data-account-type="{{ selected_role }}"
+          >
+            {{ form.photo_url }}
+            <div class="rider-photo-panel-copy">
+              <ul class="rider-photo-guidelines">
+                <li>Take a clear photo of your face</li>
+                <li>Do not wear helmet or sunglasses</li>
+                <li>Make sure lighting is good</li>
+                <li>This photo will be shown to customers and shops</li>
+              </ul>
+              <span class="field-help">Image size limit: 2MB. We compress captured photos before upload.</span>
+              {% for error in form.photo_url.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+            <div class="rider-photo-stage">
+              <video class="rider-photo-video" data-rider-photo-video playsinline autoplay muted></video>
+              <canvas data-rider-photo-canvas hidden></canvas>
+              <img
+                class="rider-photo-preview"
+                data-rider-photo-preview
+                alt="Rider photo preview"
+                {% if form.photo_url.value %}src="{{ form.photo_url.value }}"{% endif %}
+              />
+            </div>
+            <div class="rider-photo-actions">
+              <button class="button secondary" type="button" data-rider-photo-open>Open Camera</button>
+              <button class="button secondary" type="button" data-rider-photo-capture disabled>Capture</button>
+              <button class="button secondary" type="button" data-rider-photo-retake disabled>Retake</button>
+              <button class="button primary" type="button" data-rider-photo-upload disabled>Upload</button>
+              <input type="file" accept="image/jpeg,image/png,image/webp" capture="user" data-rider-photo-file hidden />
+            </div>
+            <p class="field-help" data-rider-photo-status>
+              Open the camera, capture a clear face photo, then upload it before you continue to OTP verification.
+            </p>
+          </div>
+        </section>
+
         <section class="auth-role-section auth-role-section-location">
           <div class="auth-location-card">
             <div>
@@ -112,4 +157,8 @@
       </form>
     </article>
   </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  {{ block.super }}
 {% endblock %}
