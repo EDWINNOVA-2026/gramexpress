@@ -842,6 +842,7 @@ class EmailOtpToken(TimeStampedModel):
 class OtpPurpose(models.TextChoices):
     REGISTER = 'register', 'Register'
     LOGIN_EMAIL = 'login_email', 'Login Email'
+    PASSWORD_RESET = 'password_reset', 'Password Reset'
 
 
 class OtpChannel(models.TextChoices):

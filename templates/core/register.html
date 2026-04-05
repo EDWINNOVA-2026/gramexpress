@@ -8,11 +8,18 @@
       </div>
       <h1>Choose Your Role</h1>
       <p class="auth-subtitle">Start with the workspace you need, then we'll open only that onboarding flow.</p>
-      <p class="auth-lead">Each role now has its own setup screen, followed by a separate OTP verification step.</p>
+      {% if pending_google_auth %}
+        <p class="auth-lead">Signed in with Google as <strong>{{ pending_google_auth.email }}</strong>. Choose a role to finish setup without OTP verification.</p>
+      {% else %}
+        <p class="auth-lead">Each role now has its own setup screen, followed by a separate OTP verification step.</p>
+      {% endif %}
 
       <div class="auth-google-wrap">
         {% if google_client_id %}
-          <div class="auth-google-button" data-google-button data-client-id="{{ google_client_id }}"></div>
+          <div class="auth-google-shell" data-google-shell>
+            <button class="auth-social-button auth-google-fallback" type="button" data-google-fallback>Continue with Google</button>
+            <div class="auth-google-button" data-google-button data-client-id="{{ google_client_id }}" hidden></div>
+          </div>
         {% else %}
           <button class="auth-social-button auth-social-button-disabled" type="button" disabled>Continue with Google</button>
         {% endif %}
@@ -33,10 +40,19 @@
         </section>
       {% endif %}
 
+      {% if pending_google_auth %}
+        <section class="auth-note-panel">
+          <div>
+            <strong>Google account verified</strong>
+            <p>We'll keep {{ pending_google_auth.email }} as the sign-in email and skip password plus OTP while you finish onboarding.</p>
+          </div>
+        </section>
+      {% endif %}
+
       <div class="auth-step-strip">
         <span class="soft-pill">1. Choose role</span>
         <span class="soft-pill">2. Add onboarding details</span>
-        <span class="soft-pill">3. Verify mobile OTP</span>
+        <span class="soft-pill">{% if pending_google_auth %}3. Start workspace{% else %}3. Verify mobile OTP{% endif %}</span>
       </div>
 
       <div class="auth-role-grid">

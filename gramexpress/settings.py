@@ -111,10 +111,11 @@ LOGIN_REDIRECT_URL = '/'
 
 GRAMEXPRESS_APP_NAME = os.getenv('GRAMEXPRESS_APP_NAME', 'GramExpress')
 APP_ASSET_VERSION = os.getenv('APP_ASSET_VERSION', _build_asset_version())
-PWA_ENABLED = os.getenv('PWA_ENABLED', 'false' if DEBUG else 'true').lower() == 'true'
+PWA_ENABLED = os.getenv('PWA_ENABLED', 'true').lower() == 'true'
 GOOGLE_MAPS_BROWSER_API_KEY = os.getenv('GOOGLE_MAPS_BROWSER_API_KEY', '')
 GOOGLE_MAPS_EMBED_API_KEY = os.getenv('GOOGLE_MAPS_EMBED_API_KEY', '')
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
+SITE_URL = os.getenv('SITE_URL', '').rstrip('/')
 RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', '')
 RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET', '')
 RAZORPAY_WEBHOOK_SECRET = os.getenv('RAZORPAY_WEBHOOK_SECRET', '')
@@ -127,6 +128,7 @@ EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'true').lower() == 'true'
+EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '20'))
 OTP_EXPIRY_MINUTES = int(os.getenv('OTP_EXPIRY_MINUTES', '10'))
 SMS_BACKEND = os.getenv('SMS_BACKEND', 'console')
 SMS_FROM = os.getenv('SMS_FROM', '')

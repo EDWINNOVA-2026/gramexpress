@@ -47,7 +47,13 @@ from .models import (
     ShopOwnerProfile,
 )
 from .forms import LoginOtpVerifyForm, UnifiedRegistrationForm
-from .views import RIDER_LIVE_CAPTURE_SOURCE, get_dashboard_url_for_user, reverse_geocode_location
+from .views import (
+    PENDING_GOOGLE_AUTH_SESSION_KEY,
+    PENDING_PASSWORD_RESET_SESSION_KEY,
+    RIDER_LIVE_CAPTURE_SOURCE,
+    get_dashboard_url_for_user,
+    reverse_geocode_location,
+)
 
 
 class CoreFlowTests(TestCase):
@@ -163,9 +169,62 @@ class CoreFlowTests(TestCase):
         response = self.client.get(reverse('core:login'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Sign in to your local delivery workspace')
-        self.assertContains(response, 'Continue with Google')
+        self.assertContains(response, 'data-google-button', html=False)
+        self.assertContains(response, 'Forgot password?')
+        self.assertContains(response, 'Add GramExpress to your home screen')
+        self.assertContains(response, 'rel="manifest"', html=False)
         self.assertContains(response, 'Use passwordless email OTP instead')
         self.assertEqual(response['Cache-Control'], 'no-store, no-cache, must-revalidate, max-age=0')
+
+    def test_manifest_route_returns_pwa_configuration(self):
+        response = self.client.get(reverse('core:manifest'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['display'], 'standalone')
+        self.assertEqual(response.json()['scope'], '/')
+        self.assertIn('window-controls-overlay', response.json()['display_override'])
+
+    def test_password_reset_route_renders(self):
+        response = self.client.get(reverse('core:password_reset'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Reset Password')
+        self.assertContains(response, 'Send Reset OTP')
+
+    def test_password_reset_flow_updates_password_and_logs_user_in(self):
+        request_response = self.client.post(
+            reverse('core:password_reset'),
+            {'email': self.customer.email},
+        )
+
+        self.assertRedirects(request_response, reverse('core:password_reset_verify'), fetch_redirect_response=False)
+        session = self.client.session
+        self.assertEqual(session[PENDING_PASSWORD_RESET_SESSION_KEY]['email'], self.customer.email)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].subject, 'Your GramExpress password reset OTP')
+        self.assertTrue(mail.outbox[0].alternatives)
+        self.assertIn('Your verification code is ready', mail.outbox[0].alternatives[0][0])
+
+        token = AuthOtpToken.objects.filter(
+            user=self.customer_user,
+            purpose=OtpPurpose.PASSWORD_RESET,
+        ).latest('created_at')
+
+        verify_response = self.client.post(
+            reverse('core:password_reset_verify'),
+            {
+                'action': 'verify',
+                'email': self.customer.email,
+                'code': token.code,
+                'password1': 'newsecure123',
+                'password2': 'newsecure123',
+            },
+        )
+
+        self.assertRedirects(verify_response, reverse('core:customer_dashboard'), fetch_redirect_response=False)
+        self.assertNotIn(PENDING_PASSWORD_RESET_SESSION_KEY, self.client.session)
+        token.refresh_from_db()
+        self.assertTrue(token.is_used)
+        self.customer_user.refresh_from_db()
+        self.assertTrue(self.customer_user.check_password('newsecure123'))
 
     def test_register_route_renders(self):
         response = self.client.get(reverse('core:register'))
@@ -173,6 +232,127 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, 'Choose Your Role')
         self.assertContains(response, 'Open customer onboarding')
         self.assertEqual(response['Cache-Control'], 'no-store, no-cache, must-revalidate, max-age=0')
+
+    @patch('core.views.verify_google_credential')
+    def test_google_auth_logs_in_existing_user_by_email(self, verify_google_credential_mock):
+        verify_google_credential_mock.return_value = (
+            {
+                'email': self.customer.email,
+                'name': self.customer.full_name,
+                'email_verified': True,
+            },
+            None,
+        )
+
+        response = self.client.post(
+            reverse('core:google_auth'),
+            {'credential': 'google-token'},
+        )
+
+        self.assertRedirects(response, reverse('core:customer_dashboard'), fetch_redirect_response=False)
+        self.assertEqual(int(self.client.session['_auth_user_id']), self.customer_user.id)
+
+    @patch('core.views.verify_google_credential')
+    def test_google_auth_new_user_redirects_to_role_selection_without_otp(self, verify_google_credential_mock):
+        verify_google_credential_mock.return_value = (
+            {
+                'email': 'newgoogle@example.com',
+                'name': 'New Google User',
+                'email_verified': True,
+            },
+            None,
+        )
+
+        response = self.client.post(
+            reverse('core:google_auth'),
+            {'credential': 'google-token'},
+            follow=True,
+        )
+
+        self.assertRedirects(
+            response,
+            f'{reverse("core:register")}?email=newgoogle%40example.com&full_name=New+Google+User',
+        )
+        self.assertContains(response, 'Google account verified')
+        self.assertEqual(self.client.session[PENDING_GOOGLE_AUTH_SESSION_KEY]['email'], 'newgoogle@example.com')
+
+    def test_google_registration_customer_hides_password_and_otp_copy(self):
+        session = self.client.session
+        session[PENDING_GOOGLE_AUTH_SESSION_KEY] = {
+            'email': 'googlecustomer@example.com',
+            'full_name': 'Google Customer',
+        }
+        session.save()
+
+        response = self.client.get(f'{reverse("core:register_details")}?account_type={RoleType.CUSTOMER}')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'No password or OTP is required for this setup.')
+        self.assertContains(response, 'Create Customer Account')
+        self.assertNotContains(response, 'Confirm Password')
+        self.assertNotContains(response, 'Send Mobile OTP')
+
+    def test_google_registration_customer_creates_account_without_otp(self):
+        session = self.client.session
+        session[PENDING_GOOGLE_AUTH_SESSION_KEY] = {
+            'email': 'googlecustomer@example.com',
+            'full_name': 'Google Customer',
+        }
+        session.save()
+
+        response = self.client.post(
+            f'{reverse("core:register_details")}?account_type={RoleType.CUSTOMER}',
+            {
+                'account_type': RoleType.CUSTOMER,
+                'full_name': 'Google Customer',
+                'phone': '9123456780',
+                'email': 'ignored@example.com',
+                'preferred_language': 'en',
+                'address_line_1': '7 Market Road',
+                'address_line_2': '',
+                'district': 'Mandya',
+                'pincode': '571401',
+                'latitude': '12.915300',
+                'longitude': '76.643800',
+            },
+        )
+
+        self.assertRedirects(response, reverse('core:customer_dashboard'), fetch_redirect_response=False)
+        created_user = get_user_model().objects.get(username=f'{RoleType.CUSTOMER}:9123456780')
+        created_customer = CustomerProfile.objects.get(user=created_user)
+        self.assertEqual(created_customer.email, 'googlecustomer@example.com')
+        self.assertFalse(created_user.has_usable_password())
+        self.assertFalse(AuthOtpToken.objects.filter(phone='9123456780', purpose=OtpPurpose.REGISTER).exists())
+        self.assertNotIn(PENDING_GOOGLE_AUTH_SESSION_KEY, self.client.session)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].subject, 'Welcome to GramExpress')
+        self.assertTrue(mail.outbox[0].alternatives)
+        self.assertIn('Open Customer Dashboard', mail.outbox[0].alternatives[0][0])
+
+    @patch('core.views.verify_google_credential')
+    def test_google_auth_rejects_invalid_google_csrf_token(self, verify_google_credential_mock):
+        verify_google_credential_mock.return_value = (
+            {
+                'email': self.customer.email,
+                'name': self.customer.full_name,
+                'email_verified': True,
+            },
+            None,
+        )
+        self.client.cookies['g_csrf_token'] = 'cookie-token'
+
+        response = self.client.post(
+            reverse('core:google_auth'),
+            {
+                'credential': 'google-token',
+                'g_csrf_token': 'body-token',
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse('core:login'))
+        self.assertContains(response, 'Google sign-in session check failed')
+        self.assertFalse('_auth_user_id' in self.client.session)
 
     def test_register_details_only_shows_selected_role_fields(self):
         response = self.client.get(f'{reverse("core:register_details")}?account_type={RoleType.CUSTOMER}')
@@ -197,6 +377,7 @@ class CoreFlowTests(TestCase):
         response = self.client.get(f'{reverse("core:register_details")}?account_type={RoleType.CUSTOMER}')
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-google-button', html=False)
         self.assertContains(response, 'Open Google Maps')
         self.assertContains(response, 'Your live address will appear here automatically.')
         self.assertContains(response, 'Move the pin or use current location to refresh the address line automatically.')

@@ -1,0 +1,17 @@
+{{ app_name }}
+
+{{ headline }}
+
+{{ intro }}
+
+{% for item in highlights %}{{ item.label }}: {{ item.value }}
+{% endfor %}
+{% for section in sections %}
+{% if section.title %}{{ section.title }}
+{% endif %}{% for line in section.lines %}{{ line }}
+{% endfor %}
+{% endfor %}
+{% if cta_url and cta_label %}{{ cta_label }}: {{ cta_url }}
+{% endif %}
+{% if footer_note %}{{ footer_note }}
+{% endif %}

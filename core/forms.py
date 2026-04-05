@@ -148,6 +148,37 @@ class EmailOtpVerifyForm(forms.Form, BaseStyledForm):
         return code
 
 
+class PasswordResetVerifyForm(forms.Form, BaseStyledForm):
+    email = forms.EmailField(label='Email address')
+    code = forms.CharField(max_length=6, min_length=6, label='OTP code')
+    password1 = forms.CharField(widget=forms.PasswordInput, label='New password')
+    password2 = forms.CharField(widget=forms.PasswordInput, label='Confirm new password')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._style_fields()
+        self.fields['email'].widget.attrs['placeholder'] = 'Enter the same email again'
+        self.fields['code'].widget.attrs['placeholder'] = 'Enter 6 digit OTP'
+        self.fields['code'].widget.attrs['inputmode'] = 'numeric'
+        self.fields['code'].widget.attrs['autocomplete'] = 'one-time-code'
+        self.fields['code'].widget.attrs['pattern'] = '[0-9]{6}'
+        self.fields['code'].widget.attrs['maxlength'] = '6'
+        self.fields['password1'].widget.attrs['autocomplete'] = 'new-password'
+        self.fields['password2'].widget.attrs['autocomplete'] = 'new-password'
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get('password1') != cleaned_data.get('password2'):
+            self.add_error('password2', 'Passwords did not match.')
+        return cleaned_data
+
+    def clean_code(self) -> str:
+        code = ''.join(ch for ch in self.cleaned_data['code'] if ch.isdigit())
+        if len(code) != 6:
+            raise forms.ValidationError('Enter a valid 6 digit OTP.')
+        return code
+
+
 class UnifiedRegistrationForm(forms.Form, BaseStyledForm):
     account_type = forms.ChoiceField(choices=ACCOUNT_TYPE_CHOICES, label='Register as')
     full_name = forms.CharField(max_length=120, label='Full name')
@@ -178,6 +209,7 @@ class UnifiedRegistrationForm(forms.Form, BaseStyledForm):
 
     def __init__(self, *args, **kwargs):
         selected_role = kwargs.pop('selected_role', '')
+        google_onboarding = kwargs.pop('google_onboarding', False)
         super().__init__(*args, **kwargs)
 
         if selected_role in REGISTRATION_ROLE_FIELDS:
@@ -186,10 +218,10 @@ class UnifiedRegistrationForm(forms.Form, BaseStyledForm):
                 'full_name',
                 'phone',
                 'email',
-                'password1',
-                'password2',
                 *REGISTRATION_ROLE_FIELDS[selected_role],
             }
+            if not google_onboarding:
+                keep_fields.update({'password1', 'password2'})
             for field_name in list(self.fields):
                 if field_name not in keep_fields:
                     self.fields.pop(field_name)
@@ -202,6 +234,8 @@ class UnifiedRegistrationForm(forms.Form, BaseStyledForm):
             self.fields['full_name'].widget.attrs['autocomplete'] = 'name'
         if 'email' in self.fields:
             self.fields['email'].widget.attrs['placeholder'] = 'you@example.com'
+            if google_onboarding:
+                self.fields['email'].widget.attrs['readonly'] = True
         if 'password1' in self.fields:
             self.fields['password1'].widget.attrs['autocomplete'] = 'new-password'
         if 'password2' in self.fields:
@@ -226,7 +260,7 @@ class UnifiedRegistrationForm(forms.Form, BaseStyledForm):
     def clean(self):
         cleaned_data = super().clean()
         account_type = cleaned_data.get('account_type')
-        if cleaned_data.get('password1') != cleaned_data.get('password2'):
+        if 'password1' in self.fields and cleaned_data.get('password1') != cleaned_data.get('password2'):
             self.add_error('password2', 'Passwords did not match.')
 
         required_fields_by_role = {

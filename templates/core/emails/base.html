@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ subject }}</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f6f8fc;color:#111827;font-family:'DM Sans',Arial,sans-serif;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">{{ preview }}</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f6f8fc;">
+      <tr>
+        <td align="center" style="padding:28px 12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;">
+            <tr>
+              <td style="padding:0 0 14px 0;text-align:left;">
+                <div style="display:inline-block;padding:10px 16px;border-radius:999px;background:rgba(255,87,51,0.12);color:#ff5733;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">
+                  {{ app_name }}
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="background:linear-gradient(180deg,#ffffff 0%,#fbfcff 100%);border:1px solid rgba(17,24,39,0.08);border-radius:28px;box-shadow:0 24px 60px rgba(15,23,42,0.12);padding:34px 28px;">
+                {% if badge %}
+                  <div style="display:inline-block;margin-bottom:14px;padding:8px 12px;border-radius:999px;background:#1a1a2e;color:#f9fafb;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;">
+                    {{ badge }}
+                  </div>
+                {% endif %}
+                <h1 style="margin:0 0 12px 0;font-size:30px;line-height:1.15;color:#111827;">{{ headline }}</h1>
+                <p style="margin:0 0 22px 0;font-size:16px;line-height:1.7;color:#374151;">{{ intro }}</p>
+
+                {% if highlights %}
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 22px 0;border-collapse:separate;border-spacing:0 12px;">
+                    {% for item in highlights %}
+                      <tr>
+                        <td style="width:38%;padding:14px 16px;border-radius:18px;background:rgba(26,26,46,0.04);color:#6b7280;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">
+                          {{ item.label }}
+                        </td>
+                        <td style="padding:14px 16px;border-radius:18px;background:rgba(255,255,255,0.96);border:1px solid rgba(17,24,39,0.08);color:#111827;font-size:15px;font-weight:700;">
+                          {{ item.value }}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </table>
+                {% endif %}
+
+                {% for section in sections %}
+                  <div style="margin:0 0 18px 0;padding:20px;border-radius:22px;background:rgba(255,255,255,0.92);border:1px solid rgba(17,24,39,0.08);">
+                    {% if section.title %}
+                      <h2 style="margin:0 0 10px 0;font-size:16px;line-height:1.4;color:#1a1a2e;">{{ section.title }}</h2>
+                    {% endif %}
+                    {% for line in section.lines %}
+                      <p style="margin:0 0 8px 0;font-size:15px;line-height:1.7;color:#374151;">{{ line }}</p>
+                    {% endfor %}
+                  </div>
+                {% endfor %}
+
+                {% if cta_url and cta_label %}
+                  <table role="presentation" cellspacing="0" cellpadding="0" style="margin:24px 0 18px 0;">
+                    <tr>
+                      <td style="border-radius:16px;background:#16a34a;">
+                        <a href="{{ cta_url }}" style="display:inline-block;padding:15px 24px;border-radius:16px;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;">{{ cta_label }}</a>
+                      </td>
+                    </tr>
+                  </table>
+                {% endif %}
+
+                {% if footer_note %}
+                  <p style="margin:8px 0 0 0;font-size:13px;line-height:1.7;color:#6b7280;">{{ footer_note }}</p>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 8px 0 8px;text-align:center;color:#6b7280;font-size:12px;line-height:1.6;">
+                {{ app_name }} keeps customers, stores, and riders in one delivery workspace.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

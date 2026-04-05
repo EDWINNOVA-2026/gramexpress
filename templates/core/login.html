@@ -12,7 +12,10 @@
 
       <div class="auth-google-wrap">
         {% if google_client_id %}
-          <div class="auth-google-button" data-google-button data-client-id="{{ google_client_id }}"></div>
+          <div class="auth-google-shell" data-google-shell>
+            <button class="auth-social-button auth-google-fallback" type="button" data-google-fallback>Continue with Google</button>
+            <div class="auth-google-button" data-google-button data-client-id="{{ google_client_id }}" hidden></div>
+          </div>
         {% else %}
           <button class="auth-social-button auth-social-button-disabled" type="button" disabled>Continue with Google</button>
         {% endif %}
@@ -34,6 +37,9 @@
           <label for="{{ form.password.id_for_label }}">Password</label>
           {{ form.password }}
           {% for error in form.password.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+          <div class="auth-inline-links">
+            <a href="{% url 'core:password_reset' %}">Forgot password?</a>
+          </div>
         </div>
 
         {% for error in form.non_field_errors %}<small class="field-error">{{ error }}</small>{% endfor %}

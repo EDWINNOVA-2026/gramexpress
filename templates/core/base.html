@@ -6,6 +6,9 @@
     <title>{{ request.resolver_match.url_name|default:'GramExpress'|title }} | GramExpress</title>
     <meta name="theme-color" content="#1a1a2e" />
     <meta name="description" content="GramExpress mobile-first delivery workspace with OTP auth, email order updates, and multi-role local commerce dashboards." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="GramExpress" />
     {% if shell_pwa_enabled %}
       <link rel="manifest" href="{% url 'core:manifest' %}?v={{ shell_asset_version }}" />
     {% endif %}
@@ -123,13 +126,13 @@
     {% endif %}
   </head>
   {% with route_name=request.resolver_match.url_name %}
-    <body class="{% if route_name == 'login' or route_name == 'login_verify' or route_name == 'register' or route_name == 'register_details' or route_name == 'register_verify' or route_name == 'email_otp' or route_name == 'email_otp_verify' or route_name == 'customer_start' or route_name == 'shop_start' or route_name == 'rider_start' %}auth-screen{% else %}app-screen{% endif %} route-{{ route_name|default:'unknown' }} role-{{ shell_active_role|default:'guest' }}">
+    <body class="{% if route_name == 'login' or route_name == 'login_verify' or route_name == 'password_reset' or route_name == 'password_reset_verify' or route_name == 'register' or route_name == 'register_details' or route_name == 'register_verify' or route_name == 'email_otp' or route_name == 'email_otp_verify' or route_name == 'customer_start' or route_name == 'shop_start' or route_name == 'rider_start' %}auth-screen{% else %}app-screen{% endif %} route-{{ route_name|default:'unknown' }} role-{{ shell_active_role|default:'guest' }}">
       <div class="app-frame">
         <div class="ambient ambient-one"></div>
         <div class="ambient ambient-two"></div>
         <div class="ambient ambient-three"></div>
 
-        {% if route_name != 'login' and route_name != 'login_verify' and route_name != 'register' and route_name != 'register_details' and route_name != 'register_verify' and route_name != 'email_otp' and route_name != 'email_otp_verify' and route_name != 'customer_start' and route_name != 'shop_start' and route_name != 'rider_start' %}
+        {% if route_name != 'login' and route_name != 'login_verify' and route_name != 'password_reset' and route_name != 'password_reset_verify' and route_name != 'register' and route_name != 'register_details' and route_name != 'register_verify' and route_name != 'email_otp' and route_name != 'email_otp_verify' and route_name != 'customer_start' and route_name != 'shop_start' and route_name != 'rider_start' %}
           <header class="site-shell site-header" data-appear>
             <div class="topbar" id="top">
               <a class="brand" href="{% if user.is_authenticated %}{{ shell_dashboard_url }}{% else %}{% url 'core:home' %}{% endif %}" aria-label="GramExpress home">
@@ -245,7 +248,7 @@
           </header>
         {% endif %}
 
-        <main class="site-shell site-main{% if route_name == 'login' or route_name == 'login_verify' or route_name == 'register' or route_name == 'register_details' or route_name == 'register_verify' or route_name == 'email_otp' or route_name == 'email_otp_verify' or route_name == 'customer_start' or route_name == 'shop_start' or route_name == 'rider_start' %} site-main-auth{% endif %}">
+        <main class="site-shell site-main{% if route_name == 'login' or route_name == 'login_verify' or route_name == 'password_reset' or route_name == 'password_reset_verify' or route_name == 'register' or route_name == 'register_details' or route_name == 'register_verify' or route_name == 'email_otp' or route_name == 'email_otp_verify' or route_name == 'customer_start' or route_name == 'shop_start' or route_name == 'rider_start' %} site-main-auth{% endif %}">
           {% if messages %}
             <section class="toast-stack" aria-live="polite" aria-atomic="true" data-toast-stack>
               {% for message in messages %}
@@ -258,6 +261,29 @@
           {% endif %}
           {% block content %}{% endblock %}
         </main>
+
+        {% if shell_pwa_enabled %}
+          <section class="install-sheet" data-install-sheet hidden aria-hidden="true" style="position:fixed; inset:0; z-index:120;">
+            <div class="install-sheet-backdrop" data-install-dismiss style="position:absolute; inset:0; background:rgba(15,23,42,0.42); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);"></div>
+            <div class="install-sheet-card card" role="dialog" aria-modal="true" aria-labelledby="install-sheet-title" style="position:absolute; left:50%; bottom:max(1rem, env(safe-area-inset-bottom) + 0.5rem); transform:translateX(-50%); width:min(calc(100vw - 1rem), 31rem); padding:1.25rem 1.15rem 1.1rem; border-radius:1.6rem; z-index:1;">
+              <button class="install-sheet-close" type="button" aria-label="Dismiss install prompt" data-install-dismiss>&times;</button>
+              <span class="install-sheet-badge">Install App</span>
+              <h2 id="install-sheet-title">Add GramExpress to your home screen</h2>
+              <p class="install-sheet-copy" data-install-copy>
+                Install GramExpress for a true app-like experience with full-screen fit, faster loading, and quick access from your phone.
+              </p>
+              <ol class="install-sheet-steps" data-install-ios-steps hidden>
+                <li>Tap the browser share button.</li>
+                <li>Choose <strong>Add to Home Screen</strong>.</li>
+                <li>Confirm to install GramExpress on your phone.</li>
+              </ol>
+              <div class="install-sheet-actions">
+                <button class="button primary" type="button" data-install-app>Install App</button>
+                <button class="button secondary" type="button" data-install-dismiss>Maybe Later</button>
+              </div>
+            </div>
+          </section>
+        {% endif %}
 
         {% if shell_active_role == 'customer' and show_customer_floating_cart and route_name != 'customer_cart' and route_name != 'customer_checkout' %}
           <a
@@ -276,7 +302,7 @@
           </a>
         {% endif %}
 
-        {% if user.is_authenticated and route_name != 'login' and route_name != 'login_verify' and route_name != 'register' and route_name != 'register_details' and route_name != 'register_verify' and route_name != 'email_otp' and route_name != 'email_otp_verify' and route_name != 'customer_start' and route_name != 'shop_start' and route_name != 'rider_start' %}
+        {% if user.is_authenticated and route_name != 'login' and route_name != 'login_verify' and route_name != 'password_reset' and route_name != 'password_reset_verify' and route_name != 'register' and route_name != 'register_details' and route_name != 'register_verify' and route_name != 'email_otp' and route_name != 'email_otp_verify' and route_name != 'customer_start' and route_name != 'shop_start' and route_name != 'rider_start' %}
           <nav class="mobile-bottom-nav{% if shell_active_role == 'shop' %} mobile-bottom-nav-shop{% endif %}" aria-label="Bottom navigation">
             {% if shell_active_role == 'shop' %}
               {% for link in shell_role_links %}
@@ -851,49 +877,168 @@
         }
 
         function attachGoogleSignIn() {
-          var googleButton = document.querySelector('[data-google-button]');
-          var googleForm = document.querySelector('[data-google-form]');
-          var googleCredential = document.querySelector('[data-google-credential]');
-          if (!googleButton || !googleForm || !googleCredential) {
-            return;
-          }
-          if (!(window.google && google.accounts && google.accounts.id)) {
+          var googleButtons = document.querySelectorAll('[data-google-button]');
+          if (!googleButtons.length) {
             return;
           }
 
-          var clientId = googleButton.getAttribute('data-client-id');
+          var clientId = googleButtons[0].getAttribute('data-client-id');
           if (!clientId) {
             return;
           }
 
-          google.accounts.id.initialize({
-            client_id: clientId,
-            callback: function (response) {
-              googleCredential.value = response.credential || '';
-              googleForm.submit();
-            }
-          });
+          var googleForm = document.querySelector('[data-google-form]');
+          var googleEndpoint = googleForm && googleForm.getAttribute('action')
+            ? new URL(googleForm.getAttribute('action'), window.location.href).href
+            : '';
+          if (!googleEndpoint) {
+            return;
+          }
 
-          google.accounts.id.renderButton(googleButton, {
-            theme: 'outline',
-            size: 'large',
-            width: 320,
-            shape: 'pill',
-            text: 'continue_with'
-          });
+          var initialized = false;
+          var tries = 0;
+          var maxTries = 40;
+
+          function hideFallback(button) {
+            var shell = button.closest('[data-google-shell]');
+            var fallback = shell && shell.querySelector('[data-google-fallback]');
+            if (fallback) {
+              fallback.hidden = true;
+              fallback.style.display = 'none';
+            }
+            button.hidden = false;
+            button.style.display = 'block';
+          }
+
+          function renderButtons() {
+            if (!(window.google && google.accounts && google.accounts.id)) {
+              return false;
+            }
+            if (!initialized) {
+              google.accounts.id.initialize({
+                client_id: clientId,
+                ux_mode: 'redirect',
+                login_uri: googleEndpoint,
+                context: 'signin',
+                itp_support: true
+              });
+              initialized = true;
+            }
+
+            googleButtons.forEach(function (googleButton) {
+              if (googleButton.getAttribute('data-google-rendered') === 'true') {
+                hideFallback(googleButton);
+                return;
+              }
+              google.accounts.id.renderButton(googleButton, {
+                theme: 'outline',
+                size: 'large',
+                width: 320,
+                shape: 'pill',
+                text: 'continue_with'
+              });
+              googleButton.setAttribute('data-google-rendered', 'true');
+              hideFallback(googleButton);
+            });
+            return true;
+          }
+
+          if (renderButtons()) {
+            return;
+          }
+
+          var retryTimer = window.setInterval(function () {
+            tries += 1;
+            if (renderButtons() || tries >= maxTries) {
+              window.clearInterval(retryTimer);
+            }
+          }, 250);
         }
 
         function attachInstallPrompt() {
+          var installSheet = document.querySelector('[data-install-sheet]');
           var installButton = document.querySelector('[data-install-app]');
-          if (!installButton) {
+          var dismissButtons = document.querySelectorAll('[data-install-dismiss]');
+          var installCopy = document.querySelector('[data-install-copy]');
+          var iosSteps = document.querySelector('[data-install-ios-steps]');
+          if (!installSheet || !installButton) {
             return;
           }
 
           var deferredPrompt;
+          var dismissedKey = 'gramexpress-install-dismissed';
+          var iosStandalone = window.navigator.standalone === true;
+          var isStandalone = window.matchMedia('(display-mode: standalone)').matches || iosStandalone;
+          var isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+          var shouldSkip = !installSheet || isStandalone;
+
+          function rememberDismissal() {
+            try {
+              window.localStorage.setItem(dismissedKey, String(Date.now()));
+            } catch (error) {
+            }
+          }
+
+          function dismissedRecently() {
+            try {
+              var raw = window.localStorage.getItem(dismissedKey);
+              if (!raw) {
+                return false;
+              }
+              return Date.now() - Number(raw) < 3 * 24 * 60 * 60 * 1000;
+            } catch (error) {
+              return false;
+            }
+          }
+
+          function openSheet() {
+            if (shouldSkip || dismissedRecently()) {
+              return;
+            }
+            installSheet.hidden = false;
+            installSheet.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('install-sheet-open');
+          }
+
+          function closeSheet() {
+            installSheet.hidden = true;
+            installSheet.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('install-sheet-open');
+          }
+
+          function configureIosPrompt() {
+            if (!isIos || isStandalone) {
+              return false;
+            }
+            if (iosSteps) {
+              iosSteps.hidden = false;
+            }
+            if (installCopy) {
+              installCopy.textContent = 'Install GramExpress on iPhone or iPad for edge-to-edge full-screen use and quicker access from your home screen.';
+            }
+            installButton.textContent = 'Got It';
+            installButton.addEventListener('click', function () {
+              rememberDismissal();
+              closeSheet();
+            });
+            window.setTimeout(openSheet, 900);
+            return true;
+          }
+
+          if (configureIosPrompt()) {
+            dismissButtons.forEach(function (button) {
+              button.addEventListener('click', function () {
+                rememberDismissal();
+                closeSheet();
+              });
+            });
+            return;
+          }
+
           window.addEventListener('beforeinstallprompt', function (event) {
             event.preventDefault();
             deferredPrompt = event;
-            installButton.hidden = false;
+            openSheet();
           });
 
           installButton.addEventListener('click', async function () {
@@ -901,8 +1046,25 @@
               return;
             }
             deferredPrompt.prompt();
+            try {
+              await deferredPrompt.userChoice;
+            } catch (error) {
+            }
             deferredPrompt = null;
-            installButton.hidden = true;
+            rememberDismissal();
+            closeSheet();
+          });
+
+          dismissButtons.forEach(function (button) {
+            button.addEventListener('click', function () {
+              rememberDismissal();
+              closeSheet();
+            });
+          });
+
+          window.addEventListener('appinstalled', function () {
+            deferredPrompt = null;
+            closeSheet();
           });
         }
 

@@ -21,11 +21,12 @@ from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
 from django.db import transaction
 from django.db.models import Avg, Count
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -42,6 +43,7 @@ from .forms import (
     EmailOtpVerifyForm,
     LoginForm,
     LoginOtpVerifyForm,
+    PasswordResetVerifyForm,
     ProductForm,
     RatingForm,
     RiderLocationForm,
@@ -95,6 +97,8 @@ CART_SESSION_KEY = 'customer_cart'
 PENDING_LOGIN_SESSION_KEY = 'pending_email_login'
 PENDING_REGISTRATION_SESSION_KEY = 'pending_registration'
 PENDING_EMAIL_OTP_SESSION_KEY = 'pending_passwordless_email_otp'
+PENDING_PASSWORD_RESET_SESSION_KEY = 'pending_password_reset'
+PENDING_GOOGLE_AUTH_SESSION_KEY = 'pending_google_auth'
 PENDING_CHECKOUT_SESSION_KEY = 'pending_checkout'
 ACTIVE_CHECKOUT_SESSION_KEY = 'active_checkout_session_id'
 LAST_CHECKOUT_SESSION_KEY = 'last_checkout'
@@ -312,16 +316,75 @@ def create_auth_otp(
     )
 
 
+def build_absolute_app_url(path: str = '') -> str:
+    base_url = getattr(settings, 'SITE_URL', '').rstrip('/')
+    if not base_url:
+        return ''
+    if not path:
+        return base_url
+    return urllib_parse.urljoin(f'{base_url}/', path.lstrip('/'))
+
+
+def send_branded_email(
+    *,
+    subject: str,
+    recipient_list: list[str],
+    preview: str,
+    headline: str,
+    intro: str,
+    sections: list[dict[str, Any]],
+    highlights: list[dict[str, str]] | None = None,
+    badge: str = '',
+    cta_label: str = '',
+    cta_url: str = '',
+    footer_note: str = '',
+) -> None:
+    context = {
+        'app_name': getattr(settings, 'GRAMEXPRESS_APP_NAME', 'GramExpress'),
+        'subject': subject,
+        'preview': preview,
+        'headline': headline,
+        'intro': intro,
+        'sections': sections,
+        'highlights': highlights or [],
+        'badge': badge,
+        'cta_label': cta_label,
+        'cta_url': cta_url,
+        'footer_note': footer_note,
+    }
+    text_body = render_to_string('core/emails/base.txt', context)
+    html_body = render_to_string('core/emails/base.html', context)
+    message = EmailMultiAlternatives(
+        subject=subject,
+        body=text_body,
+        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@gramexpress.local'),
+        to=recipient_list,
+    )
+    message.attach_alternative(html_body, 'text/html')
+    message.send(fail_silently=False)
+
+
 def send_email_otp(*, email: str, code: str, subject: str, intro: str) -> tuple[bool, str]:
     backend = getattr(settings, 'EMAIL_BACKEND', '').lower()
-    message = f'{intro}\n\nOTP: {code}\nThis code expires in {getattr(settings, "OTP_EXPIRY_MINUTES", 10)} minutes.'
     try:
-        send_mail(
+        send_branded_email(
             subject=subject,
-            message=message,
-            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@gramexpress.local'),
             recipient_list=[email],
-            fail_silently=False,
+            preview=f'Your GramExpress OTP is {code}.',
+            headline='Your verification code is ready',
+            intro=intro,
+            badge='OTP',
+            highlights=[
+                {'label': 'OTP', 'value': code},
+                {'label': 'Expires in', 'value': f'{getattr(settings, "OTP_EXPIRY_MINUTES", 10)} minutes'},
+            ],
+            sections=[
+                {
+                    'title': 'Security note',
+                    'lines': ['Share this code only on the official GramExpress screen. We will never ask for it anywhere else.'],
+                }
+            ],
+            footer_note='If you did not request this code, you can safely ignore this email.',
         )
         if backend == 'django.core.mail.backends.console.emailbackend':
             print(f'[GramExpress EMAIL OTP] {email}: OTP {code} (valid {getattr(settings, "OTP_EXPIRY_MINUTES", 10)} min)')
@@ -425,29 +488,114 @@ def send_customer_khatabook_collection_otp_email(
     if not recipient:
         return False, 'No customer email is available for this KhataBook collection.'
 
-    message = '\n'.join(
-        [
-            'Your GramExpress KhataBook repayment rider is on the way.',
-            '',
-            f'Collection request: {collection_request.display_id}',
-            f'Rider: {rider.full_name}',
-            f'Amount: Rs. {collection_request.amount}',
-            f'Repayment OTP: {collection_request.collection_otp}',
-            '',
-            'Share this OTP only when the rider arrives to collect the KhataBook repayment.',
-        ]
-    )
     try:
-        send_mail(
+        send_branded_email(
             subject=f'KhataBook repayment OTP for {collection_request.display_id}',
-            message=message,
-            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@gramexpress.local'),
             recipient_list=[recipient],
-            fail_silently=False,
+            preview=f'Repayment OTP {collection_request.collection_otp} for {collection_request.display_id}.',
+            headline='Your repayment rider is on the way',
+            intro='Keep this OTP ready and share it only when the GramExpress rider reaches you for KhataBook collection.',
+            badge='KhataBook OTP',
+            highlights=[
+                {'label': 'Request', 'value': collection_request.display_id},
+                {'label': 'Rider', 'value': rider.full_name},
+                {'label': 'Amount', 'value': f'Rs. {collection_request.amount}'},
+                {'label': 'OTP', 'value': collection_request.collection_otp},
+            ],
+            sections=[
+                {
+                    'title': 'Before handoff',
+                    'lines': ['Please confirm the rider has arrived before you share this OTP.'],
+                }
+            ],
+            footer_note='This email was generated from your GramExpress KhataBook repayment request.',
         )
         return True, 'KhataBook collection OTP email sent successfully.'
     except Exception:
         return False, 'KhataBook collection OTP email could not be sent with the current mail settings.'
+
+
+def send_welcome_email(*, user, role: str) -> tuple[bool, str]:
+    recipient = (user.email or '').strip()
+    if not recipient:
+        return False, 'No email address is available for the welcome email.'
+
+    role_copy = {
+        RoleType.CUSTOMER: {
+            'headline': f'Welcome to {getattr(settings, "GRAMEXPRESS_APP_NAME", "GramExpress")}',
+            'intro': 'Your customer account is ready. You can browse nearby stores, save your live address, and place deliveries right away.',
+            'sections': [
+                {
+                    'title': 'What you can do next',
+                    'lines': [
+                        'Browse local stores and add items across multiple shops.',
+                        'Use your saved delivery address for faster checkout.',
+                        'Track every order from acceptance to doorstep handoff.',
+                    ],
+                }
+            ],
+            'cta_label': 'Open Customer Dashboard',
+        },
+        RoleType.SHOP: {
+            'headline': 'Your store workspace is live inside GramExpress',
+            'intro': 'Your shop account has been created and sent for approval. You can finish your catalogue and storefront settings while the admin review is pending.',
+            'sections': [
+                {
+                    'title': 'What happens next',
+                    'lines': [
+                        'Add products, pricing, and store details from the shop dashboard.',
+                        'Keep your exact location updated for delivery routing.',
+                        'Your store will go live for customers after admin approval.',
+                    ],
+                }
+            ],
+            'cta_label': 'Open Shop Dashboard',
+        },
+        RoleType.RIDER: {
+            'headline': 'Your rider profile is now in the GramExpress queue',
+            'intro': 'Your rider account has been submitted. You can review your profile, keep location access ready, and wait for admin approval before you start accepting deliveries.',
+            'sections': [
+                {
+                    'title': 'What happens next',
+                    'lines': [
+                        'Keep your rider photo and dispatch location current.',
+                        'Watch for approval updates inside the rider dashboard.',
+                        'Once approved, you can toggle availability and start accepting jobs.',
+                    ],
+                }
+            ],
+            'cta_label': 'Open Rider Dashboard',
+        },
+    }.get(
+        role,
+        {
+            'headline': f'Welcome to {getattr(settings, "GRAMEXPRESS_APP_NAME", "GramExpress")}',
+            'intro': 'Your account is ready.',
+            'sections': [],
+            'cta_label': 'Open GramExpress',
+        },
+    )
+    cta_url = build_absolute_app_url(get_dashboard_url_for_user(user))
+    try:
+        send_branded_email(
+            subject=f'Welcome to {getattr(settings, "GRAMEXPRESS_APP_NAME", "GramExpress")}',
+            recipient_list=[recipient],
+            preview=f'Welcome to {getattr(settings, "GRAMEXPRESS_APP_NAME", "GramExpress")}. Your {role_label(role).lower()} workspace is ready.',
+            headline=role_copy['headline'],
+            intro=role_copy['intro'],
+            badge='Welcome',
+            highlights=[
+                {'label': 'Account', 'value': user.first_name or recipient},
+                {'label': 'Role', 'value': role_label(role)},
+            ],
+            sections=role_copy['sections'],
+            cta_label=role_copy['cta_label'] if cta_url else '',
+            cta_url=cta_url,
+            footer_note='This welcome email was sent automatically after your account setup.',
+        )
+        return True, 'Welcome email sent successfully.'
+    except Exception:
+        return False, 'Welcome email could not be sent with the current mail settings.'
 
 
 def ensure_khatabook_collection_otp_ready(
@@ -614,7 +762,28 @@ def verify_google_credential(credential: str) -> tuple[dict[str, Any] | None, st
     return parsed, None
 
 
-def create_account_from_registration(cleaned_data: dict[str, Any]):
+def google_post_csrf_is_valid(request: HttpRequest) -> bool:
+    csrf_token_cookie = request.COOKIES.get('g_csrf_token', '')
+    csrf_token_body = request.POST.get('g_csrf_token', '')
+    if not csrf_token_cookie and not csrf_token_body:
+        return True
+    return bool(csrf_token_cookie and csrf_token_body and csrf_token_cookie == csrf_token_body)
+
+
+def pending_google_auth_profile(request: HttpRequest) -> dict[str, str]:
+    pending = request.session.get(PENDING_GOOGLE_AUTH_SESSION_KEY, {})
+    if not isinstance(pending, dict):
+        return {}
+    email = str(pending.get('email', '')).strip().lower()
+    if not email:
+        return {}
+    return {
+        'email': email,
+        'full_name': str(pending.get('full_name', '')).strip(),
+    }
+
+
+def create_account_from_registration(cleaned_data: dict[str, Any], *, google_authenticated: bool = False):
     role = cleaned_data['account_type']
     phone = normalize_phone(cleaned_data['phone'])
     email = cleaned_data['email'].strip().lower()
@@ -622,7 +791,7 @@ def create_account_from_registration(cleaned_data: dict[str, Any]):
         role,
         phone,
         email,
-        cleaned_data['password1'],
+        cleaned_data.get('password1') if not google_authenticated else None,
         cleaned_data['full_name'],
     )
     if role == RoleType.CUSTOMER:
@@ -647,6 +816,7 @@ def create_account_from_registration(cleaned_data: dict[str, Any]):
             body='Your customer account is ready. Browse nearby stores and build a multi-store cart.',
             notification_type=NotificationType.SYSTEM,
         )
+        send_welcome_email(user=user, role=RoleType.CUSTOMER)
         return user, customer
 
     if role == RoleType.SHOP:
@@ -684,6 +854,7 @@ def create_account_from_registration(cleaned_data: dict[str, Any]):
             body=f'{shop.name} is waiting for admin approval before it goes live.',
             notification_type=NotificationType.STORE,
         )
+        send_welcome_email(user=user, role=RoleType.SHOP)
         return user, owner
 
     rider, _ = RiderProfile.objects.update_or_create(
@@ -706,6 +877,7 @@ def create_account_from_registration(cleaned_data: dict[str, Any]):
         body='Your rider account is under review. Admin approval is required before you can accept deliveries.',
         notification_type=NotificationType.RIDER,
     )
+    send_welcome_email(user=user, role=RoleType.RIDER)
     return user, rider
 
 
@@ -1322,46 +1494,66 @@ def send_order_status_email(
             f'Share this OTP only at handoff: {order.customer_otp}',
         ]
 
-    message = '\n'.join(
-        [
-            headline,
-            '',
-            detail,
-            *otp_lines,
-            '',
-            'Invoice',
-            f'Order: {order.display_id}',
-            f'Store: {order.shop.name}',
-            f'Status: {order.get_status_display()}',
-            f'Payment: {order.get_payment_method_display()} ({order.get_payment_status_display()})',
-            f'Item total: Rs. {bill_breakup["subtotal"]}',
-            f'Delivery fee: Rs. {bill_breakup["delivery_fee"]}',
-            f'Shopkeeper commission fee: Rs. {bill_breakup["shopkeeper_commission_fee"]}',
-            f'GramExpress platform fee: Rs. {bill_breakup["platform_fee"]}',
-            f'Total: Rs. {bill_breakup["total"]}',
-            *( [f'Payment reference: {payment_reference}'] if payment_reference else [] ),
-            '',
-            'Order Summary',
-            *item_lines,
-            '',
-            'Rider Contact',
-            f'Name: {rider_name}',
-            f'Phone: {rider_phone}',
-            f'Email: {rider_email}',
-            '',
-            'Delivery Details',
-            f'Pickup: {order.shop.name}, {format_shop_address(order.shop)}',
-            f'Drop-off: {order.delivery_address}',
-            f'Customer note: {order.customer_notes or "None"}',
-        ]
-    )
     try:
-        send_mail(
+        send_branded_email(
             subject=subject,
-            message=message,
-            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@gramexpress.local'),
             recipient_list=[recipient],
-            fail_silently=False,
+            preview=f'{headline} for {order.display_id}.',
+            headline=headline,
+            intro=detail,
+            badge='Order update',
+            highlights=[
+                {'label': 'Order', 'value': order.display_id},
+                {'label': 'Store', 'value': order.shop.name},
+                {'label': 'Status', 'value': order.get_status_display()},
+                {'label': 'Total', 'value': f'Rs. {bill_breakup["total"]}'},
+            ],
+            sections=[
+                {
+                    'title': 'Invoice',
+                    'lines': [
+                        f'Payment: {order.get_payment_method_display()} ({order.get_payment_status_display()})',
+                        f'Item total: Rs. {bill_breakup["subtotal"]}',
+                        f'Delivery fee: Rs. {bill_breakup["delivery_fee"]}',
+                        f'Shopkeeper commission fee: Rs. {bill_breakup["shopkeeper_commission_fee"]}',
+                        f'GramExpress platform fee: Rs. {bill_breakup["platform_fee"]}',
+                        *( [f'Payment reference: {payment_reference}'] if payment_reference else [] ),
+                    ],
+                },
+                *(
+                    [
+                        {
+                            'title': 'Delivery OTP',
+                            'lines': [f'Share this OTP only at handoff: {order.customer_otp}'],
+                        }
+                    ]
+                    if otp_lines
+                    else []
+                ),
+                {
+                    'title': 'Order Summary',
+                    'lines': item_lines,
+                },
+                {
+                    'title': 'Rider Contact',
+                    'lines': [
+                        f'Name: {rider_name}',
+                        f'Phone: {rider_phone}',
+                        f'Email: {rider_email}',
+                    ],
+                },
+                {
+                    'title': 'Delivery Details',
+                    'lines': [
+                        f'Pickup: {order.shop.name}, {format_shop_address(order.shop)}',
+                        f'Drop-off: {order.delivery_address}',
+                        f'Customer note: {order.customer_notes or "None"}',
+                    ],
+                },
+            ],
+            cta_label='Track Order',
+            cta_url=build_absolute_app_url(reverse('core:order_detail', args=[order.id])),
+            footer_note='This order email updates automatically as the store and rider progress your delivery.',
         )
         return True, 'Customer email update sent successfully.'
     except Exception:
@@ -1392,41 +1584,58 @@ def send_store_order_status_email(
             f'Customer delivery OTP: {order.customer_otp}',
         ]
 
-    message = '\n'.join(
-        [
-            headline,
-            '',
-            detail,
-            *otp_lines,
-            '',
-            'Dispatch Summary',
-            f'Order: {order.display_id}',
-            f'Status: {order.get_status_display()}',
-            f'Customer: {order.customer.full_name}',
-            f'Customer phone: {customer_phone}',
-            f'Rider: {rider_name}',
-            f'Rider phone: {rider_phone}',
-            f'Item total: Rs. {bill_breakup["subtotal"]}',
-            f'Delivery fee: Rs. {bill_breakup["delivery_fee"]}',
-            f'Shopkeeper commission fee: Rs. {bill_breakup["shopkeeper_commission_fee"]}',
-            f'GramExpress platform fee: Rs. {bill_breakup["platform_fee"]}',
-            f'Total: Rs. {bill_breakup["total"]}',
-            '',
-            'Order Summary',
-            *item_lines,
-            '',
-            'Route',
-            f'Pickup: {order.shop.name}, {format_shop_address(order.shop)}',
-            f'Drop-off: {order.delivery_address}',
-        ]
-    )
     try:
-        send_mail(
+        send_branded_email(
             subject=subject,
-            message=message,
-            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@gramexpress.local'),
             recipient_list=[recipient],
-            fail_silently=False,
+            preview=f'{headline} for {order.display_id}.',
+            headline=headline,
+            intro=detail,
+            badge='Store update',
+            highlights=[
+                {'label': 'Order', 'value': order.display_id},
+                {'label': 'Customer', 'value': order.customer.full_name},
+                {'label': 'Status', 'value': order.get_status_display()},
+                {'label': 'Total', 'value': f'Rs. {bill_breakup["total"]}'},
+            ],
+            sections=[
+                *(
+                    [
+                        {
+                            'title': 'Handoff OTP',
+                            'lines': [f'Customer delivery OTP: {order.customer_otp}'],
+                        }
+                    ]
+                    if otp_lines
+                    else []
+                ),
+                {
+                    'title': 'Dispatch Summary',
+                    'lines': [
+                        f'Customer phone: {customer_phone}',
+                        f'Rider: {rider_name}',
+                        f'Rider phone: {rider_phone}',
+                        f'Item total: Rs. {bill_breakup["subtotal"]}',
+                        f'Delivery fee: Rs. {bill_breakup["delivery_fee"]}',
+                        f'Shopkeeper commission fee: Rs. {bill_breakup["shopkeeper_commission_fee"]}',
+                        f'GramExpress platform fee: Rs. {bill_breakup["platform_fee"]}',
+                    ],
+                },
+                {
+                    'title': 'Order Summary',
+                    'lines': item_lines,
+                },
+                {
+                    'title': 'Route',
+                    'lines': [
+                        f'Pickup: {order.shop.name}, {format_shop_address(order.shop)}',
+                        f'Drop-off: {order.delivery_address}',
+                    ],
+                },
+            ],
+            cta_label='Open Shop Orders',
+            cta_url=build_absolute_app_url(reverse('core:shop_orders')),
+            footer_note='This email was sent from the GramExpress store dispatch workflow.',
         )
         return True, 'Store email update sent successfully.'
     except Exception:
@@ -1438,30 +1647,31 @@ def send_cod_payment_link_email(*, order: Order) -> tuple[bool, str]:
     if not recipient or not order.cod_payment_link_url:
         return False, 'Customer email or COD payment link is unavailable.'
 
-    message = '\n'.join(
-        [
-            f'Pay securely online for {order.display_id}',
-            '',
-            'Your rider shared a Razorpay payment link for this cash-on-delivery order.',
-            'Open the link below, complete the payment, and then continue the handoff with the rider.',
-            '',
-            f'Payment link: {order.cod_payment_link_url}',
-            '',
-            f'Order: {order.display_id}',
-            f'Store: {order.shop.name}',
-            f'Amount: Rs. {order.total_amount}',
-            f'Delivery address: {order.delivery_address}',
-            '',
-            'This payment updates both the customer and rider dashboards automatically after it succeeds.',
-        ]
-    )
     try:
-        send_mail(
+        send_branded_email(
             subject=f'Pay online for COD order {order.display_id}',
-            message=message,
-            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@gramexpress.local'),
             recipient_list=[recipient],
-            fail_silently=False,
+            preview=f'Pay online for COD order {order.display_id}.',
+            headline=f'Pay securely online for {order.display_id}',
+            intro='Your rider shared a Razorpay payment link for this cash-on-delivery order.',
+            badge='COD payment',
+            highlights=[
+                {'label': 'Order', 'value': order.display_id},
+                {'label': 'Store', 'value': order.shop.name},
+                {'label': 'Amount', 'value': f'Rs. {order.total_amount}'},
+            ],
+            sections=[
+                {
+                    'title': 'Next step',
+                    'lines': [
+                        'Open the secure Razorpay link below, complete the payment, and then continue the handoff with the rider.',
+                        f'Delivery address: {order.delivery_address}',
+                    ],
+                }
+            ],
+            cta_label='Pay Now',
+            cta_url=order.cod_payment_link_url,
+            footer_note='This payment updates both the customer and rider dashboards automatically after it succeeds.',
         )
         return True, 'COD payment link email sent successfully.'
     except Exception:
@@ -4951,11 +5161,11 @@ def build_google_embed_route_url(origin_lat: Decimal, origin_lng: Decimal, dest_
     )
 
 
-def create_or_update_role_user(role: str, phone: str, email: str, password: str, full_name: str):
+def create_or_update_role_user(role: str, phone: str, email: str, password: str | None, full_name: str):
     User = get_user_model()
     phone = normalize_phone(phone)
     username = f'{role}:{phone}'
-    user, _ = User.objects.get_or_create(
+    user, created = User.objects.get_or_create(
         username=username,
         defaults={
             'email': email.strip().lower(),
@@ -4964,7 +5174,10 @@ def create_or_update_role_user(role: str, phone: str, email: str, password: str,
     )
     user.email = email.strip().lower()
     user.first_name = full_name
-    user.set_password(password)
+    if password:
+        user.set_password(password)
+    elif created:
+        user.set_unusable_password()
     user.save()
     return user
 
@@ -5031,6 +5244,7 @@ def login_view(request: HttpRequest) -> HttpResponse:
 
     if request.GET.get('reset') == '1':
         request.session.pop(PENDING_LOGIN_SESSION_KEY, None)
+        request.session.pop(PENDING_PASSWORD_RESET_SESSION_KEY, None)
 
     pending_login = request.session.get(PENDING_LOGIN_SESSION_KEY)
     if pending_login and request.method == 'GET':
@@ -5178,10 +5392,158 @@ def login_verify_view(request: HttpRequest) -> HttpResponse:
     )
 
 
+def password_reset_view(request: HttpRequest) -> HttpResponse:
+    if request.user.is_authenticated:
+        return redirect(get_dashboard_url_for_user(request.user))
+
+    if request.GET.get('reset') == '1':
+        request.session.pop(PENDING_PASSWORD_RESET_SESSION_KEY, None)
+
+    pending_password_reset = request.session.get(PENDING_PASSWORD_RESET_SESSION_KEY)
+    if pending_password_reset and request.method == 'GET':
+        return redirect('core:password_reset_verify')
+
+    request_form = EmailOtpRequestForm(
+        initial={'email': (pending_password_reset or {}).get('email', request.GET.get('email', ''))}
+    )
+
+    if request.method == 'POST':
+        request_form = EmailOtpRequestForm(request.POST)
+        if request_form.is_valid():
+            email = request_form.cleaned_data['email'].strip().lower()
+            user, role, error = find_user_by_identity(email)
+            if error or not user:
+                request_form.add_error('email', error or 'No account matched that email address.')
+            else:
+                token = create_auth_otp(
+                    purpose=OtpPurpose.PASSWORD_RESET,
+                    channel=OtpChannel.EMAIL,
+                    user=user,
+                    role=role or '',
+                    email=email,
+                )
+                delivered, detail = send_email_otp(
+                    email=email,
+                    code=token.code,
+                    subject='Your GramExpress password reset OTP',
+                    intro='Use this OTP to set a new password for your GramExpress account.',
+                )
+                if delivered:
+                    request.session[PENDING_PASSWORD_RESET_SESSION_KEY] = {
+                        'user_id': user.id,
+                        'email': email,
+                        'role': role or '',
+                    }
+                    request.session.modified = True
+                    messages.success(request, 'We sent a 6 digit OTP to your email address for password reset.')
+                    return redirect('core:password_reset_verify')
+                token.delete()
+                request_form.add_error('email', detail)
+
+    return disable_html_cache(
+        render(
+            request,
+            'core/password_reset.html',
+            {
+                'request_form': request_form,
+            },
+        )
+    )
+
+
+def password_reset_verify_view(request: HttpRequest) -> HttpResponse:
+    if request.user.is_authenticated:
+        return redirect(get_dashboard_url_for_user(request.user))
+
+    pending_password_reset = request.session.get(PENDING_PASSWORD_RESET_SESSION_KEY)
+    if not pending_password_reset:
+        messages.error(request, 'Your password reset session expired. Request a new code.')
+        return redirect('core:password_reset')
+
+    email = pending_password_reset.get('email', '')
+    user = get_user_model().objects.filter(pk=pending_password_reset.get('user_id')).first()
+    if not user or not email:
+        request.session.pop(PENDING_PASSWORD_RESET_SESSION_KEY, None)
+        messages.error(request, 'That password reset session is no longer valid.')
+        return redirect('core:password_reset')
+
+    verify_form = PasswordResetVerifyForm(initial={'email': email})
+
+    if request.method == 'POST':
+        action = request.POST.get('action', 'verify')
+        if action == 'resend':
+            token = create_auth_otp(
+                purpose=OtpPurpose.PASSWORD_RESET,
+                channel=OtpChannel.EMAIL,
+                user=user,
+                role=pending_password_reset.get('role', ''),
+                email=email,
+            )
+            delivered, detail = send_email_otp(
+                email=email,
+                code=token.code,
+                subject='Your GramExpress password reset OTP',
+                intro='Use this OTP to set a new password for your GramExpress account.',
+            )
+            if delivered:
+                messages.success(request, 'A fresh password reset OTP was sent to your email.')
+                return redirect('core:password_reset_verify')
+            token.delete()
+            messages.error(request, detail)
+        else:
+            verify_form = PasswordResetVerifyForm(request.POST)
+            if verify_form.is_valid():
+                submitted_email = verify_form.cleaned_data['email'].strip().lower()
+                token = (
+                    AuthOtpToken.objects.filter(
+                        user=user,
+                        purpose=OtpPurpose.PASSWORD_RESET,
+                        channel=OtpChannel.EMAIL,
+                        email__iexact=submitted_email,
+                        code=verify_form.cleaned_data['code'],
+                        is_used=False,
+                    )
+                    .order_by('-created_at')
+                    .first()
+                )
+                if submitted_email != email:
+                    verify_form.add_error('email', 'Enter the same email address that received the OTP.')
+                elif token and token.is_valid:
+                    token.is_used = True
+                    token.save(update_fields=['is_used'])
+                    user.set_password(verify_form.cleaned_data['password1'])
+                    user.save(update_fields=['password'])
+                    request.session.pop(PENDING_PASSWORD_RESET_SESSION_KEY, None)
+                    request.session.pop(PENDING_LOGIN_SESSION_KEY, None)
+                    login(request, user)
+                    messages.success(request, 'Your password was reset successfully.')
+                    return redirect(get_dashboard_url_for_user(user))
+                else:
+                    verify_form.add_error('code', 'That OTP is invalid or expired.')
+
+    return disable_html_cache(
+        render(
+            request,
+            'core/password_reset_verify.html',
+            {
+                'verify_form': verify_form,
+                'pending_password_reset_masked_email': mask_email(email),
+                'pending_password_reset_role_label': role_label(pending_password_reset.get('role', '')),
+                'otp_expiry_minutes': getattr(settings, 'OTP_EXPIRY_MINUTES', 10),
+            },
+        )
+    )
+
+
+@csrf_exempt
 @require_POST
 def google_auth_view(request: HttpRequest) -> HttpResponse:
     if request.user.is_authenticated:
         return redirect(get_dashboard_url_for_user(request.user))
+
+    if not google_post_csrf_is_valid(request):
+        messages.error(request, 'Google sign-in session check failed. Please try again.')
+        return redirect('core:login')
 
     credential = request.POST.get('credential', '').strip()
     if not credential:
@@ -5194,36 +5556,56 @@ def google_auth_view(request: HttpRequest) -> HttpResponse:
         return redirect('core:login')
 
     email = google_payload.get('email', '').strip().lower()
-    user, _, lookup_error = find_user_by_identity(email)
-    if lookup_error or not user:
-        params = urllib_parse.urlencode(
-            {
-                'email': email,
-                'full_name': google_payload.get('name', ''),
-            }
-        )
-        messages.info(request, 'Choose your role and finish registration to use Google sign-in with this email.')
-        return redirect(f'{reverse("core:register")}?{params}')
+    if not email:
+        messages.error(request, 'Google sign-in did not return an email address.')
+        return redirect('core:login')
 
-    login(request, user)
-    messages.success(request, 'Signed in with Google successfully.')
-    return redirect(get_dashboard_url_for_user(user))
+    user, _, lookup_error = find_user_by_identity(email)
+    if not lookup_error and user:
+        request.session.pop(PENDING_GOOGLE_AUTH_SESSION_KEY, None)
+        login(request, user)
+        messages.success(request, 'Signed in with Google successfully.')
+        return redirect(get_dashboard_url_for_user(user))
+
+    if lookup_error and lookup_error != 'No account matched that phone number or email.':
+        messages.error(request, lookup_error)
+        return redirect('core:login')
+
+    request.session[PENDING_GOOGLE_AUTH_SESSION_KEY] = {
+        'email': email,
+        'full_name': google_payload.get('name', '').strip(),
+    }
+    request.session.pop(PENDING_REGISTRATION_SESSION_KEY, None)
+    request.session.modified = True
+    params = urllib_parse.urlencode(
+        {
+            'email': email,
+            'full_name': google_payload.get('name', ''),
+        }
+    )
+    messages.info(request, 'Choose your role to finish setting up your Google sign-in.')
+    return redirect(f'{reverse("core:register")}?{params}')
 
 
 def register_view(request: HttpRequest) -> HttpResponse:
     if request.user.is_authenticated:
         return redirect(get_dashboard_url_for_user(request.user))
+
+    pending_google_auth = pending_google_auth_profile(request)
+    prefetched_full_name = request.GET.get('full_name', '').strip() or pending_google_auth.get('full_name', '')
+    prefetched_email = request.GET.get('email', '').strip() or pending_google_auth.get('email', '')
     return disable_html_cache(
         render(
             request,
             'core/register.html',
             {
                 'role_cards': registration_role_links(
-                    full_name=request.GET.get('full_name', '').strip(),
-                    email=request.GET.get('email', '').strip(),
+                    full_name=prefetched_full_name,
+                    email=prefetched_email,
                     selected_role=request.GET.get('account_type', '').strip(),
                 ),
                 'pending_registration': request.session.get(PENDING_REGISTRATION_SESSION_KEY, {}),
+                'pending_google_auth': pending_google_auth,
                 'google_client_id': getattr(settings, 'GOOGLE_CLIENT_ID', ''),
             },
         )
@@ -5235,6 +5617,8 @@ def register_details_view(request: HttpRequest) -> HttpResponse:
         return redirect(get_dashboard_url_for_user(request.user))
 
     pending_registration = request.session.get(PENDING_REGISTRATION_SESSION_KEY, {})
+    pending_google_auth = pending_google_auth_profile(request)
+    google_onboarding = bool(pending_google_auth)
     selected_role = (
         request.POST.get('account_type')
         or request.GET.get('account_type')
@@ -5246,28 +5630,48 @@ def register_details_view(request: HttpRequest) -> HttpResponse:
 
     initial_data = {
         'account_type': selected_role,
-        'full_name': request.GET.get('full_name', ''),
-        'email': request.GET.get('email', ''),
+        'full_name': request.GET.get('full_name', '') or pending_google_auth.get('full_name', ''),
+        'email': pending_google_auth.get('email', '') or request.GET.get('email', ''),
         'latitude': DEFAULT_LATITUDE,
         'longitude': DEFAULT_LONGITUDE,
     }
-    if pending_registration.get('account_type') == selected_role:
+    if pending_registration.get('account_type') == selected_role and not google_onboarding:
         initial_data.update(pending_registration)
 
-    form = UnifiedRegistrationForm(initial=initial_data, selected_role=selected_role)
+    form = UnifiedRegistrationForm(
+        initial=initial_data,
+        selected_role=selected_role,
+        google_onboarding=google_onboarding,
+    )
 
     if request.method == 'POST':
-        form = UnifiedRegistrationForm(request.POST, selected_role=selected_role)
+        form = UnifiedRegistrationForm(
+            request.POST,
+            selected_role=selected_role,
+            google_onboarding=google_onboarding,
+        )
         if form.is_valid():
             cleaned_data = form.cleaned_data.copy()
             cleaned_data['phone'] = normalize_phone(cleaned_data['phone'])
-            cleaned_data['email'] = cleaned_data['email'].strip().lower()
+            cleaned_data['email'] = (
+                pending_google_auth.get('email', '').strip().lower()
+                if google_onboarding
+                else cleaned_data['email'].strip().lower()
+            )
             conflicts = contact_conflicts(phone=cleaned_data['phone'], email=cleaned_data['email'])
             if conflicts['phone']:
                 form.add_error('phone', 'This mobile number is already linked to an existing account.')
             if conflicts['email']:
                 form.add_error('email', 'This email address is already linked to an existing account.')
             if not any(conflicts.values()):
+                if google_onboarding:
+                    user, _ = create_account_from_registration(cleaned_data, google_authenticated=True)
+                    request.session.pop(PENDING_GOOGLE_AUTH_SESSION_KEY, None)
+                    request.session.pop(PENDING_REGISTRATION_SESSION_KEY, None)
+                    login(request, user)
+                    messages.success(request, 'Your Google account is ready. Welcome to GramExpress.')
+                    return redirect(get_dashboard_url_for_user(user))
+
                 payload = serialize_registration_data(cleaned_data)
                 token = create_auth_otp(
                     purpose=OtpPurpose.REGISTER,
@@ -5298,6 +5702,9 @@ def register_details_view(request: HttpRequest) -> HttpResponse:
                 'selected_role': selected_role,
                 'selected_role_label': role_label(selected_role),
                 'selected_role_copy': REGISTRATION_ROLE_ONBOARDING_COPY.get(selected_role, ''),
+                'google_registration': google_onboarding,
+                'google_registration_email': pending_google_auth.get('email', ''),
+                'google_client_id': getattr(settings, 'GOOGLE_CLIENT_ID', ''),
                 'google_maps_browser_api_key': getattr(settings, 'GOOGLE_MAPS_BROWSER_API_KEY', ''),
             },
         )
@@ -5526,6 +5933,8 @@ def logout_view(request: HttpRequest) -> HttpResponse:
     request.session.pop(PENDING_LOGIN_SESSION_KEY, None)
     request.session.pop(PENDING_REGISTRATION_SESSION_KEY, None)
     request.session.pop(PENDING_EMAIL_OTP_SESSION_KEY, None)
+    request.session.pop(PENDING_PASSWORD_RESET_SESSION_KEY, None)
+    request.session.pop(PENDING_GOOGLE_AUTH_SESSION_KEY, None)
     messages.success(request, 'Signed out successfully.')
     return redirect('core:login')
 
@@ -7214,12 +7623,27 @@ def shop_send_khatabook_reminder(request: HttpRequest, order_id: int) -> HttpRes
     )
     if order.customer.email:
         try:
-            send_mail(
+            send_branded_email(
                 subject=f'KhataBook reminder for {order.display_id}',
-                message=reminder_body,
-                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@gramexpress.local'),
                 recipient_list=[order.customer.email],
-                fail_silently=False,
+                preview=f'Payment reminder for {order.display_id}.',
+                headline='KhataBook payment reminder',
+                intro=reminder_body,
+                badge='Payment reminder',
+                highlights=[
+                    {'label': 'Order', 'value': order.display_id},
+                    {'label': 'Store', 'value': order.shop.name},
+                    {'label': 'Amount due', 'value': f'Rs. {order.total_amount}'},
+                ],
+                sections=[
+                    {
+                        'title': 'Need help?',
+                        'lines': ['You can review this KhataBook due from your GramExpress customer dashboard.'],
+                    }
+                ],
+                cta_label='Open KhataBook',
+                cta_url=build_absolute_app_url(reverse('core:customer_khatabook')),
+                footer_note='This reminder was sent by the store that owns this KhataBook due.',
             )
         except Exception:
             pass
@@ -8140,16 +8564,24 @@ def manifest(request: HttpRequest) -> JsonResponse:
             'name': 'GramExpress',
             'short_name': 'GramExpress',
             'start_url': '/auth/login/',
+            'scope': '/',
             'display': 'standalone',
+            'display_override': ['window-controls-overlay', 'standalone'],
             'orientation': 'portrait',
             'background_color': '#f3f6f1',
-            'theme_color': '#eff7ee',
+            'theme_color': '#1a1a2e',
             'description': 'Mobile-first GramExpress workspace with OTP auth and local delivery dashboards.',
             'icons': [
                 {
                     'src': '/static/core/gramexpress.webp',
                     'sizes': '512x512',
                     'type': 'image/webp',
+                    'purpose': 'any',
+                },
+                {
+                    'src': '/static/core/icon.svg',
+                    'sizes': '512x512',
+                    'type': 'image/svg+xml',
                     'purpose': 'any',
                 },
                 {
@@ -8173,6 +8605,7 @@ def service_worker(_: HttpRequest) -> HttpResponse:
         f'/manifest.json?v={asset_version}',
         f'/static/core/styles.css?v={asset_version}',
         f'/static/core/gramexpress.webp?v={asset_version}',
+        f'/static/core/icon.svg?v={asset_version}',
         f'/static/core/icon-maskable.svg?v={asset_version}',
     ]
     response = HttpResponse(

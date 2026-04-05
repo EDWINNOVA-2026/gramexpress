@@ -13,8 +13,25 @@
       <div class="auth-step-strip">
         <a class="soft-pill" href="{% url 'core:register' %}">1. Choose role</a>
         <span class="soft-pill soft-pill-active">2. Add customer details</span>
-        <span class="soft-pill">3. Verify mobile OTP</span>
+        <span class="soft-pill">{% if google_registration %}3. Start workspace{% else %}3. Verify mobile OTP{% endif %}</span>
       </div>
+
+      {% if not google_registration %}
+        <div class="auth-google-wrap auth-google-wrap-inline">
+          {% if google_client_id %}
+            <div class="auth-google-shell" data-google-shell>
+              <button class="auth-social-button auth-google-fallback" type="button" data-google-fallback>Continue with Google</button>
+              <div class="auth-google-button" data-google-button data-client-id="{{ google_client_id }}" hidden></div>
+            </div>
+          {% else %}
+            <button class="auth-social-button auth-social-button-disabled" type="button" disabled>Continue with Google</button>
+          {% endif %}
+        </div>
+        <form method="post" action="{% url 'core:google_auth' %}" data-google-form hidden>
+          {% csrf_token %}
+          <input type="hidden" name="credential" value="" data-google-credential />
+        </form>
+      {% endif %}
 
       <form class="auth-form auth-register-form" method="post">
         {% csrf_token %}
@@ -23,7 +40,7 @@
         <section class="auth-role-section">
           <div class="auth-section-head">
             <strong>Account details</strong>
-            <p>These details create your login and connect your customer workspace to this phone number.</p>
+            <p>{% if google_registration %}These details connect your verified Google sign-in to the customer workspace and your mobile number.{% else %}These details create your login and connect your customer workspace to this phone number.{% endif %}</p>
           </div>
           <div class="auth-grid-two">
             <div class="auth-field">
@@ -46,19 +63,25 @@
               {{ form.email }}
               {% for error in form.email.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
             </div>
-            <div class="auth-field">
-              <label for="{{ form.password1.id_for_label }}">Password</label>
-              {{ form.password1 }}
-              {% for error in form.password1.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
-            </div>
+            {% if not google_registration %}
+              <div class="auth-field">
+                <label for="{{ form.password1.id_for_label }}">Password</label>
+                {{ form.password1 }}
+                {% for error in form.password1.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+              </div>
+            {% endif %}
           </div>
-          <div class="auth-grid-two">
-            <div class="auth-field">
-              <label for="{{ form.password2.id_for_label }}">Confirm Password</label>
-              {{ form.password2 }}
-              {% for error in form.password2.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+          {% if not google_registration %}
+            <div class="auth-grid-two">
+              <div class="auth-field">
+                <label for="{{ form.password2.id_for_label }}">Confirm Password</label>
+                {{ form.password2 }}
+                {% for error in form.password2.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+              </div>
             </div>
-          </div>
+          {% else %}
+            <p class="field-help">Google already verified {{ google_registration_email }}. No password or OTP is required for this setup.</p>
+          {% endif %}
         </section>
 
         <section class="auth-role-section">
@@ -109,7 +132,7 @@
         <section class="auth-role-section auth-role-section-location">
           <div class="auth-section-head">
             <strong>Current location</strong>
-            <p>Capture your live location, verify the exact address on the map, and keep the address fields in sync before we send the OTP.</p>
+            <p>Capture your live location, verify the exact address on the map, and keep the address fields in sync before we {% if google_registration %}finish setup{% else %}send the OTP{% endif %}.</p>
           </div>
           <div class="location-editor-card" data-precise-location-editor data-maps-key="{{ google_maps_browser_api_key|default:'' }}" data-default-lat="{{ form.latitude.value|default:'12.915300' }}" data-default-lng="{{ form.longitude.value|default:'76.643800' }}">
             <div class="location-editor-toolbar">
@@ -152,7 +175,7 @@
         {% for error in form.non_field_errors %}<small class="field-error">{{ error }}</small>{% endfor %}
 
         <div class="form-actions">
-          <button class="auth-primary-button" type="submit">Send Mobile OTP</button>
+          <button class="auth-primary-button" type="submit">{% if google_registration %}Create Customer Account{% else %}Send Mobile OTP{% endif %}</button>
           <a class="auth-secondary-button" href="{% url 'core:register' %}">Change Role</a>
         </div>
       </form>

@@ -80,7 +80,90 @@ git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
 cd YOUR_REPO
 ```
 
-If the repo is private, use your preferred GitHub authentication method.
+If the repo is public, that is enough.
+
+If the repo is private, use one of the methods below.
+
+## 3A. Private Repo Option 1: SSH Deploy Key
+
+This is the cleanest option if PythonAnywhere should only read from one private repo.
+
+On PythonAnywhere:
+
+```bash
+ssh-keygen -t ed25519 -C "pythonanywhere-gramexpress" -f ~/.ssh/gramexpress_github -N ""
+cat ~/.ssh/gramexpress_github.pub
+```
+
+Copy the printed public key.
+
+In GitHub:
+
+1. Open your private repository.
+2. Go to `Settings` -> `Deploy keys`.
+3. Click `Add deploy key`.
+4. Title it something like `PythonAnywhere GramExpress`.
+5. Paste the public key.
+6. Keep `Allow write access` off unless you truly need the server to push.
+7. Save.
+
+Then on PythonAnywhere, add an SSH config:
+
+```bash
+nano ~/.ssh/config
+```
+
+Paste:
+
+```sshconfig
+Host github-gramexpress
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/gramexpress_github
+  IdentitiesOnly yes
+```
+
+Save the file, then test:
+
+```bash
+ssh -T github-gramexpress
+```
+
+Then clone with:
+
+```bash
+cd ~
+git clone git@github-gramexpress:YOUR_USERNAME/YOUR_REPO.git
+cd YOUR_REPO
+```
+
+If you already cloned with HTTPS and want to switch to SSH later:
+
+```bash
+git remote set-url origin git@github-gramexpress:YOUR_USERNAME/YOUR_REPO.git
+```
+
+## 3B. Private Repo Option 2: HTTPS With GitHub Token
+
+Use this if you do not want to manage SSH keys.
+
+1. In GitHub, create a personal access token with repo read access.
+2. Clone using HTTPS:
+
+```bash
+cd ~
+git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
+cd YOUR_REPO
+```
+
+3. When Git asks for credentials:
+   - Username: your GitHub username
+   - Password: your GitHub token
+
+Important:
+
+- Do not put the token directly inside this deployment guide or commit it anywhere.
+- If PythonAnywhere asks again on every pull, switch to the SSH deploy key option above.
 
 ## 4. Create A Virtual Environment
 
@@ -265,6 +348,8 @@ pip install -r requirements.txt
 python manage.py migrate
 python manage.py collectstatic --noinput
 ```
+
+If you used the private-repo SSH deploy-key setup, the same `git pull origin main` command will keep working without prompting for credentials.
 
 Then:
 
