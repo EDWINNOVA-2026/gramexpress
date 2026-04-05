@@ -1,199 +1,556 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
-  <section class="rider-screen rider-screen-new" id="top">
-    <article class="card rider-topbar-card" data-appear>
-      <div class="rider-topbar-main">
-        <div class="rider-brand-block">
-          <span class="eyebrow">GramExpress Rider</span>
-          <div class="rider-brand-copy">
-            <h1>New Orders</h1>
-            <p>{{ new_order_count }} order{{ new_order_count|pluralize }} ready nearby</p>
+  <section class="feature-nav card rider-segmented-nav" data-appear>
+    {% for item in page_nav %}
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">
+        <span class="ui-icon icon-{{ item.icon }}" aria-hidden="true"></span>
+        <span>{{ item.label }}</span>
+      </a>
+    {% endfor %}
+  </section>
+
+  <section class="rider-dashboard-shell" id="top">
+    <article class="card rider-dashboard-topbar" data-appear>
+      <div class="rider-dashboard-topbar-main">
+        <div class="rider-dashboard-identity">
+          <div class="rider-dashboard-identity-head">
+            {% if rider.photo_source %}
+              <img
+                class="rider-photo-avatar rider-photo-avatar-xl"
+                src="{{ rider.photo_source }}"
+                alt="{{ rider.full_name }}"
+                data-rider-photo-target
+              />
+            {% else %}
+              <div class="rider-avatar rider-photo-avatar-xl">{{ rider.full_name|first|upper }}</div>
+            {% endif %}
+            <a class="button secondary small" href="{% url 'core:rider_profile' %}">Update Photo</a>
+          </div>
+          <span class="eyebrow">Rider Command Center</span>
+          <h1 class="page-title">{{ rider.full_name }}</h1>
+          <p class="hero-lead">Current mission stays at the top so you can navigate, verify OTP, and close the job in fewer taps.</p>
+          <div class="hero-inline-facts">
+            <span class="soft-pill"><span class="ui-icon icon-bike" aria-hidden="true"></span><span>{{ rider.get_vehicle_type_display }}</span></span>
+            <span class="soft-pill"><span class="ui-icon icon-map-pinned" aria-hidden="true"></span><span>{{ dispatch_radius }} km dispatch radius</span></span>
+            <span class="soft-pill"><span class="ui-icon icon-package" aria-hidden="true"></span><span>{{ active_order_count }} active delivery{{ active_order_count|pluralize }}</span></span>
           </div>
         </div>
-        <div class="rider-account-block">
-          <div class="rider-avatar">{{ rider.full_name|first|upper }}</div>
-          <div class="rider-account-copy">
-            <strong>{{ rider.full_name }}</strong>
-            <span>{{ rider.get_vehicle_type_display }} | {{ dispatch_radius }} km radius</span>
-          </div>
+
+        <div class="rider-dashboard-topbar-side">
+          <article class="rider-summary-tile rider-summary-tile-earnings">
+            <span class="metric-label">Today's Earnings</span>
+            <strong>Rs. {{ today_earnings }}</strong>
+            <p>{{ today_completed_delivery_count }} delivery{{ today_completed_delivery_count|pluralize }} completed today.</p>
+          </article>
+
+          <article class="rider-summary-tile rider-summary-tile-toggle">
+            <div class="rider-summary-tile-copy">
+              <span class="metric-label">Availability</span>
+              <strong>{% if rider.is_available %}Online{% else %}Offline{% endif %}</strong>
+              <p>You can receive new orders only while online.</p>
+            </div>
+            <form method="post" action="{% url 'core:rider_toggle_availability' %}">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{% url 'core:rider_dashboard' %}" />
+              <label class="rider-status-switch{% if rider.approval_status != 'approved' %} rider-status-switch-disabled{% endif %}">
+                <input
+                  type="checkbox"
+                  name="is_available"
+                  value="on"
+                  {% if rider.is_available %}checked{% endif %}
+                  {% if rider.approval_status != 'approved' %}disabled{% endif %}
+                  onchange="this.form.submit()"
+                />
+                <span class="rider-status-slider"></span>
+                <span class="rider-status-text">{% if rider.is_available %}Online{% else %}Offline{% endif %}</span>
+              </label>
+            </form>
+          </article>
         </div>
       </div>
     </article>
 
-    <section class="feature-nav card rider-segmented-nav" data-appear>
-      {% for item in page_nav %}
-        <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">
-          <span class="ui-icon icon-{{ item.icon }}" aria-hidden="true"></span>
-          <span>{{ item.label }}</span>
-        </a>
-      {% endfor %}
-    </section>
-
-    <section class="card rider-order-stream" data-appear>
+    <article class="card rider-mission-card" data-appear>
       <div class="rider-section-head">
         <div>
-          <span class="eyebrow">Available Now</span>
-          <h2 class="section-title">Scan, accept, and go</h2>
+          <span class="eyebrow">Current Mission</span>
+          {% if priority_order %}
+            <h2 class="section-title">{{ priority_order.current_mission_title }}</h2>
+            <p class="subtle">{{ priority_order.current_mission_detail }}</p>
+          {% elif priority_khatabook_request %}
+            <h2 class="section-title">{{ priority_khatabook_request.flow_headline }}</h2>
+            <p class="subtle">{{ priority_khatabook_request.flow_detail }}</p>
+          {% else %}
+            <h2 class="section-title">No active mission right now</h2>
+            <p class="subtle">Stay online and confirm your dispatch pin so the next nearby task can be assigned faster.</p>
+          {% endif %}
         </div>
-        <div class="hero-inline-facts">
-          <span class="soft-pill"><span class="ui-icon icon-bike" aria-hidden="true"></span><span>{{ active_order_count }} active</span></span>
-          <span class="status-chip info"><span class="ui-icon icon-package" aria-hidden="true"></span><span>{{ new_order_count }} new</span></span>
-          <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>{{ new_khatabook_collection_count }} KhataBook collections</span></span>
-        </div>
+
+        {% if priority_order %}
+          <div class="hero-inline-facts">
+            <span class="soft-pill">{{ priority_order.display_id }}</span>
+            <span class="status-chip {{ priority_order.dashboard_payment_chip }}">{{ priority_order.dashboard_payment_label }}</span>
+            <span class="status-chip {{ priority_order.status_chip }}">{{ priority_order.get_status_display }}</span>
+          </div>
+        {% elif priority_khatabook_request %}
+          <div class="hero-inline-facts">
+            <span class="soft-pill">{{ priority_khatabook_request.display_id }}</span>
+            <span class="status-chip rider-payment-chip-khata">KhataBook</span>
+            <span class="status-chip {{ priority_khatabook_request.status_chip }}">{{ priority_khatabook_request.get_status_display }}</span>
+          </div>
+        {% endif %}
       </div>
 
-      <div class="stack rider-order-list">
-        {% for order in available_orders %}
-          <article class="nested-panel order-card rider-job-card">
-            <div class="rider-job-head">
-              <div>
-                <strong>{{ order.display_id }}</strong>
-                <p class="rider-job-meta">{{ order.item_count }} item{{ order.item_count|pluralize }} | Earn Rs. {{ order.delivery_fee }}</p>
-              </div>
-              <div class="hero-inline-facts">
-                <span class="pill">{{ order.pickup_distance_km }} km away</span>
-                <span class="soft-pill">{{ order.payment_mode_badge }}</span>
-              </div>
-            </div>
+      {% if priority_order %}
+        <div class="rider-mission-grid">
+          <article class="rider-mission-stop">
+            <span class="eyebrow">Pickup Shop</span>
+            <strong>{{ priority_order.shop.name }}</strong>
+            <p>{{ priority_order.pickup_address }}</p>
+          </article>
+          <article class="rider-mission-stop">
+            <span class="eyebrow">Drop Customer Location</span>
+            <strong>{{ priority_order.customer.full_name }}</strong>
+            <p>{{ priority_order.dropoff_address }}</p>
+          </article>
+          <article class="rider-mission-stat">
+            <span class="metric-label">Payment Type</span>
+            <strong>{{ priority_order.dashboard_payment_label }}</strong>
+            <p>{{ priority_order.payment_summary.detail }}</p>
+          </article>
+          <article class="rider-mission-stat">
+            <span class="metric-label">Projected rider payout</span>
+            <strong>Rs. {{ priority_order.rider_payout_total }}</strong>
+            <p>Base commission Rs. {{ priority_order.rider_commission }}{% if priority_order.rider_distance_incentive > 0 %} + distance incentive Rs. {{ priority_order.rider_distance_incentive }}{% endif %}</p>
+          </article>
+        </div>
 
-            <div class="rider-route-points">
-              <div class="rider-route-point">
-                <span class="rider-route-icon rider-route-icon-pickup" aria-hidden="true"><span class="ui-icon icon-store"></span></span>
-                <div class="rider-route-copy">
-                  <strong>Pickup</strong>
-                  <p>{{ order.shop.name }}</p>
-                  <span>{{ order.pickup_address }}</span>
-                </div>
-              </div>
-              <div class="rider-route-point">
-                <span class="rider-route-icon rider-route-icon-dropoff" aria-hidden="true"><span class="ui-icon icon-map-pinned"></span></span>
-                <div class="rider-route-copy">
-                  <strong>Drop-off</strong>
-                  <p>{{ order.customer.full_name }}</p>
-                  <span>{{ order.dropoff_address }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="rider-card-chips">
-              <span class="soft-pill">Drop {{ order.delivery_distance_km }} km</span>
-              <span class="soft-pill">Status Ready</span>
-            </div>
-
-            <div class="flow-strip" aria-label="Delivery flow">
-              {% for step in order.flow_steps %}
-                <span class="flow-step{% if step.completed %} flow-step-complete{% endif %}{% if step.current %} flow-step-current{% endif %}">{{ step.label }}</span>
-              {% endfor %}
-            </div>
-
-            <div class="compact-item">
-              <strong>{{ order.flow_headline }}</strong>
-              <p>{{ order.flow_detail }}</p>
-              {% if order.is_khatabook_order %}
-                <p class="utility-note">KhataBook credit order: do not collect money from the customer during delivery handoff.</p>
-              {% endif %}
-            </div>
-
-            <div class="rider-map-actions">
-              <a class="button small secondary" href="{{ order.pickup_map_url }}" target="_blank" rel="noreferrer">
-                <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
-                <span>Pickup in Maps</span>
-              </a>
-              <a class="button small secondary" href="{{ order.dropoff_map_url }}" target="_blank" rel="noreferrer">
-                <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
-                <span>Drop-off in Maps</span>
-              </a>
-            </div>
-
-            <details class="rider-order-items">
-              <summary>View items</summary>
-              <div class="compact-list">
-                {% for item in order.items.all %}
-                  <div class="list-item compact-item compact-item-tight">
-                    <div>
-                      <strong>{{ item.product.name }}</strong>
-                      <p>{{ item.quantity }} x Rs. {{ item.unit_price }}</p>
-                    </div>
-                    <span class="muted">Rs. {{ item.line_total }}</span>
-                  </div>
-                {% endfor %}
-              </div>
-            </details>
-
-            <form method="post" action="{% url 'core:rider_accept_order' order.id %}" class="rider-job-accept">
+        <div class="rider-mission-actions">
+          <a class="button primary rider-mission-button" href="{{ priority_order.current_mission_map_url }}" target="_blank" rel="noreferrer">
+            <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+            <span>Open in Maps</span>
+          </a>
+          <a class="button secondary rider-mission-button" href="tel:{{ priority_order.customer.phone }}">
+            <span class="ui-icon icon-phone" aria-hidden="true"></span>
+            <span>Call Customer</span>
+          </a>
+          {% if priority_order.status == 'out_for_delivery' %}
+            <form method="post" action="{% url 'core:rider_resend_customer_otp' priority_order.id %}">
               {% csrf_token %}
-              <button class="button primary rider-accept-button" type="submit">
-                <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
-                <span>Accept Order</span>
+              <input type="hidden" name="next" value="{% url 'core:rider_dashboard' %}" />
+              <button class="button secondary rider-mission-button" type="submit">
+                <span class="ui-icon icon-refresh-cw" aria-hidden="true"></span>
+                <span>Resend OTP</span>
               </button>
             </form>
+          {% endif %}
+        </div>
+
+        {% if priority_order.status != 'out_for_delivery' and priority_order.status != 'delivered' %}
+          <form method="post" action="{% url 'core:rider_update_order_status' priority_order.id %}" class="rider-mission-form">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="out_for_delivery" />
+            <p class="utility-note">Pickup confirmation works only when you are close enough to the store geofence.</p>
+            <button class="button primary rider-mission-submit" type="submit">
+              <span class="ui-icon icon-package-open" aria-hidden="true"></span>
+              <span>Picked Up From Store</span>
+            </button>
+          </form>
+        {% elif priority_order.status == 'out_for_delivery' %}
+          {% if priority_order.payment_method == 'cod' and priority_order.payment_status != 'paid' and priority_order.cod_collection_mode == 'online' %}
+            <div class="rider-mission-inline-note">
+              <strong>Online payment pending</strong>
+              <p>The customer must finish the Razorpay payment before you close this COD delivery.</p>
+              <form method="post" action="{% url 'core:rider_request_cod_online_payment' priority_order.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'core:rider_dashboard' %}" />
+                <button class="button secondary" type="submit">
+                  <span class="ui-icon icon-wallet" aria-hidden="true"></span>
+                  <span>Recieve Money Online</span>
+                </button>
+              </form>
+            </div>
+          {% else %}
+            <form method="post" action="{% url 'core:rider_update_order_status' priority_order.id %}" class="rider-mission-form">
+              {% csrf_token %}
+              <input type="hidden" name="status" value="delivered" />
+              <div class="auth-field">
+                <label>OTP Input</label>
+                <div class="otp-input-shell" data-otp-input data-otp-autofocus="true">
+                  <input type="hidden" name="customer_otp" value="" />
+                  <div class="otp-input-grid" role="group" aria-label="Delivery OTP">
+                    {% for _ in '123456'|make_list %}
+                      <input type="text" class="otp-digit-input" inputmode="numeric" pattern="[0-9]*" maxlength="1" data-otp-digit aria-label="Delivery OTP digit {{ forloop.counter }}" autocomplete="one-time-code" />
+                    {% endfor %}
+                  </div>
+                </div>
+              </div>
+              {% if priority_order.customer_otp_valid_until %}
+                <p class="utility-note">Current OTP valid until {{ priority_order.customer_otp_valid_until|date:"H:i" }}.</p>
+              {% endif %}
+              <button class="button primary rider-mission-submit" type="submit">
+                <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
+                <span>Delivered</span>
+              </button>
+            </form>
+          {% endif %}
+        {% endif %}
+      {% elif priority_khatabook_request %}
+        <div class="rider-mission-grid">
+          <article class="rider-mission-stop">
+            <span class="eyebrow">Pickup Shop</span>
+            <strong>KhataBook recovery task</strong>
+            <p>Collect the weekly due only. Do not ask for payment on the original order.</p>
           </article>
-        {% empty %}
-          <div class="nested-panel rider-empty-state">
-            <strong>No nearby orders yet</strong>
-            <p>Stay online and keep your dispatch location updated to see fresh delivery requests here.</p>
+          <article class="rider-mission-stop">
+            <span class="eyebrow">Drop Customer Location</span>
+            <strong>{{ priority_khatabook_request.customer.full_name }}</strong>
+            <p>{{ priority_khatabook_request.collection_address }}</p>
+          </article>
+          <article class="rider-mission-stat">
+            <span class="metric-label">Payment Type</span>
+            <strong>KhataBook</strong>
+            <p>Recovery request for Rs. {{ priority_khatabook_request.amount }}.</p>
+          </article>
+          <article class="rider-mission-stat">
+            <span class="metric-label">Distance</span>
+            <strong>{{ priority_khatabook_request.distance_km }} km</strong>
+            <p>Close the collection only after the customer gives the repayment OTP.</p>
+          </article>
+        </div>
+
+        <div class="rider-mission-actions">
+          <a class="button primary rider-mission-button" href="{{ priority_khatabook_request.map_url }}" target="_blank" rel="noreferrer">
+            <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+            <span>Open in Maps</span>
+          </a>
+          <a class="button secondary rider-mission-button" href="tel:{{ priority_khatabook_request.customer.phone }}">
+            <span class="ui-icon icon-phone" aria-hidden="true"></span>
+            <span>Call Customer</span>
+          </a>
+          <form method="post" action="{% url 'core:rider_resend_khatabook_collection_otp' priority_khatabook_request.id %}">
+            {% csrf_token %}
+            <button class="button secondary rider-mission-button" type="submit">
+              <span class="ui-icon icon-refresh-cw" aria-hidden="true"></span>
+              <span>Resend OTP</span>
+            </button>
+          </form>
+        </div>
+
+        <form method="post" action="{% url 'core:rider_complete_khatabook_collection' priority_khatabook_request.id %}" class="rider-mission-form">
+          {% csrf_token %}
+          <div class="auth-field">
+            <label>OTP Input</label>
+            <div class="otp-input-shell" data-otp-input data-otp-autofocus="true">
+              <input type="hidden" name="collection_otp" value="" />
+              <div class="otp-input-grid" role="group" aria-label="Collection OTP">
+                {% for _ in '123456'|make_list %}
+                  <input type="text" class="otp-digit-input" inputmode="numeric" pattern="[0-9]*" maxlength="1" data-otp-digit aria-label="Collection OTP digit {{ forloop.counter }}" autocomplete="one-time-code" />
+                {% endfor %}
+              </div>
+            </div>
           </div>
-        {% endfor %}
-      </div>
+          <button class="button primary rider-mission-submit" type="submit">
+            <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
+            <span>Collected And Closed</span>
+          </button>
+        </form>
+      {% else %}
+        <div class="nested-panel rider-empty-state">
+          <strong>No active mission</strong>
+          <p>Keep your dispatch location fresh and stay online. New pickup or KhataBook recovery tasks will appear in the queue below.</p>
+        </div>
+      {% endif %}
+    </article>
+
+    <section class="rider-dashboard-grid">
+      <article class="card rider-queue-card" data-appear>
+        <div class="rider-section-head">
+          <div>
+            <span class="eyebrow">Next Orders Queue</span>
+            <h2 class="section-title">Nearby jobs ready to accept</h2>
+          </div>
+          <span class="soft-pill">{{ dashboard_queue|length }} waiting</span>
+        </div>
+
+        <div class="rider-queue-table">
+          <div class="rider-queue-head">
+            <span>Order ID</span>
+            <span>Pickup Location</span>
+            <span>Drop Location</span>
+            <span>Distance</span>
+            <span>Action</span>
+          </div>
+          {% for job in dashboard_queue %}
+            <article class="rider-queue-row">
+              <div class="rider-queue-cell">
+                <strong>{{ job.display_id }}</strong>
+                <span class="status-chip {{ job.payment_chip }}">{{ job.payment_label }}</span>
+              </div>
+              <div class="rider-queue-cell">
+                <strong>{{ job.pickup_label }}</strong>
+                <p>{{ job.pickup_detail }}</p>
+              </div>
+              <div class="rider-queue-cell">
+                <strong>{{ job.drop_label }}</strong>
+                <p>{{ job.drop_detail }}</p>
+              </div>
+              <div class="rider-queue-cell">
+                <strong>{{ job.distance_label }}</strong>
+                <p>{% if job.kind == 'collection' %}Recovery task{% else %}Pickup first{% endif %}</p>
+              </div>
+              <div class="rider-queue-cell rider-queue-cell-action">
+                <form method="post" action="{{ job.accept_url }}">
+                  {% csrf_token %}
+                  <button class="button primary" type="submit">{{ job.accept_label }}</button>
+                </form>
+              </div>
+            </article>
+          {% empty %}
+            <div class="nested-panel rider-empty-state">
+              <strong>No active queue right now</strong>
+              <p>Stay online near your dispatch point. New nearby jobs will show up here automatically.</p>
+            </div>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="card rider-dispatch-card" data-appear data-rider-dispatch-editor>
+        <div class="rider-section-head">
+          <div>
+            <span class="eyebrow">Dispatch Location</span>
+            <h2 class="section-title">Set the pin riders get assigned from</h2>
+            <p class="subtle">Orders will be assigned based on this location.</p>
+          </div>
+          <span class="soft-pill">Live dispatch radius {{ dispatch_radius }} km</span>
+        </div>
+
+        <form method="post" action="{% url 'core:rider_update_location' %}" class="rider-dispatch-form" data-rider-location-form>
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{% url 'core:rider_dashboard' %}" />
+          <div class="hidden">
+            {{ location_form.latitude }}
+            {{ location_form.longitude }}
+          </div>
+
+          <div class="rider-dispatch-actions">
+            <button class="button secondary" type="button" data-rider-location-current>
+              <span class="ui-icon icon-locate-fixed" aria-hidden="true"></span>
+              <span>Use Current Location</span>
+            </button>
+            <button class="button primary" type="submit" data-rider-location-confirm>
+              <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
+              <span>Confirm Dispatch Location</span>
+            </button>
+          </div>
+
+          <div class="rider-dispatch-note">
+            <strong>Dispatch Pin</strong>
+            <p data-rider-location-status>
+              {% if google_maps_browser_api_key %}
+                Drag the map pin if your current location needs a more exact dispatch point.
+              {% else %}
+                Map not loading. Add a Google Maps browser key to enable the dispatch pin editor.
+              {% endif %}
+            </p>
+          </div>
+
+          <div class="rider-dispatch-map-shell">
+            <div class="rider-dispatch-map" data-rider-location-map>
+              <div class="shop-settings-map-fallback">
+                <strong>Map loading</strong>
+                <p>The draggable dispatch pin will appear here when Google Maps is available.</p>
+              </div>
+            </div>
+          </div>
+        </form>
+      </article>
     </section>
 
-    <section class="card rider-order-stream" data-appear>
+    <section class="rider-summary-grid" data-appear>
+      <article class="metric-card rider-metric-card">
+        <span class="metric-label">Completed Deliveries</span>
+        <strong class="metric-value">{{ today_completed_delivery_count }}</strong>
+        <p>Orders closed today.</p>
+      </article>
+      <article class="metric-card rider-metric-card">
+        <span class="metric-label">Total Earnings</span>
+        <strong class="metric-value">Rs. {{ today_earnings }}</strong>
+        <p>Today's commission and incentives so far.</p>
+      </article>
+      <article class="metric-card rider-metric-card">
+        <span class="metric-label">Distance Travelled</span>
+        <strong class="metric-value">{{ today_distance_travelled_km }} km</strong>
+        <p>Approximate delivery route distance today.</p>
+      </article>
+      <article class="metric-card rider-metric-card">
+        <span class="metric-label">KhataBook Collections</span>
+        <strong class="metric-value">{{ today_khatabook_collection_count }}</strong>
+        <p>Recovery tasks completed today.</p>
+      </article>
+    </section>
+
+    <article class="card rider-history-card" data-appear>
       <div class="rider-section-head">
         <div>
-          <span class="eyebrow">KhataBook</span>
-          <h2 class="section-title">Nearby repayment requests</h2>
+          <span class="eyebrow">Delivery History</span>
+          <h2 class="section-title">Recent completed orders</h2>
         </div>
-        <div class="hero-inline-facts">
-          <span class="soft-pill">{{ new_khatabook_collection_count }} nearby</span>
-          <span class="status-chip warn">Credit collection</span>
-        </div>
+        <span class="soft-pill">{{ completed_delivery_count }} lifetime completed</span>
       </div>
 
-      <div class="stack rider-order-list">
-        {% for collection_request in available_khatabook_requests %}
-          <article class="nested-panel order-card rider-job-card">
-            <div class="rider-job-head">
-              <div>
-                <strong>{{ collection_request.display_id }}</strong>
-                <p class="rider-job-meta">Collect Rs. {{ collection_request.amount }} from {{ collection_request.customer.full_name }}</p>
-              </div>
-              <div class="hero-inline-facts">
-                <span class="pill">{{ collection_request.distance_km }} km away</span>
-                <span class="soft-pill">KhataBook COD</span>
-              </div>
+      <div class="rider-history-list">
+        {% for order in delivery_history %}
+          <article class="rider-history-row">
+            <div>
+              <strong>{{ order.display_id }}</strong>
+              <p>{{ order.shop.name }} to {{ order.customer.full_name }}</p>
             </div>
-
-            <div class="compact-item">
-              <strong>{{ collection_request.flow_headline }}</strong>
-              <p>{{ collection_request.flow_detail }}</p>
+            <div>
+              <span class="status-chip {{ order.dashboard_payment_chip }}">{{ order.dashboard_payment_label }}</span>
+              <p>{% if order.delivered_at %}{{ order.delivered_at|date:"M d, H:i" }}{% else %}Completed{% endif %}</p>
             </div>
-
-            <div class="rider-route-point">
-              <span class="rider-route-icon rider-route-icon-dropoff" aria-hidden="true">K</span>
-              <div class="rider-route-copy">
-                <strong>Collection point</strong>
-                <p>{{ collection_request.customer.full_name }}</p>
-                <span>{{ collection_request.collection_address }}</span>
-              </div>
+            <div>
+              <strong>Rs. {{ order.rider_payout_total }}</strong>
+              <p>Earnings Per Order</p>
             </div>
-
-            <div class="rider-map-actions">
-              <a class="button small secondary" href="{{ collection_request.map_url }}" target="_blank" rel="noreferrer">Open Collection Pin</a>
-            </div>
-
-            <form method="post" action="{% url 'core:rider_accept_khatabook_collection' collection_request.id %}" class="rider-job-accept">
-              {% csrf_token %}
-              <button class="button primary rider-accept-button" type="submit">Accept KhataBook Collection</button>
-            </form>
           </article>
         {% empty %}
           <div class="nested-panel rider-empty-state">
-            <strong>No nearby KhataBook collections yet</strong>
-            <p>When customers request COD / UPI repayment and you are close enough, those credit-collection jobs will appear here.</p>
+            <strong>No deliveries completed yet</strong>
+            <p>Once you finish deliveries, the payment type and earnings per order will appear here.</p>
           </div>
         {% endfor %}
       </div>
-    </section>
+    </article>
   </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (function () {
+      var editor = document.querySelector('[data-rider-dispatch-editor]');
+      if (!editor) {
+        return;
+      }
+
+      var form = editor.querySelector('[data-rider-location-form]');
+      var mapNode = editor.querySelector('[data-rider-location-map]');
+      var currentButton = editor.querySelector('[data-rider-location-current]');
+      var statusNode = editor.querySelector('[data-rider-location-status]');
+      var latInput = form && form.querySelector('[name="latitude"]');
+      var lngInput = form && form.querySelector('[name="longitude"]');
+      var mapsKey = '{{ google_maps_browser_api_key|escapejs }}';
+      var map;
+      var marker;
+
+      function setStatus(message) {
+        if (statusNode) {
+          statusNode.textContent = message;
+        }
+      }
+
+      function readCoordinates() {
+        return {
+          lat: Number(latInput && latInput.value) || 12.9153,
+          lng: Number(lngInput && lngInput.value) || 76.6438
+        };
+      }
+
+      function writeCoordinates(lat, lng) {
+        if (latInput) {
+          latInput.value = Number(lat).toFixed(6);
+        }
+        if (lngInput) {
+          lngInput.value = Number(lng).toFixed(6);
+        }
+      }
+
+      function updateMarkerPosition(lat, lng, message) {
+        writeCoordinates(lat, lng);
+        if (marker) {
+          marker.setPosition({ lat: lat, lng: lng });
+        }
+        if (map) {
+          map.panTo({ lat: lat, lng: lng });
+        }
+        if (message) {
+          setStatus(message);
+        }
+      }
+
+      function initMap() {
+        if (!window.google || !window.google.maps || !mapNode) {
+          setStatus('Map not loading. Add a Google Maps browser key to enable the dispatch pin editor.');
+          return;
+        }
+
+        var coordinates = readCoordinates();
+        map = new google.maps.Map(mapNode, {
+          center: coordinates,
+          zoom: 16,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false
+        });
+        marker = new google.maps.Marker({
+          position: coordinates,
+          map: map,
+          draggable: true,
+          title: 'Dispatch location'
+        });
+
+        marker.addListener('dragend', function (event) {
+          updateMarkerPosition(event.latLng.lat(), event.latLng.lng(), 'Dispatch pin updated. Confirm location to save it.');
+        });
+
+        setStatus('Drag the map pin if your current location needs a more exact dispatch point.');
+      }
+
+      if (currentButton) {
+        currentButton.addEventListener('click', function () {
+          if (!navigator.geolocation) {
+            setStatus('Geolocation is not supported in this browser.');
+            return;
+          }
+
+          currentButton.disabled = true;
+          setStatus('Detecting your current dispatch location...');
+          navigator.geolocation.getCurrentPosition(
+            function (position) {
+              updateMarkerPosition(
+                position.coords.latitude,
+                position.coords.longitude,
+                position.coords.accuracy > 100
+                  ? 'GPS found a rough point. Drag the pin to the exact dispatch spot if needed.'
+                  : 'Current location captured. Confirm it to save your dispatch pin.'
+              );
+              currentButton.disabled = false;
+            },
+            function () {
+              currentButton.disabled = false;
+              setStatus('Location permission denied. Enable location access and try again.');
+            },
+            { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+          );
+        });
+      }
+
+      if (!mapsKey) {
+        setStatus('Map not loading. Add a Google Maps browser key to enable the dispatch pin editor.');
+        return;
+      }
+
+      var script = document.createElement('script');
+      script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(mapsKey) + '&libraries=maps';
+      script.async = true;
+      script.defer = true;
+      script.onload = initMap;
+      script.onerror = function () {
+        setStatus('Map could not load right now. You can still use current location and confirm.');
+      };
+      document.head.appendChild(script);
+    })();
+  </script>
 {% endblock %}

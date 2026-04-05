@@ -18,7 +18,7 @@
       <div class="hero-inline-facts">
         <span class="soft-pill"><span class="ui-icon icon-badge-check" aria-hidden="true"></span><span>{{ completed_delivery_count }} delivered</span></span>
         <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>{{ completed_khatabook_collection_count }} collections</span></span>
-        <span class="soft-pill"><span class="ui-icon icon-indian-rupee" aria-hidden="true"></span><span>Total Rs. {{ total_earnings }}</span></span>
+        <span class="soft-pill"><span class="ui-icon icon-indian-rupee" aria-hidden="true"></span><span>Final Payout Rs. {{ total_earnings }}</span></span>
       </div>
     </article>
 
@@ -26,7 +26,7 @@
       <article class="metric-card">
         <span class="metric-label">Today</span>
         <strong class="metric-value">Rs. {{ today_earnings }}</strong>
-        <p>Your completed deliveries automatically move here after you mark them as delivered.</p>
+        <p>Today's commission and incentives from completed rider work.</p>
       </article>
     </aside>
   </section>
@@ -54,7 +54,7 @@
             <div class="hero-inline-facts">
               <span class="status-chip success">Delivered</span>
               <span class="soft-pill">{{ order.payment_mode_badge }}</span>
-              <span class="soft-pill">Earned Rs. {{ order.delivery_fee }}</span>
+              <span class="soft-pill">Earned Rs. {{ order.rider_payout_total }}</span>
             </div>
           </div>
 
