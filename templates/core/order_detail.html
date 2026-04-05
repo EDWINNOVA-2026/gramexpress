@@ -7,10 +7,11 @@
         <div class="content-stack">
           <span class="eyebrow">Order Detail</span>
           <h1 class="page-title">{{ order.display_id }}</h1>
-          <p>{{ order.shop.name }} to {{ order.customer.full_name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
+          <p>{{ order.shop.name }} to {{ order.customer.full_name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }} | {{ order.delivery_slot_name }}</p>
         </div>
         <div class="action-cluster">
           <span class="status-chip {{ status_summary.chip_class }}">{{ order.get_status_display }}</span>
+          <span class="status-chip {{ order.delivery_slot_chip }}">{{ order.time_remaining_label }}</span>
           <span class="soft-pill"><span class="ui-icon icon-clock-3" aria-hidden="true"></span><span>ETA {{ eta_label }}</span></span>
           <span class="pill">Rs. {{ order.total_amount }}</span>
         </div>
@@ -58,6 +59,11 @@
           <strong>Last update</strong>
           <p>{{ order.latest_rider_update }}</p>
           <span class="tiny muted">{{ order.last_update_timestamp_label }}</span>
+        </div>
+        <div class="compact-item content-stack top-gap-sm">
+          <strong>Delivery slot</strong>
+          <p>{{ order.delivery_slot_name }} | {{ order.delivery_slot_time_label }}</p>
+          <span class="tiny muted">Deadline {{ order.deadline_label }}</span>
         </div>
         <div class="compact-item content-stack top-gap-sm">
           <strong>{{ order.support_prompt }}</strong>
@@ -368,6 +374,48 @@
                 </form>
               {% endif %}
 
+              {% if order.can_be_rated_by_customer %}
+                <div class="checkout-cod-panel">
+                  <strong>Driver feedback</strong>
+                  <p>Rate the rider and describe how the delivery handoff went.</p>
+                  <form method="post" action="{% url 'core:customer_rate_order' order.id %}" class="stack small-gap top-gap-sm">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{% url 'core:order_detail' order.id %}" />
+                    <fieldset class="star-rating-field">
+                      <legend class="star-rating-legend">Rate your driver</legend>
+                      <p class="star-rating-hint">Tap a star to choose your rating.</p>
+                      <div class="star-rating-group" aria-label="Rate your driver">
+                        <input class="star-rating-input" id="detail-order-{{ order.id }}-rating-5" type="radio" name="customer_rating" value="5" required />
+                        <label class="star-rating-label" for="detail-order-{{ order.id }}-rating-5" title="5 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">5 stars</span></label>
+                        <input class="star-rating-input" id="detail-order-{{ order.id }}-rating-4" type="radio" name="customer_rating" value="4" />
+                        <label class="star-rating-label" for="detail-order-{{ order.id }}-rating-4" title="4 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">4 stars</span></label>
+                        <input class="star-rating-input" id="detail-order-{{ order.id }}-rating-3" type="radio" name="customer_rating" value="3" />
+                        <label class="star-rating-label" for="detail-order-{{ order.id }}-rating-3" title="3 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">3 stars</span></label>
+                        <input class="star-rating-input" id="detail-order-{{ order.id }}-rating-2" type="radio" name="customer_rating" value="2" />
+                        <label class="star-rating-label" for="detail-order-{{ order.id }}-rating-2" title="2 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">2 stars</span></label>
+                        <input class="star-rating-input" id="detail-order-{{ order.id }}-rating-1" type="radio" name="customer_rating" value="1" />
+                        <label class="star-rating-label" for="detail-order-{{ order.id }}-rating-1" title="1 star"><span aria-hidden="true">&#9733;</span><span class="sr-only">1 star</span></label>
+                      </div>
+                    </fieldset>
+                    <label>Delivery description
+                      <textarea name="customer_review" rows="3" placeholder="Share how the driver handled your delivery and handoff."></textarea>
+                    </label>
+                    <button class="button primary" type="submit">
+                      <span class="ui-icon icon-star" aria-hidden="true"></span>
+                      <span>Save Driver Feedback</span>
+                    </button>
+                  </form>
+                </div>
+              {% elif order.customer_rating %}
+                <div class="checkout-cod-panel">
+                  <strong>Driver feedback</strong>
+                  <p>You rated the driver {{ order.customer_rating }}/5.</p>
+                  {% if order.customer_review %}
+                    <span class="tiny muted">{{ order.customer_review }}</span>
+                  {% endif %}
+                </div>
+              {% endif %}
+
               {% if order.status == 'cancelled' and order.cancellation_reason %}
                 <div class="checkout-cod-panel">
                   <strong>Cancellation summary</strong>
@@ -399,7 +447,7 @@
       </div>
       <div class="bill-grid">
         <div class="bill-row"><span>Item total</span><strong>Rs. {{ order.subtotal_amount|floatformat:2 }}</strong></div>
-        <div class="bill-row"><span>Delivery fee</span><strong>Rs. {{ order.delivery_fee|floatformat:2 }}</strong></div>
+        <div class="bill-row"><span>{{ order.delivery_slot_name }}</span><strong>Rs. {{ order.delivery_fee|floatformat:2 }}</strong></div>
         {% if order.shopkeeper_commission_fee %}
           <div class="bill-row"><span>Shopkeeper commission fee</span><strong>Rs. {{ order.shopkeeper_commission_fee|floatformat:2 }}</strong></div>
         {% endif %}

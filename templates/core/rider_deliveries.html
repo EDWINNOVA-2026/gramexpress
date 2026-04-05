@@ -202,6 +202,48 @@
       <span class="status-chip info">{{ active_order_count }} active</span>
     </div>
 
+    <div class="action-cluster">
+      <a class="button small {% if not slot_filter %}primary{% else %}secondary{% endif %}" href="{% url 'core:rider_deliveries' %}">All slots</a>
+      {% for option in delivery_slot_filters %}
+        <a class="button small {% if slot_filter == option.code %}primary{% else %}secondary{% endif %}" href="{% url 'core:rider_deliveries' %}?slot={{ option.code }}">
+          {{ option.name }}
+        </a>
+      {% endfor %}
+    </div>
+
+    <div class="stack">
+      {% for slot_section in active_orders_by_slot %}
+        <div class="nested-panel">
+          <div class="split-row">
+            <div class="content-stack">
+              <strong>{{ slot_section.label }}</strong>
+              <p>{{ slot_section.time_label }} | {{ slot_section.description }}</p>
+            </div>
+            <div class="action-cluster">
+              <span class="status-chip {{ slot_section.chip }}">{{ slot_section.tag }}</span>
+              <span class="soft-pill">{{ slot_section.orders|length }} order{{ slot_section.orders|length|pluralize }}</span>
+            </div>
+          </div>
+          {% if slot_section.orders %}
+            <div class="compact-list top-gap-sm">
+              {% for order in slot_section.orders %}
+                <div class="list-item compact-item">
+                  <div>
+                    <strong>{{ order.display_id }}</strong>
+                    <p>{{ order.shop.name }} to {{ order.customer.full_name }}</p>
+                    <p class="utility-note">{{ order.time_remaining_label }} left | {{ order.delivery_distance_km }} km route</p>
+                  </div>
+                  <span class="status-chip {{ order.deadline_chip }}">{{ order.get_status_display }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="utility-note top-gap-sm">No active deliveries in this slot.</p>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
     <div class="stack">
       {% for order in active_orders %}
         <article class="nested-panel order-card rider-order-card roomy-card">
@@ -209,10 +251,12 @@
             <div class="content-stack">
               <strong>{{ order.display_id }}</strong>
               <p>{{ order.shop.name }} to {{ order.customer.full_name }}</p>
+              <p class="utility-note">{{ order.delivery_slot_name }} | {{ order.time_remaining_label }} left | Deadline {{ order.deadline_label }}</p>
               <p class="utility-note">{{ order.status_hint }}</p>
             </div>
             <div class="action-cluster">
               <span class="status-chip {{ order.status_chip }}">{{ order.get_status_display }}</span>
+              <span class="status-chip {{ order.deadline_chip }}">{{ order.time_remaining_label }}</span>
               <span class="soft-pill">{{ order.payment_mode_badge }}</span>
               <span class="soft-pill">Earn Rs. {{ order.delivery_fee }}</span>
             </div>
@@ -272,6 +316,7 @@
               <div class="hero-inline-facts">
                 <span class="soft-pill">{{ order.delivery_distance_km }} km route</span>
                 <span class="soft-pill">{{ order.item_count }} item{{ order.item_count|pluralize }}</span>
+                <span class="soft-pill">{{ order.delivery_slot_tag }}</span>
               </div>
               <a class="button small secondary" href="{{ order.dropoff_map_url }}" target="_blank" rel="noreferrer">
                 <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
