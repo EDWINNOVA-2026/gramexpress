@@ -6964,6 +6964,47 @@ def customer_checkout(request: HttpRequest) -> HttpResponse:
 
 
 @role_required(RoleType.CUSTOMER)
+def customer_razorpay_launch(request: HttpRequest) -> HttpResponse:
+    customer = request.role_profile
+    if not is_razorpay_ready():
+        messages.error(request, 'Razorpay is not configured yet for this checkout.')
+        return redirect('core:customer_checkout')
+
+    checkout_data = pending_checkout_data(request) or {
+        'delivery_slot': DEFAULT_DELIVERY_SLOT,
+        'payment_method': PaymentMethod.COD,
+        'customer_notes': '',
+        'delivery_address': build_delivery_address(customer),
+    }
+    if checkout_data.get('payment_method') != PaymentMethod.RAZORPAY:
+        messages.info(request, 'Select Razorpay in checkout before continuing to the payment step.')
+        return redirect('core:customer_checkout')
+
+    cart = build_cart_context(request, delivery_slot=checkout_data.get('delivery_slot'))
+    try:
+        validate_checkout_cart(cart)
+        checkout_session = get_or_create_online_checkout_session(
+            request=request,
+            customer=customer,
+            cart=cart,
+            checkout_data=checkout_data,
+        )
+    except CheckoutValidationError as error:
+        messages.error(request, str(error))
+        return redirect('core:customer_checkout')
+
+    return render(
+        request,
+        'core/razorpay_launch.html',
+        {
+            'checkout_session': checkout_session,
+            'razorpay_checkout': build_razorpay_checkout_context(checkout_session, customer),
+            'estimated_total': checkout_session.amount,
+        },
+    )
+
+
+@role_required(RoleType.CUSTOMER)
 @require_POST
 def customer_razorpay_complete(request: HttpRequest) -> HttpResponse:
     customer = request.role_profile

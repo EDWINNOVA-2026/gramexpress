@@ -2736,6 +2736,40 @@ class CoreFlowTests(TestCase):
         self.product.refresh_from_db()
         self.assertEqual(self.product.stock, 18)
 
+    @override_settings(RAZORPAY_KEY_ID='rzp_test_123', RAZORPAY_KEY_SECRET='secret_123')
+    def test_razorpay_launch_page_renders_for_ready_checkout(self):
+        self.client.force_login(self.customer_user)
+        self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '1'})
+
+        def fake_create_razorpay_order(checkout_session):
+            checkout_session.razorpay_order_id = 'order_test_launch'
+            checkout_session.save(update_fields=['razorpay_order_id', 'updated_at'])
+            return {'id': 'order_test_launch'}
+
+        with patch('core.views.create_razorpay_order_for_checkout', side_effect=fake_create_razorpay_order):
+            self.client.post(
+                reverse('core:customer_checkout'),
+                {
+                    'action': 'setup',
+                    'delivery_slot': DeliverySlot.ECO,
+                },
+            )
+            self.client.post(
+                reverse('core:customer_checkout'),
+                {
+                    'action': 'confirm',
+                    'payment_method': PaymentMethod.RAZORPAY,
+                    'customer_notes': 'Ring bell',
+                    'delivery_address': '1 MG Road, Mandya 571401',
+                },
+            )
+            launch_response = self.client.get(reverse('core:customer_razorpay_launch'))
+
+        self.assertEqual(launch_response.status_code, 200)
+        self.assertContains(launch_response, 'Redirecting to secure payment')
+        self.assertContains(launch_response, 'Open Razorpay Now')
+        self.assertContains(launch_response, 'order_test_launch')
+
     @override_settings(RAZORPAY_WEBHOOK_SECRET='webhook_secret_123')
     def test_razorpay_webhook_can_finalize_paid_checkout(self):
         snapshot = {

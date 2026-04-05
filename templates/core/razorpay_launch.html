@@ -1,0 +1,103 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="page-stack" id="top">
+    <article class="card section-stack customer-checkout-panel" data-appear>
+      <div class="content-stack">
+        <span class="eyebrow">Razorpay</span>
+        <h1 class="page-title">Redirecting to secure payment</h1>
+        <p class="subtle">GramExpress is opening Razorpay in a dedicated step so the payment screen launches more reliably on mobile browsers and installed app mode.</p>
+      </div>
+
+      <div class="grid gap-4 lg:grid-cols-3">
+        <div class="metric-card checkout-summary-card">
+          <span class="metric-label">Checkout session</span>
+          <strong class="metric-value">#{{ checkout_session.id }}</strong>
+          <p>Secure online payment</p>
+        </div>
+        <div class="metric-card checkout-summary-card">
+          <span class="metric-label">Order total</span>
+          <strong class="metric-value">Rs. {{ estimated_total }}</strong>
+          <p>Razorpay checkout</p>
+        </div>
+        <div class="metric-card checkout-summary-card">
+          <span class="metric-label">Status</span>
+          <strong class="metric-value">Ready</strong>
+          <p>Waiting for payment window</p>
+        </div>
+      </div>
+
+      <div class="checkout-cod-panel">
+        <strong>Nothing opened?</strong>
+        <p>If Razorpay does not appear automatically in a moment, use the button below to retry from this page.</p>
+      </div>
+
+      <div class="form-actions">
+        <button class="button primary !justify-center" type="button" id="razorpay-launch-button">Open Razorpay Now</button>
+        <a class="button secondary !justify-center" href="{% url 'core:customer_checkout' %}">Back To Checkout</a>
+      </div>
+    </article>
+  </section>
+
+  {{ razorpay_checkout|json_script:"razorpay-checkout-options" }}
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script>
+    (function () {
+      var payButton = document.getElementById('razorpay-launch-button');
+      var optionsNode = document.getElementById('razorpay-checkout-options');
+      var successForm = document.getElementById('razorpay-success-form');
+      var failureForm = document.getElementById('razorpay-failure-form');
+      if (!payButton || !optionsNode || !successForm || !failureForm) {
+        return;
+      }
+
+      if (!window.Razorpay) {
+        payButton.disabled = true;
+        payButton.textContent = 'Razorpay failed to load';
+        return;
+      }
+
+      var options = JSON.parse(optionsNode.textContent);
+      options.handler = function (response) {
+        document.getElementById('razorpay_payment_id').value = response.razorpay_payment_id || '';
+        document.getElementById('razorpay_order_id').value = response.razorpay_order_id || '';
+        document.getElementById('razorpay_signature').value = response.razorpay_signature || '';
+        successForm.submit();
+      };
+      options.modal = {
+        ondismiss: function () {
+          payButton.disabled = false;
+        }
+      };
+
+      var razorpayCheckout = new window.Razorpay(options);
+      razorpayCheckout.on('payment.failed', function (response) {
+        var error = (response && response.error) || {};
+        document.getElementById('razorpay_error_description').value = error.description || 'The online payment was not completed.';
+        document.getElementById('razorpay_error_reason').value = error.reason || '';
+        failureForm.submit();
+      });
+
+      function openCheckout() {
+        payButton.disabled = true;
+        razorpayCheckout.open();
+      }
+
+      payButton.addEventListener('click', openCheckout);
+      window.setTimeout(openCheckout, 250);
+    })();
+  </script>
+  <form method="post" action="{% url 'core:customer_razorpay_complete' %}" id="razorpay-success-form" hidden>
+    {% csrf_token %}
+    <input type="hidden" name="checkout_session_id" value="{{ checkout_session.id }}" />
+    <input type="hidden" name="razorpay_payment_id" id="razorpay_payment_id" />
+    <input type="hidden" name="razorpay_order_id" id="razorpay_order_id" />
+    <input type="hidden" name="razorpay_signature" id="razorpay_signature" />
+  </form>
+  <form method="post" action="{% url 'core:customer_razorpay_failed' %}" id="razorpay-failure-form" hidden>
+    {% csrf_token %}
+    <input type="hidden" name="checkout_session_id" value="{{ checkout_session.id }}" />
+    <input type="hidden" name="error_description" id="razorpay_error_description" />
+    <input type="hidden" name="error_reason" id="razorpay_error_reason" />
+  </form>
+{% endblock %}

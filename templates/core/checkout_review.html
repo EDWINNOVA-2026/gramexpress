@@ -240,10 +240,10 @@
               <button class="button secondary !justify-center" type="submit" name="action" value="review">Save Checkout Details</button>
 
               {% if razorpay_checkout %}
-                <button class="button primary customer-checkout-place-button !justify-center" type="button" id="razorpay-pay-button" {% if cart.has_blocking_issues %}disabled{% endif %}>
+                <a class="button primary customer-checkout-place-button !justify-center{% if cart.has_blocking_issues %} disabled pointer-events-none opacity-60{% endif %}" href="{% url 'core:customer_razorpay_launch' %}">
                   Continue To Razorpay
-                </button>
-                <p class="tiny muted">Your checkout details are saved. Continue to Razorpay to finish the online payment.</p>
+                </a>
+                <p class="tiny muted">Your checkout details are saved. Continue to the dedicated Razorpay step to finish the online payment.</p>
               {% else %}
                 <button class="button primary !justify-center" type="submit" name="action" value="confirm" {% if cart.has_blocking_issues %}disabled{% endif %}>
                   {% if checkout_data.payment_method == 'razorpay' %}Continue To Payment{% elif is_khatabook %}Place Order On KhataBook{% else %}Place Order{% endif %}
@@ -257,59 +257,4 @@
       </div>
     </section>
   </section>
-
-  {% if razorpay_checkout %}
-    {{ razorpay_checkout|json_script:"razorpay-checkout-options" }}
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-    <script>
-      (function () {
-        var payButton = document.getElementById('razorpay-pay-button');
-        var optionsNode = document.getElementById('razorpay-checkout-options');
-        var successForm = document.getElementById('razorpay-success-form');
-        var failureForm = document.getElementById('razorpay-failure-form');
-        if (!payButton || !optionsNode || !window.Razorpay || !successForm || !failureForm) {
-          return;
-        }
-
-        var options = JSON.parse(optionsNode.textContent);
-        options.handler = function (response) {
-          document.getElementById('razorpay_payment_id').value = response.razorpay_payment_id || '';
-          document.getElementById('razorpay_order_id').value = response.razorpay_order_id || '';
-          document.getElementById('razorpay_signature').value = response.razorpay_signature || '';
-          successForm.submit();
-        };
-        options.modal = {
-          ondismiss: function () {
-            payButton.disabled = false;
-          }
-        };
-
-        var razorpayCheckout = new window.Razorpay(options);
-        razorpayCheckout.on('payment.failed', function (response) {
-          var error = (response && response.error) || {};
-          document.getElementById('razorpay_error_description').value = error.description || 'The online payment was not completed.';
-          document.getElementById('razorpay_error_reason').value = error.reason || '';
-          failureForm.submit();
-        });
-
-        payButton.addEventListener('click', function () {
-          payButton.disabled = true;
-          razorpayCheckout.open();
-        });
-      })();
-    </script>
-    <form method="post" action="{% url 'core:customer_razorpay_complete' %}" id="razorpay-success-form" hidden>
-      {% csrf_token %}
-      <input type="hidden" name="checkout_session_id" value="{{ checkout_session.id }}" />
-      <input type="hidden" name="razorpay_payment_id" id="razorpay_payment_id" />
-      <input type="hidden" name="razorpay_order_id" id="razorpay_order_id" />
-      <input type="hidden" name="razorpay_signature" id="razorpay_signature" />
-    </form>
-    <form method="post" action="{% url 'core:customer_razorpay_failed' %}" id="razorpay-failure-form" hidden>
-      {% csrf_token %}
-      <input type="hidden" name="checkout_session_id" value="{{ checkout_session.id }}" />
-      <input type="hidden" name="error_description" id="razorpay_error_description" />
-      <input type="hidden" name="error_reason" id="razorpay_error_reason" />
-    </form>
-  {% endif %}
 {% endblock %}
