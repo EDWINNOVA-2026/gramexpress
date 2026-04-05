@@ -21,6 +21,8 @@ from .models import (
     CodCollectionMode,
     CheckoutSession,
     CustomerProfile,
+    DeliverySlot,
+    DeliverySlotSetting,
     KhataBookCollectionRequest,
     KhataBookCollectionStatus,
     KhataBookCycle,
@@ -42,7 +44,7 @@ from .models import (
     ShopOwnerProfile,
 )
 from .forms import LoginOtpVerifyForm, UnifiedRegistrationForm
-from .views import get_dashboard_url_for_user, reverse_geocode_location
+from .views import RIDER_LIVE_CAPTURE_SOURCE, get_dashboard_url_for_user, reverse_geocode_location
 
 
 class CoreFlowTests(TestCase):
@@ -193,9 +195,10 @@ class CoreFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Verify Your Identity')
-        self.assertContains(response, 'Open Camera')
+        self.assertContains(response, 'Open Front Camera')
         self.assertContains(response, 'Capture')
-        self.assertContains(response, 'Upload')
+        self.assertContains(response, 'Save selfie')
+        self.assertNotContains(response, 'data-rider-photo-file', html=False)
 
     def test_root_renders_landing_page_for_anonymous_users(self):
         response = self.client.get(reverse('core:home'))
@@ -427,11 +430,17 @@ class CoreFlowTests(TestCase):
 
         review_response = self.client.post(
             reverse('core:customer_checkout'),
-            {'action': 'review', 'payment_method': 'cod', 'customer_notes': 'Leave at gate'},
+            {
+                'action': 'review',
+                'delivery_slot': DeliverySlot.PRIORITY,
+                'payment_method': 'cod',
+                'customer_notes': 'Leave at gate',
+            },
             follow=True,
         )
         self.assertEqual(review_response.status_code, 200)
         self.assertContains(review_response, 'Review your order')
+        self.assertContains(review_response, 'Priority Delivery')
 
         checkout_response = self.client.post(
             reverse('core:customer_checkout'),
@@ -446,6 +455,9 @@ class CoreFlowTests(TestCase):
         self.assertEqual(order.shop, self.shop)
         self.assertIsNone(order.rider)
         self.assertEqual(order.status, OrderStatus.CONFIRMED)
+        self.assertEqual(order.delivery_slot, DeliverySlot.PRIORITY)
+        self.assertEqual(order.delivery_fee, Decimal('20.00'))
+        self.assertAlmostEqual((order.delivery_deadline - order.created_at).total_seconds(), 40 * 60, delta=5)
         self.assertEqual(order.items.get().quantity, 2)
         self.product.refresh_from_db()
         self.assertEqual(self.product.stock, 18)
@@ -458,7 +470,12 @@ class CoreFlowTests(TestCase):
 
         review_response = self.client.post(
             reverse('core:customer_checkout'),
-            {'action': 'review', 'payment_method': 'khata', 'customer_notes': 'Add to weekly credit'},
+            {
+                'action': 'review',
+                'delivery_slot': DeliverySlot.BUDGET,
+                'payment_method': 'khata',
+                'customer_notes': 'Add to weekly credit',
+            },
             follow=True,
         )
         self.assertEqual(review_response.status_code, 200)
@@ -474,12 +491,87 @@ class CoreFlowTests(TestCase):
 
         order = Order.objects.latest('id')
         cycle = KhataBookCycle.objects.latest('id')
+        self.assertEqual(order.delivery_slot, DeliverySlot.BUDGET)
+        self.assertEqual(order.delivery_fee, Decimal('0.00'))
         self.assertEqual(order.payment_method, PaymentMethod.KHATABOOK)
         self.assertEqual(order.payment_status, PaymentStatus.PENDING)
         self.assertEqual(order.khata_cycle, cycle)
         self.assertEqual(order.credit_due_date, cycle.due_date)
         self.assertEqual(cycle.total_amount, order.total_amount)
         self.assertEqual(cycle.status, KhataBookCycleStatus.OPEN)
+
+    def test_customer_cart_shows_delivery_slot_options(self):
+        self.client.force_login(self.customer_user)
+        self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '1'})
+
+        response = self.client.get(reverse('core:customer_cart'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Choose Delivery Speed')
+        self.assertContains(response, 'Priority Delivery')
+        self.assertContains(response, 'Eco Delivery')
+        self.assertContains(response, 'Budget Delivery')
+
+    def test_customer_cart_uses_admin_delivery_slot_fee_overrides(self):
+        DeliverySlotSetting.objects.update_or_create(
+            code=DeliverySlot.PRIORITY,
+            defaults={
+                'name': 'Priority Delivery',
+                'description': 'Fast delivery with highest priority.',
+                'time_label': '30-40 minutes',
+                'time_limit_minutes': 40,
+                'delivery_fee': Decimal('35.00'),
+                'color': 'red',
+                'priority_level': 1,
+                'tag': 'Fastest',
+            },
+        )
+        self.client.force_login(self.customer_user)
+        self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '1'})
+
+        response = self.client.get(reverse('core:customer_cart'))
+
+        self.assertEqual(response.status_code, 200)
+        priority_option = next(option for option in response.context['delivery_slot_options'] if option['code'] == DeliverySlot.PRIORITY)
+        self.assertEqual(priority_option['fee'], Decimal('35.00'))
+        self.assertEqual(priority_option['fee_label'], '+ Rs. 35.00')
+
+    def test_checkout_uses_admin_delivery_slot_fee_override(self):
+        DeliverySlotSetting.objects.update_or_create(
+            code=DeliverySlot.PRIORITY,
+            defaults={
+                'name': 'Priority Delivery',
+                'description': 'Fast delivery with highest priority.',
+                'time_label': '30-40 minutes',
+                'time_limit_minutes': 40,
+                'delivery_fee': Decimal('35.00'),
+                'color': 'red',
+                'priority_level': 1,
+                'tag': 'Fastest',
+            },
+        )
+        self.client.force_login(self.customer_user)
+        self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '1'})
+
+        self.client.post(
+            reverse('core:customer_checkout'),
+            {
+                'action': 'review',
+                'delivery_slot': DeliverySlot.PRIORITY,
+                'payment_method': PaymentMethod.COD,
+                'customer_notes': 'Ring the bell',
+            },
+            follow=True,
+        )
+        self.client.post(
+            reverse('core:customer_checkout'),
+            {'action': 'confirm'},
+            follow=True,
+        )
+
+        order = Order.objects.latest('id')
+        self.assertEqual(order.delivery_slot, DeliverySlot.PRIORITY)
+        self.assertEqual(order.delivery_fee, Decimal('35.00'))
 
     def test_customer_can_request_khatabook_collection(self):
         cycle = KhataBookCycle.objects.create(
@@ -542,6 +634,8 @@ class CoreFlowTests(TestCase):
             reverse('core:api_rider_upload_photo'),
             {
                 'photo': SimpleUploadedFile('rider.jpg', b'fake-image-bytes', content_type='image/jpeg'),
+                'capture_source': RIDER_LIVE_CAPTURE_SOURCE,
+                'camera_facing': 'user',
             },
         )
 
@@ -552,6 +646,50 @@ class CoreFlowTests(TestCase):
         self.assertIn('/media/riders/', payload['photo_url'])
         self.assertEqual(payload['rider']['photo_url'], self.rider.photo_source)
         self.assertTrue(self.rider.photo_source)
+
+    def test_rider_photo_upload_api_requires_live_front_camera_metadata(self):
+        self.client.force_login(self.rider_user)
+
+        response = self.client.post(
+            reverse('core:api_rider_upload_photo'),
+            {
+                'photo': SimpleUploadedFile('rider.jpg', b'fake-image-bytes', content_type='image/jpeg'),
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['error'], 'Take a live selfie with the front camera to continue.')
+
+    @override_settings(MEDIA_ROOT='/tmp/gramexpress-test-media')
+    def test_rider_update_photo_api_updates_profile_with_live_selfie_metadata(self):
+        self.client.force_login(self.rider_user)
+
+        response = self.client.post(
+            reverse('core:api_rider_update_photo'),
+            {
+                'photo': SimpleUploadedFile('rider-update.jpg', b'fake-image-bytes', content_type='image/jpeg'),
+                'capture_source': RIDER_LIVE_CAPTURE_SOURCE,
+                'camera_facing': 'user',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.rider.refresh_from_db()
+        payload = response.json()
+        self.assertTrue(payload['ok'])
+        self.assertEqual(payload['rider']['photo_url'], self.rider.photo_source)
+        self.assertTrue(self.rider.photo_source)
+
+    def test_rider_profile_shows_front_camera_only_selfie_controls(self):
+        self.client.force_login(self.rider_user)
+
+        response = self.client.get(reverse('core:rider_profile'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Use a live front-camera selfie only.')
+        self.assertContains(response, 'Open Front Camera')
+        self.assertContains(response, 'Save selfie')
+        self.assertNotContains(response, 'data-rider-photo-file', html=False)
 
     def test_rider_profile_api_returns_photo_payload(self):
         self.rider.photo_url = '/media/riders/live/rider-test.jpg'
@@ -1390,6 +1528,41 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response['Cache-Control'], 'no-store, no-cache, must-revalidate, max-age=0')
         self.assertContains(response, 'Picked Up From Store')
 
+    def test_rider_deliveries_can_filter_by_slot(self):
+        priority_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            status=OrderStatus.OUT_FOR_DELIVERY,
+            delivery_slot=DeliverySlot.PRIORITY,
+            delivery_deadline=timezone.now() + timedelta(minutes=30),
+            total_amount=Decimal('48.00'),
+            delivery_fee=Decimal('20.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            customer_otp='111222',
+        )
+        eco_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            status=OrderStatus.OUT_FOR_DELIVERY,
+            delivery_slot=DeliverySlot.ECO,
+            delivery_deadline=timezone.now() + timedelta(hours=3),
+            total_amount=Decimal('38.00'),
+            delivery_fee=Decimal('10.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            customer_otp='333444',
+        )
+        OrderItem.objects.create(order=priority_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+        OrderItem.objects.create(order=eco_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+
+        self.client.force_login(self.rider_user)
+        response = self.client.get(f'{reverse("core:rider_deliveries")}?slot={DeliverySlot.PRIORITY}')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, priority_order.display_id)
+        self.assertNotContains(response, eco_order.display_id)
+
     def test_rider_can_toggle_availability_from_shared_menu(self):
         self.client.force_login(self.rider_user)
         self.rider.is_available = False
@@ -1593,6 +1766,63 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Call Rider')
         self.assertContains(response, '/media/riders/live/rider-test.jpg')
+
+    def test_customer_orders_show_driver_feedback_form_for_delivered_order(self):
+        self.demo_order.status = OrderStatus.DELIVERED
+        self.demo_order.delivered_at = timezone.now()
+        self.demo_order.save(update_fields=['status', 'delivered_at', 'updated_at'])
+        self.client.force_login(self.customer_user)
+
+        response = self.client.get(reverse('core:customer_orders'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Rate your driver')
+        self.assertContains(response, 'Tap a star to choose your rating.')
+        self.assertContains(response, 'type="radio"', count=5)
+        self.assertContains(response, 'Save Driver Feedback')
+        self.assertContains(response, 'Delivery description')
+
+    def test_customer_can_rate_driver_and_return_to_requested_page(self):
+        self.demo_order.status = OrderStatus.DELIVERED
+        self.demo_order.delivered_at = timezone.now()
+        self.demo_order.save(update_fields=['status', 'delivered_at', 'updated_at'])
+        self.client.force_login(self.customer_user)
+
+        response = self.client.post(
+            reverse('core:customer_rate_order', args=[self.demo_order.id]),
+            {
+                'customer_rating': '5',
+                'customer_review': 'Driver was polite and delivery was smooth.',
+                'next': reverse('core:customer_orders'),
+            },
+        )
+
+        self.assertRedirects(response, reverse('core:customer_orders'))
+        self.demo_order.refresh_from_db()
+        self.assertEqual(self.demo_order.customer_rating, 5)
+        self.assertEqual(self.demo_order.customer_review, 'Driver was polite and delivery was smooth.')
+        self.assertTrue(
+            Notification.objects.filter(
+                rider=self.rider,
+                order=self.demo_order,
+                title='Customer rated your delivery',
+            ).exists()
+        )
+
+    def test_order_detail_shows_saved_driver_feedback_for_customer(self):
+        self.demo_order.status = OrderStatus.DELIVERED
+        self.demo_order.delivered_at = timezone.now()
+        self.demo_order.customer_rating = 4
+        self.demo_order.customer_review = 'Reached on time and handled the handoff well.'
+        self.demo_order.save(update_fields=['status', 'delivered_at', 'customer_rating', 'customer_review', 'updated_at'])
+        self.client.force_login(self.customer_user)
+
+        response = self.client.get(reverse('core:order_detail', args=[self.demo_order.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Driver feedback')
+        self.assertContains(response, 'You rated the driver 4/5.')
+        self.assertContains(response, 'Reached on time and handled the handoff well.')
 
     def test_customer_khatabook_page_renders_weekly_due_section(self):
         cycle = KhataBookCycle.objects.create(
@@ -1814,6 +2044,19 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Queue age')
 
+    def test_shop_orders_show_delivery_slot_sections(self):
+        self.demo_order.delivery_slot = DeliverySlot.PRIORITY
+        self.demo_order.delivery_deadline = timezone.now() + timedelta(minutes=35)
+        self.demo_order.save(update_fields=['delivery_slot', 'delivery_deadline', 'updated_at'])
+        self.client.force_login(self.shop_user)
+
+        response = self.client.get(reverse('core:shop_orders'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Orders by Delivery Slot')
+        self.assertContains(response, 'Priority Delivery')
+        self.assertContains(response, 'Time remaining')
+
     def test_shop_orders_show_assigned_rider_photo(self):
         self.rider.photo_url = '/media/riders/live/rider-test.jpg'
         self.rider.save(update_fields=['photo_url', 'updated_at'])
@@ -1824,6 +2067,42 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Call Rider')
         self.assertContains(response, '/media/riders/live/rider-test.jpg')
+
+    def test_shop_orders_by_slot_api_returns_grouped_payload(self):
+        self.demo_order.delivery_slot = DeliverySlot.COST_SAVER
+        self.demo_order.delivery_deadline = timezone.now() + timedelta(hours=6)
+        self.demo_order.save(update_fields=['delivery_slot', 'delivery_deadline', 'updated_at'])
+        self.client.force_login(self.shop_user)
+
+        response = self.client.get(reverse('core:api_orders_by_slot_shop'))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['slots'][2]['code'], DeliverySlot.COST_SAVER)
+        self.assertTrue(any(order['display_id'] == self.demo_order.display_id for order in payload['slots'][2]['orders']))
+
+    def test_customer_order_create_api_uses_delivery_slot(self):
+        self.client.force_login(self.customer_user)
+        self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '1'})
+
+        response = self.client.post(
+            reverse('core:api_orders_create'),
+            data=json.dumps(
+                {
+                    'delivery_slot': DeliverySlot.BUDGET,
+                    'payment_method': PaymentMethod.COD,
+                    'customer_notes': 'API order',
+                }
+            ),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['ok'])
+        order = Order.objects.latest('id')
+        self.assertEqual(order.delivery_slot, DeliverySlot.BUDGET)
+        self.assertEqual(order.delivery_fee, Decimal('0.00'))
 
     def test_shop_products_page_shows_catalog_management_workspace(self):
         self.client.force_login(self.shop_user)
@@ -1884,7 +2163,12 @@ class CoreFlowTests(TestCase):
 
         self.client.post(
             reverse('core:customer_checkout'),
-            {'action': 'review', 'payment_method': 'cod', 'customer_notes': 'Ring the bell'},
+            {
+                'action': 'review',
+                'delivery_slot': DeliverySlot.ECO,
+                'payment_method': 'cod',
+                'customer_notes': 'Ring the bell',
+            },
             follow=True,
         )
         self.client.post(
@@ -1924,7 +2208,12 @@ class CoreFlowTests(TestCase):
         with patch('core.views.create_razorpay_order_for_checkout', side_effect=fake_create_razorpay_order):
             self.client.post(
                 reverse('core:customer_checkout'),
-                {'action': 'review', 'payment_method': 'razorpay', 'customer_notes': 'Leave at gate'},
+                {
+                    'action': 'review',
+                    'delivery_slot': DeliverySlot.COST_SAVER,
+                    'payment_method': 'razorpay',
+                    'customer_notes': 'Leave at gate',
+                },
             )
             review_response = self.client.get(reverse('core:customer_checkout'))
 
@@ -1938,9 +2227,9 @@ class CoreFlowTests(TestCase):
             hashlib.sha256,
         ).hexdigest()
 
-        with patch('core.views.fetch_razorpay_payment', return_value={'id': 'pay_test_123', 'order_id': 'order_test_123', 'amount': 8100, 'status': 'captured'}), patch(
+        with patch('core.views.fetch_razorpay_payment', return_value={'id': 'pay_test_123', 'order_id': 'order_test_123', 'amount': 7100, 'status': 'captured'}), patch(
             'core.views.fetch_razorpay_order',
-            return_value={'id': 'order_test_123', 'amount': 8100},
+            return_value={'id': 'order_test_123', 'amount': 7100},
         ):
             complete_response = self.client.post(
                 reverse('core:customer_razorpay_complete'),
@@ -1959,6 +2248,7 @@ class CoreFlowTests(TestCase):
         self.assertEqual(checkout_session.payment_status, PaymentStatus.PAID)
         self.assertTrue(checkout_session.is_completed)
         order = Order.objects.latest('id')
+        self.assertEqual(order.delivery_slot, DeliverySlot.COST_SAVER)
         self.assertEqual(order.payment_method, PaymentMethod.RAZORPAY)
         self.assertEqual(order.payment_status, PaymentStatus.PAID)
         self.assertEqual(order.checkout_session_id, checkout_session.id)
@@ -2204,6 +2494,15 @@ class CoreFlowTests(TestCase):
         self.assertEqual(pending_owner.approval_status, ApprovalStatus.APPROVED)
         self.assertEqual(pending_rider.approval_status, ApprovalStatus.APPROVED)
         self.assertTrue(pending_rider.is_available)
+
+    def test_admin_can_open_delivery_slot_settings_in_admin_panel(self):
+        self.client.force_login(self.admin_user)
+
+        response = self.client.get('/admin/core/deliveryslotsetting/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Delivery slot settings')
+        self.assertContains(response, 'PRIORITY')
 
     def test_shop_owner_admin_save_syncs_linked_shop_status(self):
         pending_user = get_user_model().objects.create_user(
