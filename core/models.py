@@ -435,6 +435,17 @@ class Notification(TimeStampedModel):
             NotificationType.SYSTEM: 'IN',
         }.get(self.notification_type, 'IN')
 
+    @property
+    def icon_name(self) -> str:
+        return {
+            NotificationType.ORDER: 'package',
+            NotificationType.STORE: 'store',
+            NotificationType.RIDER: 'bike',
+            NotificationType.PAYMENT: 'credit-card',
+            NotificationType.PROMO: 'tag',
+            NotificationType.SYSTEM: 'bell',
+        }.get(self.notification_type, 'bell')
+
 
 class EmailOtpToken(TimeStampedModel):
     user = models.ForeignKey(

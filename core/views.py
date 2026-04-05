@@ -921,29 +921,29 @@ def landing_context() -> dict[str, Any]:
 
 def customer_page_nav() -> list[dict[str, str]]:
     return [
-        {'label': 'Home', 'url': reverse('core:customer_dashboard')},
-        {'label': 'Cart', 'url': reverse('core:customer_cart')},
-        {'label': 'Orders', 'url': reverse('core:customer_orders')},
-        {'label': 'Profile', 'url': reverse('core:customer_profile')},
+        {'label': 'Home', 'url': reverse('core:customer_dashboard'), 'icon': 'house'},
+        {'label': 'Cart', 'url': reverse('core:customer_cart'), 'icon': 'shopping-cart'},
+        {'label': 'Orders', 'url': reverse('core:customer_orders'), 'icon': 'package'},
+        {'label': 'Profile', 'url': reverse('core:customer_profile'), 'icon': 'user'},
     ]
 
 
 def shop_page_nav() -> list[dict[str, str]]:
     return [
-        {'label': 'Overview', 'url': reverse('core:shop_dashboard')},
-        {'label': 'Orders', 'url': reverse('core:shop_orders')},
-        {'label': 'Catalog', 'url': reverse('core:shop_products')},
-        {'label': 'Settings', 'url': reverse('core:shop_settings')},
+        {'label': 'Overview', 'url': reverse('core:shop_dashboard'), 'icon': 'layout-dashboard'},
+        {'label': 'Orders', 'url': reverse('core:shop_orders'), 'icon': 'clipboard-list'},
+        {'label': 'Catalog', 'url': reverse('core:shop_products'), 'icon': 'boxes'},
+        {'label': 'Settings', 'url': reverse('core:shop_settings'), 'icon': 'settings'},
     ]
 
 
 def rider_page_nav() -> list[dict[str, str]]:
     return [
-        {'label': 'New', 'url': reverse('core:rider_dashboard')},
-        {'label': 'Active', 'url': reverse('core:rider_deliveries')},
-        {'label': 'Done', 'url': reverse('core:rider_completed_orders')},
-        {'label': 'Earn', 'url': reverse('core:rider_earnings')},
-        {'label': 'Profile', 'url': reverse('core:rider_profile')},
+        {'label': 'New', 'url': reverse('core:rider_dashboard'), 'icon': 'package'},
+        {'label': 'Active', 'url': reverse('core:rider_deliveries'), 'icon': 'bike'},
+        {'label': 'Done', 'url': reverse('core:rider_completed_orders'), 'icon': 'badge-check'},
+        {'label': 'Earn', 'url': reverse('core:rider_earnings'), 'icon': 'wallet'},
+        {'label': 'Profile', 'url': reverse('core:rider_profile'), 'icon': 'user'},
     ]
 
 
@@ -2032,7 +2032,7 @@ def customer_workspace_context(request: HttpRequest) -> dict[str, Any]:
             category_map[category_key] = {
                 'label': category_key,
                 'slug': shop.shop_type,
-                'icon': products[0].name[:1].upper() if products else shop.name[:1].upper(),
+                'icon': 'store',
             }
         for product in products:
             category_key = (product.category or '').strip()
@@ -2040,7 +2040,7 @@ def customer_workspace_context(request: HttpRequest) -> dict[str, Any]:
                 category_map[category_key] = {
                     'label': category_key,
                     'slug': category_key.lower().replace(' ', '-'),
-                    'icon': product.name[:1].upper(),
+                    'icon': 'shopping-bag',
                 }
             if len(category_map) >= 6:
                 break

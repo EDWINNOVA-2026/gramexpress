@@ -4,6 +4,14 @@ from django.urls import reverse
 from .models import RoleType
 
 
+def nav_link(label: str, url: str, icon: str) -> dict[str, str]:
+    return {
+        'label': label,
+        'url': url,
+        'icon': icon,
+    }
+
+
 def shell_navigation(request):
     user = request.user
     active_role = None
@@ -25,11 +33,11 @@ def shell_navigation(request):
             user_label = user.get_username()
             user_initial = (user_label[:1] or 'A').upper()
             primary_links = [
-                {'label': 'Admin', 'url': reverse('admin:index')},
+                nav_link('Admin', reverse('admin:index'), 'shield'),
             ]
             menu_links = [
-                {'label': 'Admin', 'url': reverse('admin:index')},
-                {'label': 'Support', 'url': reverse('core:support')},
+                nav_link('Admin', reverse('admin:index'), 'shield'),
+                nav_link('Support', reverse('core:support'), 'life-buoy'),
             ]
         elif hasattr(user, 'customer_profile'):
             active_role = RoleType.CUSTOMER
@@ -39,16 +47,16 @@ def shell_navigation(request):
             user_label = user.customer_profile.full_name
             user_initial = (user_label[:1] or 'C').upper()
             role_links = [
-                {'label': 'Home', 'url': reverse('core:customer_dashboard')},
-                {'label': 'Cart', 'url': reverse('core:customer_cart')},
-                {'label': 'Orders', 'url': reverse('core:customer_orders')},
-                {'label': 'Profile', 'url': reverse('core:customer_profile')},
+                nav_link('Home', reverse('core:customer_dashboard'), 'house'),
+                nav_link('Cart', reverse('core:customer_cart'), 'shopping-cart'),
+                nav_link('Orders', reverse('core:customer_orders'), 'package'),
+                nav_link('Profile', reverse('core:customer_profile'), 'user'),
             ]
             primary_links = role_links[:3]
             menu_links = [
-                {'label': 'Edit Profile', 'url': reverse('core:customer_profile')},
-                {'label': 'Previous Orders', 'url': f"{reverse('core:customer_orders')}#history"},
-                {'label': 'Customer Support', 'url': reverse('core:support')},
+                nav_link('Edit Profile', reverse('core:customer_profile'), 'square-pen'),
+                nav_link('Previous Orders', f"{reverse('core:customer_orders')}#history", 'history'),
+                nav_link('Customer Support', reverse('core:support'), 'life-buoy'),
             ]
         elif hasattr(user, 'shop_owner_profile'):
             active_role = RoleType.SHOP
@@ -59,27 +67,27 @@ def shell_navigation(request):
                 dashboard_label = 'Store Home'
                 dashboard_url = reverse('core:shop_dashboard')
                 role_links = [
-                    {'label': 'Overview', 'url': reverse('core:shop_dashboard')},
-                    {'label': 'Orders', 'url': reverse('core:shop_orders')},
-                    {'label': 'Catalog', 'url': reverse('core:shop_products')},
-                    {'label': 'Settings', 'url': reverse('core:shop_settings')},
+                    nav_link('Overview', reverse('core:shop_dashboard'), 'layout-dashboard'),
+                    nav_link('Orders', reverse('core:shop_orders'), 'clipboard-list'),
+                    nav_link('Catalog', reverse('core:shop_products'), 'boxes'),
+                    nav_link('Settings', reverse('core:shop_settings'), 'settings'),
                 ]
                 primary_links = role_links[:3]
                 menu_links = [
-                    {'label': 'Store Settings', 'url': reverse('core:shop_settings')},
-                    {'label': 'Customer Support', 'url': reverse('core:support')},
+                    nav_link('Store Settings', reverse('core:shop_settings'), 'settings'),
+                    nav_link('Customer Support', reverse('core:support'), 'life-buoy'),
                 ]
             else:
                 dashboard_label = 'Complete Store Setup'
                 dashboard_url = reverse('core:shop_start')
                 role_links = [
-                    {'label': 'Store Setup', 'url': reverse('core:shop_start')},
-                    {'label': 'Support', 'url': reverse('core:support')},
+                    nav_link('Store Setup', reverse('core:shop_start'), 'store'),
+                    nav_link('Support', reverse('core:support'), 'life-buoy'),
                 ]
                 primary_links = role_links
                 menu_links = [
-                    {'label': 'Store Setup', 'url': reverse('core:shop_start')},
-                    {'label': 'Customer Support', 'url': reverse('core:support')},
+                    nav_link('Store Setup', reverse('core:shop_start'), 'store'),
+                    nav_link('Customer Support', reverse('core:support'), 'life-buoy'),
                 ]
         elif hasattr(user, 'rider_profile'):
             active_role = RoleType.RIDER
@@ -93,18 +101,18 @@ def shell_navigation(request):
                 'approval_status': user.rider_profile.approval_status,
             }
             role_links = [
-                {'label': 'New', 'url': reverse('core:rider_dashboard')},
-                {'label': 'Active', 'url': reverse('core:rider_deliveries')},
-                {'label': 'Done', 'url': reverse('core:rider_completed_orders')},
-                {'label': 'Earn', 'url': reverse('core:rider_earnings')},
-                {'label': 'Profile', 'url': reverse('core:rider_profile')},
+                nav_link('New', reverse('core:rider_dashboard'), 'package'),
+                nav_link('Active', reverse('core:rider_deliveries'), 'bike'),
+                nav_link('Done', reverse('core:rider_completed_orders'), 'badge-check'),
+                nav_link('Earn', reverse('core:rider_earnings'), 'wallet'),
+                nav_link('Profile', reverse('core:rider_profile'), 'user'),
             ]
             primary_links = role_links
             menu_links = [
-                {'label': 'Edit Profile', 'url': reverse('core:rider_profile')},
-                {'label': 'Completed Orders', 'url': reverse('core:rider_completed_orders')},
-                {'label': 'Earnings', 'url': reverse('core:rider_earnings')},
-                {'label': 'Customer Support', 'url': reverse('core:support')},
+                nav_link('Edit Profile', reverse('core:rider_profile'), 'square-pen'),
+                nav_link('Completed Orders', reverse('core:rider_completed_orders'), 'badge-check'),
+                nav_link('Earnings', reverse('core:rider_earnings'), 'wallet'),
+                nav_link('Customer Support', reverse('core:support'), 'life-buoy'),
             ]
 
     return {
