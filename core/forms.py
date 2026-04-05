@@ -22,6 +22,24 @@ REGISTRATION_ROLE_FIELDS = {
     RoleType.SHOP: ['shop_name', 'shop_type', 'area', 'address_line_1', 'address_line_2', 'district', 'state', 'pincode', 'description', 'offer', 'latitude', 'longitude'],
     RoleType.RIDER: ['age', 'vehicle_type', 'latitude', 'longitude'],
 }
+PRODUCT_CATEGORY_CHOICES = [
+    ('Staples', 'Staples'),
+    ('Snacks', 'Snacks'),
+    ('Beverages', 'Beverages'),
+    ('Dairy', 'Dairy'),
+    ('Bakery', 'Bakery'),
+    ('Personal Care', 'Personal Care'),
+    ('Household', 'Household'),
+    ('Fresh Produce', 'Fresh Produce'),
+]
+PRODUCT_UNIT_CHOICES = [
+    ('kg', 'kg'),
+    ('g', 'g'),
+    ('L', 'L'),
+    ('ml', 'ml'),
+    ('piece', 'piece'),
+    ('packet', 'packet'),
+]
 
 
 def normalize_indian_mobile(value: str) -> str:
@@ -88,6 +106,14 @@ class LoginOtpVerifyForm(forms.Form, BaseStyledForm):
         self.fields['code'].widget.attrs['placeholder'] = 'Enter 6 digit OTP'
         self.fields['code'].widget.attrs['inputmode'] = 'numeric'
         self.fields['code'].widget.attrs['autocomplete'] = 'one-time-code'
+        self.fields['code'].widget.attrs['pattern'] = '[0-9]{6}'
+        self.fields['code'].widget.attrs['maxlength'] = '6'
+
+    def clean_code(self) -> str:
+        code = ''.join(ch for ch in self.cleaned_data['code'] if ch.isdigit())
+        if len(code) != 6:
+            raise forms.ValidationError('Enter a valid 6 digit OTP.')
+        return code
 
 
 class EmailOtpRequestForm(forms.Form, BaseStyledForm):
@@ -109,6 +135,15 @@ class EmailOtpVerifyForm(forms.Form, BaseStyledForm):
         self.fields['email'].widget.attrs['placeholder'] = 'Enter the same email again'
         self.fields['code'].widget.attrs['placeholder'] = 'Enter 6 digit OTP'
         self.fields['code'].widget.attrs['inputmode'] = 'numeric'
+        self.fields['code'].widget.attrs['autocomplete'] = 'one-time-code'
+        self.fields['code'].widget.attrs['pattern'] = '[0-9]{6}'
+        self.fields['code'].widget.attrs['maxlength'] = '6'
+
+    def clean_code(self) -> str:
+        code = ''.join(ch for ch in self.cleaned_data['code'] if ch.isdigit())
+        if len(code) != 6:
+            raise forms.ValidationError('Enter a valid 6 digit OTP.')
+        return code
 
 
 class UnifiedRegistrationForm(forms.Form, BaseStyledForm):
@@ -394,23 +429,59 @@ class ShopUpdateForm(forms.ModelForm, BaseStyledForm):
 
 
 class ProductForm(forms.ModelForm, BaseStyledForm):
+    category = forms.ChoiceField(choices=PRODUCT_CATEGORY_CHOICES)
+    unit = forms.ChoiceField(choices=PRODUCT_UNIT_CHOICES)
+
     class Meta:
         model = Product
         fields = [
             'name',
-            'subtitle',
             'category',
             'unit',
+            'mrp',
             'price',
             'stock',
-            'tag',
+            'image',
             'image_url',
-            'color',
+            'description',
+            'is_visible',
         ]
+        widgets = {
+            'description': forms.Textarea(attrs={'rows': 4}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._style_fields()
+        self.fields['name'].label = 'Product Name'
+        self.fields['category'].label = 'Category'
+        self.fields['unit'].label = 'Unit'
+        self.fields['mrp'].label = 'MRP'
+        self.fields['price'].label = 'Selling Price'
+        self.fields['stock'].label = 'Stock Quantity'
+        self.fields['image'].label = 'Product Image Upload'
+        self.fields['image_url'].label = 'Image URL'
+        self.fields['description'].label = 'Description'
+        self.fields['is_visible'].label = 'Show product in storefront'
+        self.fields['name'].widget.attrs['placeholder'] = 'Example: Aashirvaad Atta'
+        self.fields['image_url'].widget.attrs['placeholder'] = 'Optional image URL'
+        self.fields['description'].widget.attrs['placeholder'] = 'Add a short product description customers can understand quickly.'
+
+    def clean(self):
+        cleaned_data = super().clean()
+        mrp = cleaned_data.get('mrp')
+        price = cleaned_data.get('price')
+        if mrp is not None and price is not None and mrp < price:
+            self.add_error('mrp', 'MRP should be greater than or equal to the selling price.')
+        return cleaned_data
+
+    def save(self, commit=True):
+        product = super().save(commit=False)
+        product.subtitle = (self.cleaned_data.get('description') or product.name or '')[:160]
+        if commit:
+            product.save()
+            self.save_m2m()
+        return product
 
 
 class CustomerOrderMetaForm(forms.Form, BaseStyledForm):

@@ -1546,6 +1546,10 @@ def build_cart_context(request: HttpRequest):
             issues.append('This store is currently unavailable for checkout.')
             availability_label = 'Store offline'
             availability_class = 'warn'
+        if not product.is_visible:
+            issues.append('This item is currently hidden by the store.')
+            availability_label = 'Hidden item'
+            availability_class = 'warn'
         if product.stock <= 0:
             issues.append('This item is out of stock.')
             availability_label = 'Out of stock'
@@ -1949,6 +1953,60 @@ def split_khatabook_exposure(amount: Decimal) -> Decimal:
     return (amount / Decimal('2')).quantize(Decimal('0.01'))
 
 
+def annotate_catalog_product(product: Product) -> Product:
+    if product.stock <= 0:
+        product.stock_status_chip = 'danger'
+    elif product.stock <= 10:
+        product.stock_status_chip = 'warn'
+    else:
+        product.stock_status_chip = 'success'
+    product.preview_description = (product.description or product.subtitle or '').strip()
+    product.catalog_price_label = f'Rs. {product.price}'
+    product.mrp_label = f'Rs. {product.mrp}' if product.mrp else f'Rs. {product.price}'
+    product.visibility_label = 'Live' if product.is_visible else 'Hidden'
+    product.visibility_chip = 'success' if product.is_visible else 'info'
+    return product
+
+
+def visible_products_queryset():
+    return Product.objects.filter(is_visible=True)
+
+
+def khatabook_risk_band(days_pending: int, *, is_defaulted: bool) -> dict[str, str]:
+    if is_defaulted or days_pending > 7:
+        return {
+            'label': 'High',
+            'chip': 'danger',
+            'row_class': 'is-high-risk',
+            'badge_class': 'shop-khatabook-risk-badge-high',
+        }
+    if days_pending >= 4:
+        return {
+            'label': 'Medium',
+            'chip': 'warn',
+            'row_class': 'is-medium-risk',
+            'badge_class': 'shop-khatabook-risk-badge-medium',
+        }
+    return {
+        'label': 'Low',
+        'chip': 'success',
+        'row_class': 'is-low-risk',
+        'badge_class': 'shop-khatabook-risk-badge-low',
+    }
+
+
+def khatabook_collection_status_chip(collection_request: KhataBookCollectionRequest | None) -> str:
+    if collection_request is None:
+        return 'info'
+    if collection_request.status == KhataBookCollectionStatus.ACCEPTED:
+        return 'warn'
+    if collection_request.status == KhataBookCollectionStatus.COMPLETED:
+        return 'success'
+    if collection_request.status == KhataBookCollectionStatus.CANCELLED:
+        return 'muted'
+    return 'info'
+
+
 def create_notification_once(
     *,
     title: str,
@@ -2002,18 +2060,22 @@ def build_shop_khatabook_context(shop: Shop) -> dict[str, Any]:
     credit_orders = list(
         shop.orders.filter(payment_method=PaymentMethod.KHATABOOK)
         .exclude(status=OrderStatus.CANCELLED)
-        .select_related('rider', 'khata_cycle')
+        .select_related('customer', 'rider', 'khata_cycle')
         .prefetch_related('items__product')
         .all()
     )
     active_orders = []
     defaulted_orders = []
     settled_orders = []
+    unpaid_orders = []
     active_collection_ids: set[int] = set()
     total_credit_sales = Decimal('0.00')
     active_credit_exposure = Decimal('0.00')
     defaulted_amount = Decimal('0.00')
     settled_credit_amount = Decimal('0.00')
+    total_payment_days = 0
+    settled_payment_count = 0
+    customer_rollups: dict[int, dict[str, Any]] = {}
 
     for order in credit_orders:
         enrich_order_progress(order)
@@ -2048,6 +2110,8 @@ def build_shop_khatabook_context(shop: Shop) -> dict[str, Any]:
             if order.rider_id
             else 'Dispatch has not assigned a pickup rider yet.'
         )
+        order.customer_name = order.customer.full_name
+        order.customer_phone = order.customer.phone
         order.is_credit_settled = bool(order.credit_paid_at) or order.payment_status == PaymentStatus.PAID
         order.is_defaulted = bool(
             not order.is_credit_settled
@@ -2055,6 +2119,17 @@ def build_shop_khatabook_context(shop: Shop) -> dict[str, Any]:
             and order.current_due_date < today
         )
         order.is_credit_open = bool(not order.is_credit_settled and not order.is_defaulted)
+        order.days_pending = max((today - timezone.localtime(order.created_at).date()).days, 0)
+        order.days_overdue = (
+            max((today - order.current_due_date).days, 0)
+            if order.current_due_date and order.current_due_date < today
+            else 0
+        )
+        risk_band = khatabook_risk_band(order.days_pending, is_defaulted=order.is_defaulted)
+        order.risk_level = risk_band['label']
+        order.risk_chip = risk_band['chip']
+        order.risk_row_class = risk_band['row_class']
+        order.risk_badge_class = risk_band['badge_class']
         if order.is_credit_settled:
             order.credit_state_label = 'Recovered'
             order.credit_state_chip = 'success'
@@ -2091,13 +2166,41 @@ def build_shop_khatabook_context(shop: Shop) -> dict[str, Any]:
             for item in order.items.all()
         ]
         total_credit_sales += order.credit_exposure_amount
+        customer_rollup = customer_rollups.setdefault(
+            order.customer_id,
+            {
+                'customer_name': order.customer.full_name,
+                'customer_phone': order.customer.phone,
+                'total_credit_orders': 0,
+                'on_time_payments': 0,
+                'late_payments': 0,
+                'open_orders': 0,
+                'pending_amount': Decimal('0.00'),
+                'total_credit_amount': Decimal('0.00'),
+                'max_days_pending': 0,
+            },
+        )
+        customer_rollup['total_credit_orders'] += 1
+        customer_rollup['total_credit_amount'] += order.credit_exposure_amount
+        customer_rollup['max_days_pending'] = max(customer_rollup['max_days_pending'], order.days_pending)
         if order.is_credit_settled:
             settled_credit_amount += order.credit_exposure_amount
+            paid_on_date = timezone.localtime(order.credit_paid_at).date() if order.credit_paid_at else today
+            total_payment_days += max((paid_on_date - timezone.localtime(order.created_at).date()).days, 0)
+            settled_payment_count += 1
+            if order.current_due_date and paid_on_date <= order.current_due_date:
+                customer_rollup['on_time_payments'] += 1
+            else:
+                customer_rollup['late_payments'] += 1
             settled_orders.append(order)
         else:
             active_credit_exposure += order.credit_exposure_amount
             collection_request = active_khatabook_collection_request(order.khata_cycle) if order.khata_cycle_id else None
             order.collection_request = collection_request
+            order.recovery_status_label = (
+                collection_request.get_status_display() if collection_request is not None else 'Not started'
+            )
+            order.recovery_status_chip = khatabook_collection_status_chip(collection_request)
             if collection_request is not None:
                 active_collection_ids.add(collection_request.id)
             if order.is_defaulted:
@@ -2105,12 +2208,25 @@ def build_shop_khatabook_context(shop: Shop) -> dict[str, Any]:
                 defaulted_orders.append(order)
             else:
                 active_orders.append(order)
+            customer_rollup['open_orders'] += 1
+            customer_rollup['pending_amount'] += order.credit_exposure_amount
+            if order.is_defaulted:
+                customer_rollup['late_payments'] += 1
 
     active_orders.sort(key=lambda order: (order.current_due_date or today, order.created_at, order.id))
     defaulted_orders.sort(key=lambda order: (order.current_due_date or today, order.created_at, order.id))
     settled_orders.sort(
         key=lambda order: (order.credit_paid_at or order.updated_at or order.created_at, order.id),
         reverse=True,
+    )
+    unpaid_orders = sorted(
+        [*defaulted_orders, *active_orders],
+        key=lambda order: (
+            0 if order.risk_level == 'High' else 1 if order.risk_level == 'Medium' else 2,
+            -(order.days_overdue or order.days_pending),
+            order.current_due_date or today,
+            order.id,
+        ),
     )
 
     for order in defaulted_orders:
@@ -2151,11 +2267,185 @@ def build_shop_khatabook_context(shop: Shop) -> dict[str, Any]:
             'chip': 'danger' if defaulted_amount else 'success',
         },
     ]
+    default_rate_percentage = (
+        int(round(float((defaulted_amount / total_credit_sales) * Decimal('100'))))
+        if total_credit_sales > Decimal('0.00')
+        else 0
+    )
+    average_payment_days = (
+        int(round(total_payment_days / settled_payment_count))
+        if settled_payment_count
+        else 0
+    )
+    exposure_trend = []
+    max_trend_amount = Decimal('0.00')
+    for offset in range(6, -1, -1):
+        point_date = today - timedelta(days=offset)
+        point_amount = Decimal('0.00')
+        for order in credit_orders:
+            opened_on = timezone.localtime(order.created_at).date()
+            paid_on = timezone.localtime(order.credit_paid_at).date() if order.credit_paid_at else None
+            if opened_on <= point_date and (paid_on is None or paid_on > point_date):
+                point_amount += order.credit_exposure_amount
+        max_trend_amount = max(max_trend_amount, point_amount)
+        exposure_trend.append(
+            {
+                'day_label': point_date.strftime('%a'),
+                'date_label': point_date.strftime('%b %d'),
+                'amount': point_amount,
+                'is_today': point_date == today,
+            }
+        )
+    max_trend_amount = max(max_trend_amount, Decimal('1.00'))
+    for point in exposure_trend:
+        point['bar_height'] = 18 if point['amount'] <= Decimal('0.00') else max(
+            18,
+            int((float(point['amount']) / float(max_trend_amount)) * 100),
+        )
+    exposure_delta = (
+        exposure_trend[-1]['amount'] - exposure_trend[0]['amount']
+        if exposure_trend
+        else Decimal('0.00')
+    )
+    customer_scores = []
+    high_risk_customer_count = 0
+    for rollup in customer_rollups.values():
+        total_orders = rollup['total_credit_orders']
+        if not total_orders:
+            continue
+        late_ratio = rollup['late_payments'] / total_orders
+        score = 100
+        score -= int(round(late_ratio * 42))
+        score -= min(rollup['max_days_pending'] * 3, 24)
+        if rollup['pending_amount'] >= Decimal('150.00'):
+            score -= 12
+        if rollup['open_orders'] >= 3:
+            score -= 8
+        score = max(0, min(score, 100))
+        if score < 50:
+            risk_label = 'High'
+            risk_chip = 'danger'
+            high_risk_customer_count += 1
+        elif score < 75:
+            risk_label = 'Medium'
+            risk_chip = 'warn'
+        else:
+            risk_label = 'Low'
+            risk_chip = 'success'
+        customer_scores.append(
+            {
+                **rollup,
+                'credit_score': score,
+                'risk_level': risk_label,
+                'risk_chip': risk_chip,
+            }
+        )
+    customer_scores.sort(key=lambda item: (item['credit_score'], -float(item['pending_amount']), item['customer_name']))
+    if defaulted_amount > Decimal('0.00') or default_rate_percentage >= 25 or high_risk_customer_count:
+        risk_level = 'High'
+        risk_chip = 'danger'
+        recommended_action_message = 'Overdue credit needs immediate recovery. Pause risky customers and close the oldest open cycles first.'
+    elif active_credit_exposure > Decimal('0.00') or exposure_delta > Decimal('0.00') or default_rate_percentage >= 10:
+        risk_level = 'Medium'
+        risk_chip = 'warn'
+        recommended_action_message = 'Exposure is manageable, but you should follow up on aging credit and review customer scores this week.'
+    else:
+        risk_level = 'Low'
+        risk_chip = 'success'
+        recommended_action_message = 'Risk is under control. Keep limits steady and continue nudging payments before the due date.'
+    insights = []
+    if exposure_delta > Decimal('0.00'):
+        insights.append(
+            {
+                'title': 'Exposure is increasing',
+                'detail': f'Live exposure moved up by Rs. {exposure_delta} over the last 7 days. Review new open credit before it compounds.',
+                'chip': 'warn',
+                'icon': 'indian-rupee',
+            }
+        )
+    else:
+        insights.append(
+            {
+                'title': 'Exposure trend is stable',
+                'detail': 'The 7-day exposure line is flat or down, which means recent recovery is keeping pace with new credit sales.',
+                'chip': 'success',
+                'icon': 'badge-check',
+            }
+        )
+    if default_rate_percentage >= 15:
+        insights.append(
+            {
+                'title': 'Default rate needs attention',
+                'detail': f'Default rate is {default_rate_percentage}%. Reduce open exposure or tighten approvals for risky customers.',
+                'chip': 'danger',
+                'icon': 'bell',
+            }
+        )
+    else:
+        insights.append(
+            {
+                'title': 'Default rate is within tolerance',
+                'detail': f'Current default rate is {default_rate_percentage}%. Keep reminders going before orders cross the 7-day line.',
+                'chip': 'info',
+                'icon': 'shield',
+            }
+        )
+    if customer_scores and customer_scores[0]['risk_level'] == 'High':
+        insights.append(
+            {
+                'title': 'Stop credit for the riskiest customer',
+                'detail': f'{customer_scores[0]["customer_name"]} has the weakest repayment score right now. Consider manual approval before the next KhataBook order.',
+                'chip': 'danger',
+                'icon': 'user',
+            }
+        )
+    else:
+        insights.append(
+            {
+                'title': 'Credit approvals can stay fast',
+                'detail': 'No customer is currently flagged as high risk. Standard approvals are still safe for most orders.',
+                'chip': 'success',
+                'icon': 'badge-check',
+            }
+        )
+    suggested_credit_limit = Decimal('1500.00')
+    if customer_scores:
+        average_customer_exposure = sum(
+            (item['total_credit_amount'] for item in customer_scores),
+            Decimal('0.00'),
+        ) / Decimal(str(len(customer_scores)))
+        suggested_credit_limit = max(
+            Decimal('500.00'),
+            average_customer_exposure.quantize(Decimal('0.01')) * Decimal('1.5'),
+        ).quantize(Decimal('0.01'))
+    analytics_cards = [
+        {
+            'label': 'Total Credit Sales',
+            'value': f'Rs. {total_credit_sales}',
+            'detail': 'All KhataBook exposure created by this storefront so far.',
+        },
+        {
+            'label': 'Total Recovered',
+            'value': f'Rs. {settled_credit_amount}',
+            'detail': 'Credit already repaid and cleared from the live ledger.',
+        },
+        {
+            'label': 'Total Defaulted',
+            'value': f'Rs. {defaulted_amount}',
+            'detail': 'Credit that has crossed the due date and now sits in recovery.',
+        },
+        {
+            'label': 'Average Payment Days',
+            'value': f'{average_payment_days} days',
+            'detail': 'Average time it takes customers to close a credit cycle.',
+        },
+    ]
     return {
         'all_orders': credit_orders,
         'active_orders': active_orders,
         'defaulted_orders': defaulted_orders,
         'settled_orders': settled_orders,
+        'unpaid_orders': unpaid_orders,
         'metrics': metrics,
         'total_credit_sales': total_credit_sales,
         'active_credit_exposure': active_credit_exposure,
@@ -2169,11 +2459,17 @@ def build_shop_khatabook_context(shop: Shop) -> dict[str, Any]:
         'active_order_count': len(active_orders),
         'defaulted_order_count': len(defaulted_orders),
         'settled_order_count': len(settled_orders),
-        'default_rate_percentage': (
-            int(round(float((defaulted_amount / total_credit_sales) * Decimal('100'))))
-            if total_credit_sales > Decimal('0.00')
-            else 0
-        ),
+        'default_rate_percentage': default_rate_percentage,
+        'average_payment_days': average_payment_days,
+        'risk_level': risk_level,
+        'risk_chip': risk_chip,
+        'recommended_action_message': recommended_action_message,
+        'exposure_trend': exposure_trend,
+        'exposure_delta': exposure_delta,
+        'analytics_cards': analytics_cards,
+        'customer_scores': customer_scores[:6],
+        'insights': insights,
+        'suggested_credit_limit': suggested_credit_limit,
         'has_warning': defaulted_amount > Decimal('0.00'),
         'warning_headline': (
             f'Rs. {defaulted_amount} is already overdue across {len(defaulted_orders)} KhataBook order'
@@ -2897,7 +3193,7 @@ def customer_workspace_context(request: HttpRequest) -> dict[str, Any]:
     category_map = {}
     recommended_shops = []
     for shop in shops:
-        products = list(shop.products.all())
+        products = [annotate_catalog_product(product) for product in shop.products.filter(is_visible=True)]
         shop_rating = shop.orders.filter(customer_rating__isnull=False).aggregate(
             avg=Avg('customer_rating'),
             count=Count('customer_rating'),
@@ -2906,7 +3202,7 @@ def customer_workspace_context(request: HttpRequest) -> dict[str, Any]:
         shop.display_rating = round(float(rating_average), 1) if rating_average is not None else float(shop.rating)
         shop.rating_count = shop_rating['count'] or 0
         if not shop.image_source:
-            fallback_image = next((product.image_url for product in products if product.image_url), '')
+            fallback_image = next((product.image_source for product in products if product.image_source), '')
             shop.card_image_source = fallback_image
         else:
             shop.card_image_source = shop.image_source
@@ -3108,16 +3404,19 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
         key=lambda order: (order.delivered_at or order.updated_at),
         reverse=True,
     )
-    products = list(shop.products.all())
+    products = [annotate_catalog_product(product) for product in shop.products.all()]
     notifications = list(user_notifications(request.user))
     today = timezone.localdate()
-    live_product_count = len(products)
+    live_product_count = sum(1 for product in products if product.is_visible)
+    hidden_product_count = sum(1 for product in products if not product.is_visible)
+    low_stock_products = [product for product in products if 0 < product.stock <= 10]
+    out_of_stock_products = [product for product in products if product.stock <= 0]
     active_order_count = sum(
         1 for order in orders if order.status not in [OrderStatus.DELIVERED, OrderStatus.CANCELLED]
     )
     delivered_order_count = sum(1 for order in orders if order.status == OrderStatus.DELIVERED)
     pending_orders_count = sum(1 for order in orders if order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED])
-    out_of_stock_count = sum(1 for product in products if product.stock <= 0)
+    out_of_stock_count = len(out_of_stock_products)
     pending_deliveries_count = active_order_count
     orders_today = [
         order
@@ -3472,6 +3771,10 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
         'notifications': notifications,
         'notification_groups': notification_groups,
         'live_product_count': live_product_count,
+        'hidden_product_count': hidden_product_count,
+        'catalog_products': products,
+        'low_stock_products': low_stock_products,
+        'out_of_stock_products': out_of_stock_products,
         'approval_cards': approval_cards,
         'approval_timeline': approval_timeline,
         'setup_checklist': setup_checklist,
@@ -4829,7 +5132,7 @@ def customer_store_detail_view(request: HttpRequest, shop_slug: str) -> HttpResp
             raise Http404('Store not available in your delivery radius')
 
     product_query = request.GET.get('q', '').strip().lower()
-    products = list(shop.products.all())
+    products = [annotate_catalog_product(product) for product in shop.products.filter(is_visible=True)]
     if product_query:
         products = [
             product for product in products
@@ -5211,7 +5514,12 @@ def customer_update_location(request: HttpRequest) -> HttpResponse:
 @role_required(RoleType.CUSTOMER)
 @require_POST
 def cart_add(request: HttpRequest, product_id: int) -> HttpResponse:
-    product = get_object_or_404(Product.objects.select_related('shop'), pk=product_id, shop__approval_status=ApprovalStatus.APPROVED)
+    product = get_object_or_404(
+        Product.objects.select_related('shop'),
+        pk=product_id,
+        is_visible=True,
+        shop__approval_status=ApprovalStatus.APPROVED,
+    )
     if not product.shop.is_open:
         messages.error(request, f'{product.shop.name} is currently closed for checkout.')
         return redirect(request.POST.get('next') or reverse('core:customer_store_detail', args=[product.shop.slug]))
@@ -5243,6 +5551,11 @@ def cart_update(request: HttpRequest, product_id: int) -> HttpResponse:
             cart.pop(key, None)
             messages.error(request, 'That product is no longer available.')
         else:
+            if not product.is_visible:
+                cart.pop(key, None)
+                messages.error(request, 'That product is no longer available in the storefront.')
+                save_cart(request, cart)
+                return redirect(request.POST.get('next') or reverse('core:customer_cart'))
             cart[key] = min(quantity, product.stock)
             if quantity > product.stock:
                 messages.info(request, f'{product.name} was reduced to the available stock of {product.stock}.')
@@ -5845,6 +6158,84 @@ def shop_khatabook_view(request: HttpRequest) -> HttpResponse:
 
 
 @role_required(RoleType.SHOP)
+@require_POST
+def shop_send_khatabook_reminder(request: HttpRequest, order_id: int) -> HttpResponse:
+    order = get_object_or_404(
+        Order.objects.select_related('shop', 'customer', 'khata_cycle'),
+        pk=order_id,
+        shop__owner=request.role_profile,
+        payment_method=PaymentMethod.KHATABOOK,
+    )
+    if order.payment_status == PaymentStatus.PAID or order.credit_paid_at:
+        messages.info(request, 'This KhataBook order is already paid.')
+        return redirect('core:shop_khatabook')
+    due_date = order.credit_due_date or (order.khata_cycle.due_date if order.khata_cycle_id else None)
+    due_copy = f' It is due by {due_date.strftime("%b %d, %Y")}.' if due_date else ''
+    reminder_body = (
+        f'{order.shop.name} sent a KhataBook payment reminder for {order.display_id}. '
+        f'Rs. {order.total_amount} is still pending on your credit cycle.{due_copy}'
+    )
+    create_notification(
+        customer=order.customer,
+        order=order,
+        title='KhataBook payment reminder',
+        body=reminder_body,
+        notification_type=NotificationType.PAYMENT,
+    )
+    if order.customer.email:
+        try:
+            send_mail(
+                subject=f'KhataBook reminder for {order.display_id}',
+                message=reminder_body,
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@gramexpress.local'),
+                recipient_list=[order.customer.email],
+                fail_silently=False,
+            )
+        except Exception:
+            pass
+    messages.success(request, f'Reminder sent to {order.customer.full_name}.')
+    return redirect('core:shop_khatabook')
+
+
+@role_required(RoleType.SHOP)
+@require_POST
+def shop_mark_khatabook_order_paid(request: HttpRequest, order_id: int) -> HttpResponse:
+    order = get_object_or_404(
+        Order.objects.select_related('shop', 'customer', 'khata_cycle'),
+        pk=order_id,
+        shop__owner=request.role_profile,
+        payment_method=PaymentMethod.KHATABOOK,
+    )
+    if order.payment_status == PaymentStatus.PAID or order.credit_paid_at:
+        messages.info(request, 'This KhataBook order is already marked as paid.')
+        return redirect('core:shop_khatabook')
+    if order.khata_cycle_id:
+        mark_khatabook_cycle_paid(
+            order.khata_cycle,
+            settlement_method=KhataBookSettlementMethod.COD_UPI,
+            payment_reference=f'shop-manual-{order.khata_cycle_id}',
+        )
+        create_notification(
+            customer=order.customer,
+            order=order,
+            title='KhataBook payment recorded',
+            body=(
+                f'{order.shop.name} marked the KhataBook cycle containing {order.display_id} as recovered. '
+                'Your credit due now shows as paid.'
+            ),
+            notification_type=NotificationType.PAYMENT,
+        )
+        messages.success(request, f'The KhataBook cycle for {order.display_id} was marked as paid.')
+        return redirect('core:shop_khatabook')
+    order.payment_status = PaymentStatus.PAID
+    order.credit_paid_at = timezone.now()
+    order.payment_reference = f'shop-manual-{order.id}'
+    order.save(update_fields=['payment_status', 'credit_paid_at', 'payment_reference', 'updated_at'])
+    messages.success(request, f'{order.display_id} was marked as paid.')
+    return redirect('core:shop_khatabook')
+
+
+@role_required(RoleType.SHOP)
 def shop_products_view(request: HttpRequest) -> HttpResponse:
     try:
         context = shop_workspace_context(request, editing_product_id=request.GET.get('edit_product'))
@@ -5852,9 +6243,11 @@ def shop_products_view(request: HttpRequest) -> HttpResponse:
         return redirect_missing_shop_setup(request)
     shop = context['shop']
     editing_product = context['editing_product']
+    product_query = request.GET.get('q', '').strip()
+    category_filter = request.GET.get('category', '').strip()
     if request.method == 'POST':
         target_product = editing_product if request.POST.get('product_id') else None
-        product_form = ProductForm(request.POST, instance=target_product)
+        product_form = ProductForm(request.POST, request.FILES, instance=target_product)
         if product_form.is_valid():
             product = product_form.save(commit=False)
             product.shop = shop
@@ -5864,6 +6257,22 @@ def shop_products_view(request: HttpRequest) -> HttpResponse:
     else:
         product_form = ProductForm(instance=editing_product)
     context['product_form'] = product_form
+    all_catalog_products = list(context['catalog_products'])
+    catalog_products = list(all_catalog_products)
+    if product_query:
+        query = product_query.lower()
+        catalog_products = [
+            product for product in catalog_products
+            if query in f'{product.name} {product.category} {product.unit} {product.preview_description}'.lower()
+        ]
+    if category_filter:
+        catalog_products = [product for product in catalog_products if product.category == category_filter]
+    context['catalog_products'] = catalog_products
+    context['catalog_category_options'] = sorted(
+        {product.category for product in all_catalog_products},
+    )
+    context['catalog_query'] = product_query
+    context['catalog_category'] = category_filter
     return render(request, 'core/shop_products.html', context)
 
 
@@ -5910,6 +6319,34 @@ def shop_delete_product(request: HttpRequest, product_id: int) -> HttpResponse:
     product = get_object_or_404(Product, pk=product_id, shop__owner=request.role_profile)
     product.delete()
     messages.success(request, 'Product deleted.')
+    return redirect('core:shop_products')
+
+
+@role_required(RoleType.SHOP)
+@require_POST
+def shop_update_product_stock(request: HttpRequest, product_id: int) -> HttpResponse:
+    product = get_object_or_404(Product, pk=product_id, shop__owner=request.role_profile)
+    try:
+        stock_quantity = max(0, int(request.POST.get('stock', product.stock)))
+    except (TypeError, ValueError):
+        messages.error(request, 'Enter a valid stock quantity.')
+        return redirect('core:shop_products')
+    product.stock = stock_quantity
+    product.save(update_fields=['stock', 'updated_at'])
+    messages.success(request, f'Stock updated for {product.name}.')
+    return redirect('core:shop_products')
+
+
+@role_required(RoleType.SHOP)
+@require_POST
+def shop_toggle_product_visibility(request: HttpRequest, product_id: int) -> HttpResponse:
+    product = get_object_or_404(Product, pk=product_id, shop__owner=request.role_profile)
+    product.is_visible = not product.is_visible
+    product.save(update_fields=['is_visible', 'updated_at'])
+    messages.success(
+        request,
+        f'{product.name} is now {"visible to customers" if product.is_visible else "hidden from customers"}.',
+    )
     return redirect('core:shop_products')
 
 
@@ -6606,9 +7043,9 @@ def manifest(request: HttpRequest) -> JsonResponse:
             'description': 'Mobile-first GramExpress workspace with OTP auth and local delivery dashboards.',
             'icons': [
                 {
-                    'src': '/static/core/icon.svg',
-                    'sizes': '128x128',
-                    'type': 'image/svg+xml',
+                    'src': '/static/core/gramexpress.webp',
+                    'sizes': '512x512',
+                    'type': 'image/webp',
                     'purpose': 'any',
                 },
                 {
@@ -6631,7 +7068,7 @@ def service_worker(_: HttpRequest) -> HttpResponse:
     assets = [
         f'/manifest.json?v={asset_version}',
         f'/static/core/styles.css?v={asset_version}',
-        f'/static/core/icon.svg?v={asset_version}',
+        f'/static/core/gramexpress.webp?v={asset_version}',
         f'/static/core/icon-maskable.svg?v={asset_version}',
     ]
     response = HttpResponse(

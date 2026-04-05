@@ -245,16 +245,42 @@ class Product(TimeStampedModel):
     shop = models.ForeignKey(Shop, on_delete=models.CASCADE, related_name='products')
     name = models.CharField(max_length=120)
     subtitle = models.CharField(max_length=160)
+    description = models.TextField(blank=True, default='')
     category = models.CharField(max_length=80)
     unit = models.CharField(max_length=30)
+    mrp = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     price = models.DecimalField(max_digits=10, decimal_places=2)
     stock = models.PositiveIntegerField(default=0)
     image_url = models.URLField(blank=True)
+    image = models.FileField(upload_to='products/', blank=True)
     color = models.CharField(max_length=20, default='#F1E0B8')
     tag = models.CharField(max_length=80, blank=True)
+    is_visible = models.BooleanField(default=True)
 
     class Meta:
         ordering = ['name']
+
+    @property
+    def image_source(self) -> str:
+        if self.image:
+            return self.image.url
+        return self.image_url
+
+    @property
+    def stock_status(self) -> str:
+        if self.stock <= 0:
+            return 'out_of_stock'
+        if self.stock <= 10:
+            return 'low_stock'
+        return 'in_stock'
+
+    @property
+    def stock_status_label(self) -> str:
+        return {
+            'in_stock': 'In Stock',
+            'low_stock': 'Low Stock',
+            'out_of_stock': 'Out Of Stock',
+        }[self.stock_status]
 
     def __str__(self) -> str:
         return f'{self.name} - {self.shop.name}'

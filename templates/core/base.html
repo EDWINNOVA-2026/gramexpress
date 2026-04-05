@@ -9,7 +9,7 @@
     {% if shell_pwa_enabled %}
       <link rel="manifest" href="{% url 'core:manifest' %}?v={{ shell_asset_version }}" />
     {% endif %}
-    <link rel="icon" href="/static/core/icon.svg?v={{ shell_asset_version }}" type="image/svg+xml" />
+    <link rel="icon" href="/static/core/gramexpress.webp?v={{ shell_asset_version }}" type="image/webp" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
@@ -97,25 +97,9 @@
         {% if route_name != 'login' and route_name != 'login_verify' and route_name != 'register' and route_name != 'register_details' and route_name != 'register_verify' and route_name != 'email_otp' and route_name != 'email_otp_verify' and route_name != 'customer_start' and route_name != 'shop_start' and route_name != 'rider_start' %}
           <header class="site-shell site-header" data-appear>
             <div class="topbar" id="top">
-              <a class="brand" href="{% if user.is_authenticated %}{{ shell_dashboard_url }}{% else %}{% url 'core:home' %}{% endif %}">
+              <a class="brand" href="{% if user.is_authenticated %}{{ shell_dashboard_url }}{% else %}{% url 'core:home' %}{% endif %}" aria-label="GramExpress home">
                 <span class="brand-mark" aria-hidden="true">
-                  <span class="brand-mark-lock"></span>
-                </span>
-                <span>
-                  <strong>GramExpress</strong>
-                  <small>
-                    {% if shell_active_role == 'customer' %}
-                      Customer workspace
-                    {% elif shell_active_role == 'shop' %}
-                      Store workspace
-                    {% elif shell_active_role == 'rider' %}
-                      Rider workspace
-                    {% elif shell_active_role == 'admin' %}
-                      Admin workspace
-                    {% else %}
-                      Local delivery workspace
-                    {% endif %}
-                  </small>
+                  <img src="/static/core/gramexpress.webp?v={{ shell_asset_version }}" alt="" loading="eager" decoding="async" />
                 </span>
               </a>
 
@@ -648,6 +632,177 @@
           });
         }
 
+        function attachOtpInputs() {
+          var groups = document.querySelectorAll('[data-otp-input]');
+          if (!groups.length) {
+            return;
+          }
+
+          groups.forEach(function (group) {
+            var hiddenInput = group.querySelector('input[type="hidden"]');
+            var digits = Array.prototype.slice.call(group.querySelectorAll('[data-otp-digit]'));
+            if (!hiddenInput || !digits.length) {
+              return;
+            }
+
+            function normalizedDigits(value) {
+              return (value || '').replace(/\D/g, '').slice(0, digits.length).split('');
+            }
+
+            function updateState(clearError) {
+              var joined = digits.map(function (input) { return input.value; }).join('');
+              hiddenInput.value = joined;
+              hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+              group.classList.toggle('is-complete', joined.length === digits.length);
+              if (clearError) {
+                group.classList.remove('otp-input-shell-error');
+              }
+            }
+
+            function fillFromValue(value, startIndex, clearError) {
+              var values = normalizedDigits(value);
+              if (!values.length) {
+                return startIndex;
+              }
+
+              var nextIndex = startIndex;
+              values.forEach(function (digit) {
+                if (nextIndex >= digits.length) {
+                  return;
+                }
+                digits[nextIndex].value = digit;
+                nextIndex += 1;
+              });
+              updateState(clearError);
+              return Math.min(nextIndex, digits.length - 1);
+            }
+
+            function focusIndex(index) {
+              var input = digits[index];
+              if (!input) {
+                return;
+              }
+              input.focus();
+              input.select();
+            }
+
+            function handlePaste(event, startIndex) {
+              var clipboard = event.clipboardData || window.clipboardData;
+              var pasted = clipboard && clipboard.getData ? clipboard.getData('text') : '';
+              if (!pasted) {
+                return false;
+              }
+
+              event.preventDefault();
+              digits.forEach(function (digitInput) {
+                digitInput.value = '';
+              });
+              var nextIndex = fillFromValue(pasted, typeof startIndex === 'number' ? startIndex : 0, true);
+              if (nextIndex < digits.length - 1 || digits[nextIndex].value === '') {
+                focusIndex(nextIndex);
+              } else {
+                digits[digits.length - 1].focus();
+                digits[digits.length - 1].select();
+              }
+              return true;
+            }
+
+            var initialValue = normalizedDigits(hiddenInput.value);
+            group.addEventListener('click', function (event) {
+              if (event.target && event.target.matches('[data-otp-digit]')) {
+                return;
+              }
+
+              var firstEmptyIndex = digits.findIndex(function (input) {
+                return !input.value;
+              });
+              focusIndex(firstEmptyIndex === -1 ? digits.length - 1 : firstEmptyIndex);
+            });
+
+            group.addEventListener('paste', function (event) {
+              handlePaste(event, 0);
+            });
+
+            digits.forEach(function (input, index) {
+              input.value = initialValue[index] || '';
+
+              input.addEventListener('focus', function () {
+                input.select();
+              });
+
+              input.addEventListener('keydown', function (event) {
+                if (event.ctrlKey || event.metaKey || event.altKey) {
+                  return;
+                }
+
+                if (event.key === 'Backspace') {
+                  if (input.value) {
+                    input.value = '';
+                    updateState(true);
+                    event.preventDefault();
+                    return;
+                  }
+                  if (index > 0) {
+                    digits[index - 1].value = '';
+                    updateState(true);
+                    focusIndex(index - 1);
+                    event.preventDefault();
+                  }
+                  return;
+                }
+
+                if (event.key === 'ArrowLeft' && index > 0) {
+                  focusIndex(index - 1);
+                  event.preventDefault();
+                  return;
+                }
+
+                if (event.key === 'ArrowRight' && index < digits.length - 1) {
+                  focusIndex(index + 1);
+                  event.preventDefault();
+                  return;
+                }
+
+                if (event.key === 'Tab' || event.key === 'Delete') {
+                  return;
+                }
+
+                if (event.key.length === 1 && !/[0-9]/.test(event.key)) {
+                  event.preventDefault();
+                }
+              });
+
+              input.addEventListener('input', function () {
+                var value = input.value || '';
+                if (!value) {
+                  updateState(true);
+                  return;
+                }
+
+                input.value = '';
+                var nextIndex = fillFromValue(value, index, true);
+                if (nextIndex < digits.length - 1 || digits[nextIndex].value === '') {
+                  focusIndex(nextIndex);
+                } else if (nextIndex + 1 < digits.length) {
+                  focusIndex(nextIndex + 1);
+                } else {
+                  digits[digits.length - 1].blur();
+                }
+              });
+
+              input.addEventListener('paste', function (event) {
+                handlePaste(event, 0);
+              });
+            });
+
+            updateState(false);
+
+            if (group.hasAttribute('data-otp-autofocus') && !initialValue.length) {
+              focusIndex(0);
+            }
+          });
+        }
+
         attachNavToggle();
         attachLocationButtons();
         attachAppearObserver();
@@ -657,6 +812,7 @@
         attachGoogleSignIn();
         attachInstallPrompt();
         attachCopyButtons();
+        attachOtpInputs();
 
         if ('caches' in window) {
           caches.keys().then(function (keys) {

@@ -40,7 +40,7 @@ from .models import (
     Shop,
     ShopOwnerProfile,
 )
-from .forms import UnifiedRegistrationForm
+from .forms import LoginOtpVerifyForm, UnifiedRegistrationForm
 from .views import get_dashboard_url_for_user, reverse_geocode_location
 
 
@@ -182,9 +182,8 @@ class CoreFlowTests(TestCase):
         response = self.client.get(f'{reverse("core:register_details")}?account_type={RoleType.SHOP}')
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Store location pin')
+        self.assertContains(response, 'Store Location')
         self.assertContains(response, 'Use Current Location')
-        self.assertContains(response, 'Pick On Map')
         self.assertContains(response, 'Confirm Location')
         self.assertContains(response, 'State')
 
@@ -372,7 +371,6 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Store Location')
         self.assertContains(response, 'Use Current Location')
-        self.assertContains(response, 'Pick On Map')
         self.assertContains(response, 'Confirm Location')
 
     def test_shop_cannot_go_live_when_location_is_not_ready(self):
@@ -574,6 +572,31 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.shop.name)
         self.assertContains(response, self.product.name)
+
+    def test_hidden_product_is_not_shown_on_customer_storefront(self):
+        hidden_product = Product.objects.create(
+            shop=self.shop,
+            name='Private Stock',
+            subtitle='Should stay hidden',
+            description='Should stay hidden',
+            category='Staples',
+            unit='packet',
+            mrp=Decimal('55.00'),
+            price=Decimal('50.00'),
+            stock=8,
+            is_visible=False,
+        )
+
+        self.client.force_login(self.customer_user)
+        self.client.post(
+            reverse('core:customer_update_location'),
+            {'latitude': '12.920000', 'longitude': '76.650000'},
+        )
+
+        response = self.client.get(reverse('core:customer_store_detail', args=[self.shop.slug]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, hidden_product.name)
 
     def test_customer_dashboard_requires_live_location_before_listing_stores(self):
         self.client.force_login(self.customer_user)
@@ -1605,17 +1628,97 @@ class CoreFlowTests(TestCase):
         response = self.client.get(reverse('core:shop_khatabook'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Credit risk desk for Fresh Basket')
-        self.assertContains(response, 'Rs. 140.00 live exposure')
-        self.assertContains(response, 'Rs. 70.00')
-        self.assertContains(response, 'Rs. 110.00')
+        self.assertContains(response, 'Credit risk dashboard for Fresh Basket')
+        self.assertContains(response, 'Top Risk Summary')
+        self.assertContains(response, 'Open Credit Orders')
+        self.assertContains(response, 'Overdue / Defaulted Payments')
+        self.assertContains(response, 'Customer Credit Score')
+        self.assertContains(response, 'Live Exposure')
+        self.assertContains(response, 'Default Rate')
+        self.assertContains(response, self.customer.full_name)
         self.assertContains(response, self.rider.full_name)
-        self.assertContains(response, 'Current stock left 20')
-        self.assertNotContains(response, self.customer.full_name)
+        self.assertContains(response, 'Call Customer')
+        self.assertContains(response, 'Send Reminder')
+        self.assertContains(response, 'Mark as Paid')
         self.assertTrue(
             Notification.objects.filter(
                 shop_owner=self.owner,
                 title='KhataBook default alert',
+                notification_type=NotificationType.PAYMENT,
+            ).exists()
+        )
+
+    def test_shop_can_send_khatabook_payment_reminder(self):
+        cycle = KhataBookCycle.objects.create(
+            customer=self.customer,
+            week_start=timezone.localdate(),
+            due_date=timezone.localdate() + timedelta(days=3),
+            total_amount=Decimal('70.00'),
+        )
+        order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            khata_cycle=cycle,
+            status=OrderStatus.DELIVERED,
+            payment_method=PaymentMethod.KHATABOOK,
+            payment_status=PaymentStatus.PENDING,
+            total_amount=Decimal('70.00'),
+            delivery_fee=Decimal('15.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            credit_due_date=cycle.due_date,
+        )
+
+        self.client.force_login(self.shop_user)
+        response = self.client.post(reverse('core:shop_send_khatabook_reminder', args=[order.id]), follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Reminder sent to Ananya.')
+        self.assertTrue(
+            Notification.objects.filter(
+                customer=self.customer,
+                order=order,
+                title='KhataBook payment reminder',
+                notification_type=NotificationType.PAYMENT,
+            ).exists()
+        )
+        self.assertTrue(mail.outbox)
+        self.assertIn(order.display_id, mail.outbox[-1].subject)
+
+    def test_shop_can_mark_khatabook_cycle_paid_from_dashboard(self):
+        cycle = KhataBookCycle.objects.create(
+            customer=self.customer,
+            week_start=timezone.localdate(),
+            due_date=timezone.localdate() + timedelta(days=3),
+            total_amount=Decimal('70.00'),
+        )
+        order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            khata_cycle=cycle,
+            status=OrderStatus.DELIVERED,
+            payment_method=PaymentMethod.KHATABOOK,
+            payment_status=PaymentStatus.PENDING,
+            total_amount=Decimal('70.00'),
+            delivery_fee=Decimal('15.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            credit_due_date=cycle.due_date,
+        )
+
+        self.client.force_login(self.shop_user)
+        response = self.client.post(reverse('core:shop_mark_khatabook_order_paid', args=[order.id]), follow=True)
+
+        order.refresh_from_db()
+        cycle.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'The KhataBook cycle for {order.display_id} was marked as paid.')
+        self.assertEqual(order.payment_status, PaymentStatus.PAID)
+        self.assertIsNotNone(order.credit_paid_at)
+        self.assertEqual(cycle.status, KhataBookCycleStatus.PAID)
+        self.assertTrue(
+            Notification.objects.filter(
+                customer=self.customer,
+                order=order,
+                title='KhataBook payment recorded',
                 notification_type=NotificationType.PAYMENT,
             ).exists()
         )
@@ -1635,6 +1738,45 @@ class CoreFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Queue age')
+
+    def test_shop_products_page_shows_catalog_management_workspace(self):
+        self.client.force_login(self.shop_user)
+
+        response = self.client.get(reverse('core:shop_products'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Manage your shelf in one place')
+        self.assertContains(response, 'Add New Product')
+        self.assertContains(response, 'Live Product Preview')
+        self.assertContains(response, 'Products On Shelf')
+        self.assertContains(response, 'Low Stock Products')
+
+    def test_shop_can_update_product_stock_from_catalog(self):
+        self.client.force_login(self.shop_user)
+
+        response = self.client.post(
+            reverse('core:shop_update_product_stock', args=[self.product.id]),
+            {'stock': '4'},
+            follow=True,
+        )
+
+        self.product.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.product.stock, 4)
+        self.assertContains(response, 'Update Stock')
+
+    def test_shop_can_hide_product_from_catalog(self):
+        self.client.force_login(self.shop_user)
+
+        response = self.client.post(
+            reverse('core:shop_toggle_product_visibility', args=[self.product.id]),
+            follow=True,
+        )
+
+        self.product.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(self.product.is_visible)
+        self.assertContains(response, 'Show')
 
     def test_customer_can_delete_notification(self):
         self.client.force_login(self.customer_user)
@@ -1832,6 +1974,30 @@ class CoreFlowTests(TestCase):
         self.assertEqual(verify_response.status_code, 200)
         self.assertTrue(CustomerProfile.objects.filter(phone='9990001112').exists())
         self.assertContains(verify_response, 'New User')
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_login_verify_page_renders_six_digit_otp_component(self):
+        response = self.client.post(
+            reverse('core:login'),
+            {
+                'action': 'login',
+                'identity': 'ananya@example.com',
+                'password': 'demo12345',
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-otp-input')
+        self.assertContains(response, 'class="otp-digit-input"', count=6)
+        self.assertContains(response, "group.addEventListener('paste'")
+        self.assertContains(response, 'event.ctrlKey || event.metaKey || event.altKey')
+
+    def test_login_otp_form_rejects_non_numeric_code(self):
+        form = LoginOtpVerifyForm(data={'code': '12ab56'})
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('Enter a valid 6 digit OTP.', form.errors['code'])
 
     @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
     def test_email_login_requires_otp_before_completion(self):
