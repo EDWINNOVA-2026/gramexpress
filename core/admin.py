@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.utils.html import format_html
 
 from .models import (
     ApprovalStatus,
@@ -64,11 +65,37 @@ class ShopOwnerProfileAdmin(admin.ModelAdmin):
 
 @admin.register(RiderProfile)
 class RiderProfileAdmin(admin.ModelAdmin):
-    list_display = ('full_name', 'phone', 'vehicle_type', 'approval_status', 'is_available', 'rating')
+    list_display = ('photo_preview_tag', 'full_name', 'phone', 'vehicle_type', 'approval_status', 'is_available', 'rating')
     list_filter = ('approval_status', 'vehicle_type', 'is_available')
     search_fields = ('full_name', 'phone', 'email')
     list_editable = ('approval_status', 'is_available')
     actions = [approve_riders, reject_riders]
+    readonly_fields = ('photo_preview_tag',)
+    fields = (
+        'photo_preview_tag',
+        'full_name',
+        'phone',
+        'email',
+        'age',
+        'vehicle_type',
+        'approval_status',
+        'is_available',
+        'rating',
+        'latitude',
+        'longitude',
+        'photo_url',
+        'photo',
+    )
+
+    @admin.display(description='Photo')
+    def photo_preview_tag(self, obj):
+        if not obj.photo_source:
+            return 'No photo'
+        return format_html(
+            '<img src="{}" alt="{}" style="height:48px;width:48px;border-radius:12px;object-fit:cover;border:1px solid #e2e8f0;" />',
+            obj.photo_source,
+            obj.full_name,
+        )
 
 
 @admin.register(Shop)

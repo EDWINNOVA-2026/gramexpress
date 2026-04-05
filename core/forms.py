@@ -20,7 +20,7 @@ LANGUAGE_CHOICES = [
 REGISTRATION_ROLE_FIELDS = {
     RoleType.CUSTOMER: ['preferred_language', 'address_line_1', 'address_line_2', 'district', 'pincode', 'latitude', 'longitude'],
     RoleType.SHOP: ['shop_name', 'shop_type', 'area', 'address_line_1', 'address_line_2', 'district', 'state', 'pincode', 'description', 'offer', 'latitude', 'longitude'],
-    RoleType.RIDER: ['age', 'vehicle_type', 'latitude', 'longitude'],
+    RoleType.RIDER: ['age', 'vehicle_type', 'photo_url', 'latitude', 'longitude'],
 }
 PRODUCT_CATEGORY_CHOICES = [
     ('Staples', 'Staples'),
@@ -172,6 +172,7 @@ class UnifiedRegistrationForm(forms.Form, BaseStyledForm):
     offer = forms.CharField(max_length=160, required=False)
     age = forms.IntegerField(min_value=18, max_value=80, required=False)
     vehicle_type = forms.ChoiceField(choices=VehicleType.choices, required=False)
+    photo_url = forms.URLField(required=False)
 
     def __init__(self, *args, **kwargs):
         selected_role = kwargs.pop('selected_role', '')
@@ -217,6 +218,8 @@ class UnifiedRegistrationForm(forms.Form, BaseStyledForm):
             self.fields['latitude'].widget.attrs['readonly'] = True
         if 'longitude' in self.fields:
             self.fields['longitude'].widget.attrs['readonly'] = True
+        if 'photo_url' in self.fields:
+            self.fields['photo_url'].widget = forms.HiddenInput()
 
     def clean(self):
         cleaned_data = super().clean()
@@ -227,7 +230,7 @@ class UnifiedRegistrationForm(forms.Form, BaseStyledForm):
         required_fields_by_role = {
             RoleType.CUSTOMER: ['preferred_language', 'address_line_1', 'district', 'pincode', 'latitude', 'longitude'],
             RoleType.SHOP: ['shop_name', 'shop_type', 'area', 'address_line_1', 'district', 'state', 'pincode', 'latitude', 'longitude'],
-            RoleType.RIDER: ['age', 'vehicle_type', 'latitude', 'longitude'],
+            RoleType.RIDER: ['age', 'vehicle_type', 'photo_url', 'latitude', 'longitude'],
         }
         for field_name in required_fields_by_role.get(account_type, []):
             if cleaned_data.get(field_name) in [None, '']:

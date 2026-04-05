@@ -189,6 +189,12 @@ class RiderProfile(TimeStampedModel, LocationMixin):
     photo_url = models.URLField(blank=True)
     photo = models.FileField(upload_to='riders/', blank=True)
 
+    @property
+    def photo_source(self) -> str:
+        if self.photo:
+            return self.photo.url
+        return self.photo_url
+
     class Meta:
         ordering = ['full_name']
 
