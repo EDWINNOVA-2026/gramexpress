@@ -591,6 +591,63 @@
           });
         }
 
+        function attachCopyButtons() {
+          var buttons = document.querySelectorAll('[data-copy-text]');
+          if (!buttons.length) {
+            return;
+          }
+
+          function fallbackCopy(text) {
+            var input = document.createElement('textarea');
+            input.value = text;
+            input.setAttribute('readonly', '');
+            input.style.position = 'absolute';
+            input.style.left = '-9999px';
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand('copy');
+            document.body.removeChild(input);
+          }
+
+          function flashLabel(button, nextLabel) {
+            var originalLabel = button.getAttribute('data-copy-original-label');
+            if (!originalLabel) {
+              button.setAttribute('data-copy-original-label', button.innerHTML);
+              originalLabel = button.innerHTML;
+            }
+
+            button.innerHTML = nextLabel;
+            window.setTimeout(function () {
+              button.innerHTML = originalLabel;
+            }, 1800);
+          }
+
+          buttons.forEach(function (button) {
+            button.addEventListener('click', function () {
+              var text = button.getAttribute('data-copy-text') || '';
+              var successLabel = button.getAttribute('data-copy-success') || 'Copied';
+              if (!text) {
+                return;
+              }
+
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text)
+                  .then(function () {
+                    flashLabel(button, successLabel);
+                  })
+                  .catch(function () {
+                    fallbackCopy(text);
+                    flashLabel(button, successLabel);
+                  });
+                return;
+              }
+
+              fallbackCopy(text);
+              flashLabel(button, successLabel);
+            });
+          });
+        }
+
         attachNavToggle();
         attachLocationButtons();
         attachAppearObserver();
@@ -599,6 +656,7 @@
         attachRoleSwitcher();
         attachGoogleSignIn();
         attachInstallPrompt();
+        attachCopyButtons();
 
         if ('caches' in window) {
           caches.keys().then(function (keys) {
