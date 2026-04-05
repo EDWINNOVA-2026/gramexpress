@@ -41,10 +41,13 @@ body {
   min-height: 100vh;
   color: var(--text);
   background:
-    radial-gradient(circle at 10% 12%, rgba(26, 26, 46, 0.12), transparent 24%),
-    radial-gradient(circle at 88% 9%, rgba(255, 87, 51, 0.12), transparent 22%),
-    linear-gradient(180deg, #fbfbfd 0%, #f4f6fb 52%, #eef2f9 100%);
+    radial-gradient(circle at 10% 12%, rgba(26, 26, 46, 0.08), transparent 28%),
+    radial-gradient(circle at 88% 9%, rgba(255, 87, 51, 0.07), transparent 26%),
+    radial-gradient(circle at 50% 50%, rgba(148, 163, 184, 0.04), transparent 50%),
+    linear-gradient(180deg, #fcfcfe 0%, #f6f8fc 40%, #f0f3fa 80%, #eaeef6 100%);
   font-family: "DM Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 a {
@@ -73,9 +76,15 @@ textarea {
 .ambient {
   position: absolute;
   border-radius: 999px;
-  filter: blur(90px);
+  filter: blur(100px);
   pointer-events: none;
-  opacity: 0.6;
+  opacity: 0.45;
+  animation: ambient-float 20s ease-in-out infinite alternate;
+}
+
+@keyframes ambient-float {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(10px, -15px) scale(1.05); }
 }
 
 .ambient-one {
