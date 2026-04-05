@@ -8,6 +8,7 @@
       <p>Your checkout is complete. Delivery teams and stores have already received the order instructions, and status updates will arrive by email.</p>
       <div class="hero-inline-facts">
         <span class="soft-pill">ETA {{ estimated_eta }}</span>
+        <span class="soft-pill">{{ delivery_slot_config.name }}</span>
         <span class="soft-pill">Rs. {{ estimated_total }}</span>
         <span class="soft-pill">{{ payment_method_label }}</span>
         {% if payment_method == 'khata' %}
@@ -26,10 +27,11 @@
               <div class="split-row">
                 <div>
                   <strong>Order #{{ order.id }}</strong>
-                  <p>{{ order.shop.name }} | {{ order.get_status_display }}</p>
+                  <p>{{ order.shop.name }} | {{ order.get_status_display }} | {{ order.get_delivery_slot_display }}</p>
                 </div>
                 <span class="pill">Rs. {{ order.total_amount }}</span>
               </div>
+              <p class="utility-note">Deadline {{ order.delivery_deadline|date:"M d, H:i" }}</p>
               <div class="inline-actions">
                 <a class="button small primary" href="{% url 'core:order_detail' order.id %}">Details</a>
                 <a class="button small secondary" href="{% url 'core:customer_orders' %}">All Orders</a>

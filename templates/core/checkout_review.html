@@ -7,12 +7,12 @@
         <div>
           <span class="eyebrow">Checkout</span>
           <h1 class="page-title">Review your order</h1>
-          <p>We validate the cart, address, payment mode, and delivery grouping before the final confirmation step.</p>
+          <p>We validate the cart, address, payment mode, and delivery slot before the final confirmation step.</p>
         </div>
         <div class="hero-inline-facts">
           <span class="soft-pill">{{ cart.item_count }} items</span>
           <span class="soft-pill">{{ cart.groups|length }} store{{ cart.groups|length|pluralize }}</span>
-          <span class="status-chip info">{{ estimated_eta }}</span>
+          <span class="status-chip {{ selected_delivery_slot_chip }}">{{ estimated_eta }}</span>
         </div>
       </div>
     </article>
@@ -35,6 +35,7 @@
           <div class="compact-item">
             <strong>{{ customer.full_name }}</strong>
             <p>{{ delivery_address }}</p>
+            <p class="utility-note">{{ selected_delivery_slot_config.name }} | {{ selected_delivery_slot_config.time_label }}</p>
             {% if customer_notes %}
               <p class="utility-note">Notes: {{ customer_notes }}</p>
             {% endif %}
@@ -56,7 +57,7 @@
                 </div>
                 <div class="bill-grid">
                   <div class="bill-row"><span>Items</span><strong>Rs. {{ group.subtotal }}</strong></div>
-                  <div class="bill-row"><span>Delivery</span><strong>Rs. {{ group.delivery_fee }}</strong></div>
+                  <div class="bill-row"><span>{{ selected_delivery_slot_config.name }}</span><strong>Rs. {{ group.delivery_fee }}</strong></div>
                   <div class="bill-row"><span>Shopkeeper commission fee</span><strong>Rs. {{ group.shopkeeper_commission_fee }}</strong></div>
                   <div class="bill-row"><span>GramExpress platform fee</span><strong>Rs. {{ group.platform_fee }}</strong></div>
                 </div>
@@ -88,11 +89,11 @@
           <div class="metric-card checkout-summary-card">
             <span class="metric-label">Estimated payable</span>
             <strong class="metric-value">Rs. {{ estimated_total }}</strong>
-            <p>{{ payment_method_label }} | {{ estimated_eta }}</p>
+            <p>{{ payment_method_label }} | {{ selected_delivery_slot_config.name }} | {{ estimated_eta }}</p>
           </div>
           <div class="bill-grid top-gap-sm">
             <div class="bill-row"><span>Items</span><strong>Rs. {{ estimated_subtotal }}</strong></div>
-            <div class="bill-row"><span>Delivery fee</span><strong>Rs. {{ estimated_delivery_fee }}</strong></div>
+            <div class="bill-row"><span>{{ selected_delivery_slot_config.name }}</span><strong>Rs. {{ estimated_delivery_fee }}</strong></div>
             <div class="bill-row"><span>Shopkeeper commission fee</span><strong>Rs. {{ estimated_shopkeeper_commission_fee }}</strong></div>
             <div class="bill-row"><span>GramExpress platform fee</span><strong>Rs. {{ estimated_platform_fee }}</strong></div>
             <div class="bill-row"><span>Total</span><strong>Rs. {{ estimated_total }}</strong></div>
