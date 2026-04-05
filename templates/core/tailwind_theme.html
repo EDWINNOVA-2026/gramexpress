@@ -1,4 +1,13 @@
 @layer base {
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
   :root {
     color-scheme: light;
   }
@@ -1308,15 +1317,6 @@
     content: "−";
   }
 
-  .shop-khatabook-order-card {
-    @apply gap-5;
-  }
-
-  .shop-khatabook-order-list {
-    @apply gap-5;
-  }
-
-  .quick-card,
   .shop-dashboard-hero-v2,
   .shop-dashboard-hero-v2-grid,
   .shop-dashboard-hero-copy,
@@ -1557,6 +1557,148 @@
   .shop-dashboard-notification-group .compact-list {
     @apply grid gap-3;
   }
+
+  .shop-settings-layout,
+  .shop-settings-card,
+  .shop-settings-form,
+  .shop-settings-section,
+  .shop-settings-section-head,
+  .shop-settings-location-section,
+  .shop-settings-location-toolbar,
+  .shop-settings-location-status-row,
+  .shop-settings-map-shell,
+  .shop-settings-map-search,
+  .shop-settings-location-guidance,
+  .shop-settings-guidance-card,
+  .shop-settings-media-grid,
+  .shop-settings-upload-shell,
+  .shop-settings-visibility-card,
+  .shop-settings-visibility-copy,
+  .shop-settings-sidebar-card {
+    @apply grid gap-4;
+  }
+
+  .shop-settings-layout {
+    @apply grid gap-5;
+  }
+
+  .shop-settings-card {
+    @apply gap-6;
+  }
+
+  .shop-settings-section {
+    @apply rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5;
+  }
+
+  .shop-settings-section-head {
+    @apply flex flex-wrap items-start justify-between gap-3;
+  }
+
+  .shop-settings-location-toolbar {
+    @apply flex flex-wrap gap-3;
+  }
+
+  .shop-location-button-blue {
+    background: #0b5fff;
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 10px 24px rgba(11, 95, 255, 0.22);
+  }
+
+  .shop-location-button-blue:hover {
+    background: #0a52dd;
+    color: #fff;
+    transform: translateY(-1px);
+  }
+
+  .shop-settings-location-toolbar .button.is-loading {
+    @apply cursor-wait opacity-80;
+    position: relative;
+  }
+
+  .shop-settings-location-toolbar .button.is-loading::after {
+    content: "";
+    width: 0.95rem;
+    height: 0.95rem;
+    border-radius: 999px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    animation: spin 0.7s linear infinite;
+  }
+
+  .shop-settings-location-status-row {
+    @apply flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3;
+  }
+
+  .shop-settings-map-shell {
+    @apply gap-3;
+  }
+
+  .shop-settings-map-canvas {
+    @apply relative overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-100 shadow-soft;
+    min-height: 25rem;
+  }
+
+  .shop-settings-map-fallback {
+    @apply grid h-full min-h-[25rem] place-items-center gap-2 px-6 text-center text-slate-600;
+    background:
+      linear-gradient(135deg, rgba(11, 95, 255, 0.08), rgba(255, 255, 255, 0.85)),
+      radial-gradient(circle at 20% 20%, rgba(14, 165, 233, 0.12), transparent 25%);
+  }
+
+  .shop-settings-location-guidance {
+    @apply md:grid-cols-2;
+  }
+
+  .shop-settings-guidance-card {
+    @apply rounded-2xl border border-slate-200 bg-white px-4 py-4;
+  }
+
+  .shop-settings-guidance-card strong {
+    @apply text-base font-semibold text-slate-950;
+  }
+
+  .shop-settings-guidance-card p {
+    @apply text-sm leading-6 text-slate-600;
+  }
+
+  .shop-settings-upload-shell {
+    @apply rounded-2xl border border-slate-200 bg-white px-4 py-3;
+  }
+
+  .shop-settings-upload-shell input[type="file"] {
+    @apply w-full text-sm text-slate-700;
+  }
+
+  .shop-settings-upload-shell input[type="file"]::file-selector-button {
+    @apply mr-3 rounded-xl border-0 bg-slate-900 px-4 py-2 text-sm font-semibold text-white;
+  }
+
+  .shop-settings-upload-shell input[type="file"]::file-selector-button:hover {
+    @apply bg-slate-800;
+  }
+
+  .shop-settings-visibility-card {
+    @apply rounded-2xl border border-slate-200 bg-white px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center;
+  }
+
+  .shop-settings-visibility-copy strong {
+    @apply text-lg font-semibold text-slate-950;
+  }
+
+  .shop-settings-visibility-copy p {
+    @apply text-sm leading-6 text-slate-600;
+  }
+
+  .shop-khatabook-order-card {
+    @apply gap-5;
+  }
+
+  .shop-khatabook-order-list {
+    @apply gap-5;
+  }
+
+  .quick-card,
   .tracking-map-card,
   .profile-card {
     @apply grid gap-4;
@@ -2210,6 +2352,17 @@
   .form-actions {
     @apply gap-4;
   }
+
+  .shop-dashboard-grid-v2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .shop-dashboard-section-status,
+  .shop-khatabook-dashboard-card,
+  .shop-dashboard-storefront-card,
+  .shop-dashboard-panel-wide {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (min-width: 1040px) {
@@ -2236,6 +2389,11 @@
   .shop-dashboard-layout {
     grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr);
     @apply items-start gap-5;
+  }
+
+  .shop-settings-layout {
+    grid-template-columns: minmax(0, 1.2fr) minmax(20rem, 0.8fr);
+    @apply items-start;
   }
 
   .shop-dashboard-hero-grid {
@@ -2343,6 +2501,16 @@
     @apply text-4xl;
   }
 
+  .shop-dashboard-notification-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .shop-dashboard-notification-grid > * {
+    min-width: 0;
+  }
+
   .section-title {
     @apply text-2xl;
   }
@@ -2352,17 +2520,6 @@
   }
 
   .feature-nav {
-
-  .shop-dashboard-grid-v2 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .shop-dashboard-section-status,
-  .shop-khatabook-dashboard-card,
-  .shop-dashboard-storefront-card,
-  .shop-dashboard-panel-wide {
-    grid-column: 1 / -1;
-  }
     @apply gap-3 p-4;
   }
 
@@ -2501,16 +2658,6 @@
   .card,
   .glass-card,
   .metric-card,
-  .shop-dashboard-notification-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-  }
-
-  .shop-dashboard-notification-grid > * {
-    min-width: 0;
-  }
-
   .quick-card,
   .hero-card,
   .auth-card,
