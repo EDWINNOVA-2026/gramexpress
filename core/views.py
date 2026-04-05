@@ -13,11 +13,14 @@ from typing import Any
 from urllib import error as urllib_error
 from urllib import parse as urllib_parse
 from urllib import request as urllib_request
+from uuid import uuid4
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Avg, Count
@@ -25,8 +28,9 @@ from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from .forms import (
     CustomerOnboardingForm,
@@ -91,10 +95,16 @@ DEFAULT_LATITUDE = Decimal('12.915300')
 DEFAULT_LONGITUDE = Decimal('76.643800')
 DEFAULT_DELIVERY_RADIUS_KM = 20
 PICKUP_GEOFENCE_KM = 0.2
-RIDER_EARNINGS_GOAL = Decimal('10000.00')
-RIDER_FIXED_PAY_CAP = Decimal('5000.00')
-RIDER_GOODWILL_BONUS = Decimal('1000.00')
-RIDER_COMPLETION_SHARE_THRESHOLD = Decimal('20.00')
+RIDER_COMMISSION_PER_DELIVERY = Decimal('15.00')
+RIDER_LONG_DISTANCE_INCENTIVE = Decimal('5.00')
+RIDER_PEAK_HOUR_INCENTIVE = Decimal('5.00')
+RIDER_KHATABOOK_COLLECTION_INCENTIVE = Decimal('25.00')
+RIDER_HIGH_COMPLETION_BONUS_TIERS = (
+    (120, Decimal('2000.00')),
+    (90, Decimal('1500.00')),
+    (60, Decimal('900.00')),
+    (30, Decimal('400.00')),
+)
 KHATABOOK_COLLECTION_GEOFENCE_KM = 0.3
 SHOPKEEPER_COMMISSION_FEE = Decimal('5.00')
 GRAMEXPRESS_PLATFORM_FEE = Decimal('5.00')
@@ -134,6 +144,7 @@ SERIALIZABLE_REGISTRATION_FIELDS = [
     'offer',
     'age',
     'vehicle_type',
+    'photo_url',
 ]
 
 
@@ -672,6 +683,7 @@ def create_account_from_registration(cleaned_data: dict[str, Any]):
             'email': email,
             'age': cleaned_data['age'],
             'vehicle_type': cleaned_data['vehicle_type'],
+            'photo_url': cleaned_data.get('photo_url', ''),
             'latitude': cleaned_data['latitude'],
             'longitude': cleaned_data['longitude'],
             'approval_status': ApprovalStatus.PENDING,
@@ -722,6 +734,89 @@ def build_google_embed_place_url(latitude: Decimal, longitude: Decimal) -> str:
         f'&q={latitude},{longitude}'
         '&zoom=18'
     )
+
+
+RIDER_PHOTO_MAX_BYTES = 2 * 1024 * 1024
+RIDER_PHOTO_EXTENSIONS = {
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+}
+
+
+def rider_profile_payload(rider: RiderProfile) -> dict[str, Any]:
+    return {
+        'id': rider.id,
+        'name': rider.full_name,
+        'phone': rider.phone,
+        'email': rider.email,
+        'vehicle_type': rider.vehicle_type,
+        'vehicle_type_label': rider.get_vehicle_type_display(),
+        'photo_url': rider.photo_source,
+        'is_verified': rider.approval_status == ApprovalStatus.APPROVED,
+        'approval_status': rider.approval_status,
+        'updated_at': rider.updated_at.isoformat(),
+    }
+
+
+def rider_photo_extension_for_content_type(content_type: str) -> str | None:
+    return RIDER_PHOTO_EXTENSIONS.get((content_type or '').lower())
+
+
+def save_temporary_rider_photo(content: bytes, extension: str) -> str:
+    storage_name = default_storage.save(
+        f'riders/live/{uuid4().hex}.{extension}',
+        ContentFile(content),
+    )
+    return default_storage.url(storage_name)
+
+
+def save_rider_photo_to_profile(rider: RiderProfile, content: bytes, extension: str) -> str:
+    if rider.photo:
+        rider.photo.delete(save=False)
+    rider.photo.save(f'{uuid4().hex}.{extension}', ContentFile(content), save=False)
+    rider.photo_url = rider.photo.storage.url(rider.photo.name)
+    rider.save(update_fields=['photo', 'photo_url', 'updated_at'])
+    return rider.photo_source
+
+
+def extract_rider_photo_upload(request: HttpRequest) -> tuple[bytes | None, str | None, str | None]:
+    uploaded_file = request.FILES.get('photo')
+    if uploaded_file:
+        if uploaded_file.size > RIDER_PHOTO_MAX_BYTES:
+            return None, None, 'Photo must be 2MB or smaller.'
+        extension = rider_photo_extension_for_content_type(uploaded_file.content_type)
+        if not extension:
+            return None, None, 'Upload a JPG, PNG, or WEBP image.'
+        return uploaded_file.read(), extension, None
+
+    if not request.body:
+        return None, None, 'Upload a rider photo before continuing.'
+
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None, None, 'Could not read the uploaded photo payload.'
+
+    image_data = payload.get('image_data', '')
+    if not image_data.startswith('data:image/'):
+        return None, None, 'Upload a JPG, PNG, or WEBP image.'
+
+    header, _, encoded = image_data.partition(',')
+    content_type = header.split(';', 1)[0][5:]
+    extension = rider_photo_extension_for_content_type(content_type)
+    if not extension:
+        return None, None, 'Upload a JPG, PNG, or WEBP image.'
+
+    try:
+        content = base64.b64decode(encoded)
+    except (ValueError, TypeError):
+        return None, None, 'Could not decode the captured rider photo.'
+
+    if len(content) > RIDER_PHOTO_MAX_BYTES:
+        return None, None, 'Photo must be 2MB or smaller.'
+    return content, extension, None
 
 
 def shop_location_is_configured(shop: Shop) -> bool:
@@ -1454,9 +1549,35 @@ def enrich_rider_order(order: Order, rider: RiderProfile) -> Order:
     order.pickup_gate_open = order.pickup_distance_km <= PICKUP_GEOFENCE_KM
     order.status_chip = rider_status_chip(order)
     order.status_hint = rider_status_hint(order, pickup_gate_open=order.pickup_gate_open)
+    order.rider_commission = RIDER_COMMISSION_PER_DELIVERY
+    order.rider_distance_incentive = (
+        RIDER_LONG_DISTANCE_INCENTIVE
+        if Decimal(str(order.delivery_distance_km)) >= Decimal('6.0')
+        else Decimal('0.00')
+    )
+    order.rider_peak_time_bonus = (
+        RIDER_PEAK_HOUR_INCENTIVE
+        if rider_peak_hour_bonus_eligible(order.delivered_at or order.updated_at)
+        else Decimal('0.00')
+    )
+    order.rider_payout_total = quantize_money(
+        order.rider_commission + order.rider_distance_incentive + order.rider_peak_time_bonus
+    )
     order.is_khatabook_order = order.payment_method == PaymentMethod.KHATABOOK
     order.is_direct_payment_order = order.payment_method in [PaymentMethod.COD, PaymentMethod.RAZORPAY]
     order.payment_mode_badge = 'KhataBook credit' if order.is_khatabook_order else 'Direct payment'
+    if order.payment_method == PaymentMethod.KHATABOOK:
+        order.dashboard_payment_label = 'KhataBook'
+        order.dashboard_payment_chip = 'rider-payment-chip-khata'
+    elif order.payment_status == PaymentStatus.PAID:
+        order.dashboard_payment_label = 'Paid'
+        order.dashboard_payment_chip = 'success'
+    elif order.payment_method == PaymentMethod.COD:
+        order.dashboard_payment_label = 'COD'
+        order.dashboard_payment_chip = 'warn'
+    else:
+        order.dashboard_payment_label = 'Online'
+        order.dashboard_payment_chip = 'info'
     order.accepted_at = order.milestone_timestamps.get('accepted')
     order.pickup_confirmed_at = order.milestone_timestamps.get('pickup')
     order.delivered_confirmed_at = order.milestone_timestamps.get('delivered')
@@ -1630,6 +1751,20 @@ def quantize_money(value: Decimal) -> Decimal:
 
 def quantize_percent(value: Decimal) -> Decimal:
     return value.quantize(Decimal('0.1'))
+
+
+def rider_peak_hour_bonus_eligible(moment) -> bool:
+    if not moment:
+        return False
+    hour = timezone.localtime(moment).hour
+    return hour in {12, 13, 14, 18, 19, 20, 21}
+
+
+def rider_high_completion_bonus(completed_delivery_count: int) -> Decimal:
+    for threshold, amount in RIDER_HIGH_COMPLETION_BONUS_TIERS:
+        if completed_delivery_count >= threshold:
+            return amount
+    return Decimal('0.00')
 
 
 def checkout_fee_breakup(*, subtotal: Decimal, delivery_fee: Decimal = DEFAULT_DELIVERY_FEE) -> dict[str, Decimal]:
@@ -3887,17 +4022,64 @@ def rider_workspace_context(request: HttpRequest) -> dict[str, Any]:
     completed_direct_payment_delivery_count = sum(1 for order in completed_orders if order.payment_method != PaymentMethod.KHATABOOK)
     completed_khatabook_collection_count = len(completed_khatabook_requests)
     today = timezone.localdate()
-    total_earnings = sum((order.delivery_fee for order in completed_orders), Decimal('0.00'))
-    today_earnings = sum(
-        (
-            order.delivery_fee
-            for order in completed_orders
-            if order.delivered_at and timezone.localtime(order.delivered_at).date() == today
-        ),
-        Decimal('0.00'),
+    commission_earnings = quantize_money(Decimal(completed_delivery_count) * RIDER_COMMISSION_PER_DELIVERY)
+    total_distance_incentive = quantize_money(
+        sum((order.rider_distance_incentive for order in completed_orders), Decimal('0.00'))
     )
+    total_peak_time_bonus = quantize_money(
+        sum((order.rider_peak_time_bonus for order in completed_orders), Decimal('0.00'))
+    )
+    khatabook_collection_incentive = quantize_money(
+        Decimal(completed_khatabook_collection_count) * RIDER_KHATABOOK_COLLECTION_INCENTIVE
+    )
+    incentive_earned = quantize_money(
+        total_distance_incentive + total_peak_time_bonus + khatabook_collection_incentive
+    )
+    bonus_earned = rider_high_completion_bonus(completed_delivery_count)
+    penalty_amount = Decimal('0.00')
+    final_payout = quantize_money(commission_earnings + bonus_earned + incentive_earned - penalty_amount)
+    today_completed_orders = [
+        order
+        for order in completed_orders
+        if order.delivered_at and timezone.localtime(order.delivered_at).date() == today
+    ]
+    today_khatabook_collections = [
+        collection_request
+        for collection_request in completed_khatabook_requests
+        if collection_request.completed_at and timezone.localtime(collection_request.completed_at).date() == today
+    ]
+    today_commission_earnings = quantize_money(Decimal(len(today_completed_orders)) * RIDER_COMMISSION_PER_DELIVERY)
+    today_distance_incentive = quantize_money(
+        sum((order.rider_distance_incentive for order in today_completed_orders), Decimal('0.00'))
+    )
+    today_peak_time_bonus = quantize_money(
+        sum((order.rider_peak_time_bonus for order in today_completed_orders), Decimal('0.00'))
+    )
+    today_khatabook_collection_incentive = quantize_money(
+        Decimal(len(today_khatabook_collections)) * RIDER_KHATABOOK_COLLECTION_INCENTIVE
+    )
+    today_incentive_earnings = quantize_money(
+        today_distance_incentive + today_peak_time_bonus + today_khatabook_collection_incentive
+    )
+    today_earnings = quantize_money(today_commission_earnings + today_incentive_earnings)
+    today_distance_travelled_km = sum(
+        (
+            Decimal(
+                str(
+                    kilometers_between(
+                        order.shop.latitude,
+                        order.shop.longitude,
+                        order.customer.latitude,
+                        order.customer.longitude,
+                    )
+                )
+            )
+            for order in today_completed_orders
+        ),
+        Decimal('0.0'),
+    ).quantize(Decimal('0.1'))
     average_earnings = (
-        (total_earnings / len(completed_orders)).quantize(Decimal('0.01'))
+        (final_payout / len(completed_orders)).quantize(Decimal('0.01'))
         if completed_orders
         else Decimal('0.00')
     )
@@ -3919,88 +4101,70 @@ def rider_workspace_context(request: HttpRequest) -> dict[str, Any]:
     peer_commission_by_rider: dict[int, Decimal] = defaultdict(lambda: Decimal('0.00'))
     peer_completed_count_by_rider: dict[int, int] = defaultdict(int)
     for peer_order in peer_completed_orders:
-        peer_commission_by_rider[peer_order.rider_id] += peer_order.delivery_fee
+        peer_commission_by_rider[peer_order.rider_id] += RIDER_COMMISSION_PER_DELIVERY
         peer_completed_count_by_rider[peer_order.rider_id] += 1
 
     platform_completed_order_count = len(peer_completed_orders)
-    completion_share_percent = (
-        quantize_percent((Decimal(completed_delivery_count) / Decimal(platform_completed_order_count)) * Decimal('100'))
-        if platform_completed_order_count
-        else Decimal('0.0')
-    )
-    minimum_orders_for_fixed_pay = max(1, math.ceil(platform_completed_order_count * 0.2)) if platform_completed_order_count else 1
-    completion_share_gap_percent = max(
-        Decimal('0.0'),
-        quantize_percent(RIDER_COMPLETION_SHARE_THRESHOLD - completion_share_percent),
-    )
-    completion_share_gap_orders = max(0, minimum_orders_for_fixed_pay - completed_delivery_count)
-    fixed_pay_eligible = completed_delivery_count > 0 and completion_share_percent >= RIDER_COMPLETION_SHARE_THRESHOLD
-    commission_gap_to_goal = max(Decimal('0.00'), RIDER_EARNINGS_GOAL - total_earnings)
-    fixed_pay_amount = (
-        min(RIDER_FIXED_PAY_CAP, commission_gap_to_goal)
-        if fixed_pay_eligible and total_earnings < RIDER_EARNINGS_GOAL
-        else Decimal('0.00')
-    )
-    goodwill_bonus = RIDER_GOODWILL_BONUS if total_earnings >= RIDER_EARNINGS_GOAL else Decimal('0.00')
-    net_earnings = quantize_money(total_earnings + fixed_pay_amount + goodwill_bonus)
-    fixed_income_percent = (
-        quantize_percent((fixed_pay_amount / net_earnings) * Decimal('100'))
-        if net_earnings > 0 and fixed_pay_amount > 0
-        else Decimal('0.0')
-    )
-    fixed_pay_cap_usage_percent = (
-        quantize_percent((fixed_pay_amount / RIDER_FIXED_PAY_CAP) * Decimal('100'))
-        if fixed_pay_amount > 0
-        else Decimal('0.0')
-    )
-    commission_progress_percent = quantize_percent(
-        min(Decimal('100.0'), (total_earnings / RIDER_EARNINGS_GOAL) * Decimal('100'))
-    ) if total_earnings > 0 else Decimal('0.0')
-    net_progress_percent = quantize_percent(
-        min(Decimal('100.0'), (net_earnings / RIDER_EARNINGS_GOAL) * Decimal('100'))
-    ) if net_earnings > 0 else Decimal('0.0')
-    completion_threshold_progress_percent = quantize_percent(
-        min(Decimal('100.0'), (completion_share_percent / RIDER_COMPLETION_SHARE_THRESHOLD) * Decimal('100'))
-    ) if completion_share_percent > 0 else Decimal('0.0')
-    remaining_gap_after_support = quantize_money(max(Decimal('0.00'), RIDER_EARNINGS_GOAL - net_earnings))
-    orders_needed_for_goal = (
-        math.ceil(float(commission_gap_to_goal / DEFAULT_DELIVERY_FEE))
-        if commission_gap_to_goal > 0
-        else 0
-    )
-    orders_needed_after_support = (
-        math.ceil(float(remaining_gap_after_support / DEFAULT_DELIVERY_FEE))
-        if remaining_gap_after_support > 0
-        else 0
-    )
     total_peer_commission = sum(peer_commission_by_rider.values(), Decimal('0.00'))
     peer_average_commission = quantize_money(total_peer_commission / Decimal(peer_rider_count))
     peer_average_completed_deliveries = quantize_percent(Decimal(platform_completed_order_count) / Decimal(peer_rider_count))
-    peer_commission_delta = quantize_money(total_earnings - peer_average_commission)
+    peer_commission_delta = quantize_money(commission_earnings - peer_average_commission)
     peer_completed_delta = quantize_percent(Decimal(completed_delivery_count) - peer_average_completed_deliveries)
     peer_commission_delta_abs = quantize_money(abs(peer_commission_delta))
     peer_completed_delta_abs = quantize_percent(abs(peer_completed_delta))
     rider_peer_rank = 1 + sum(
         1
         for approved_rider in approved_riders
-        if peer_commission_by_rider[approved_rider.id] > total_earnings
+        if peer_commission_by_rider[approved_rider.id] > commission_earnings
     )
-    if goodwill_bonus > 0:
-        payout_status_label = 'Bonus unlocked'
-        payout_status_detail = 'Your commission has already crossed Rs. 10,000, so the fixed pay is skipped and the goodwill bonus is added instead.'
+    if bonus_earned > 0:
+        payout_status_label = 'Performance bonus active'
+        payout_status_detail = 'Your completed-delivery volume unlocked a performance bonus on top of commission and incentives.'
         payout_status_tone = 'success'
-    elif fixed_pay_amount > 0:
-        payout_status_label = 'Fixed pay active'
-        payout_status_detail = 'You cleared the 20% completion-share gate, so GramExpress is topping up your payout within the Rs. 5,000 support cap.'
-        payout_status_tone = 'success'
-    elif fixed_pay_eligible:
-        payout_status_label = 'Commission-only zone'
-        payout_status_detail = 'You are eligible for support, but your commission is already high enough that no fixed top-up is currently needed.'
+    elif incentive_earned > 0:
+        payout_status_label = 'Incentives active'
+        payout_status_detail = 'This payout includes variable incentives from distance, peak-hour, or KhataBook recovery work.'
         payout_status_tone = 'info'
     else:
-        payout_status_label = 'Eligibility pending'
-        payout_status_detail = 'Reach the 20% completion-share mark to unlock the fixed-pay support pool.'
+        payout_status_label = 'Commission only'
+        payout_status_detail = 'This payout currently comes from completed-delivery commission only.'
         payout_status_tone = 'warn'
+    dashboard_queue = []
+    for order in available_orders:
+        dashboard_queue.append(
+            {
+                'kind': 'order',
+                'display_id': order.display_id,
+                'pickup_label': order.shop.name,
+                'pickup_detail': order.pickup_address,
+                'drop_label': order.customer.full_name,
+                'drop_detail': order.dropoff_address,
+                'distance_km': order.pickup_distance_km,
+                'distance_label': f'{order.pickup_distance_km} km away',
+                'payment_label': order.dashboard_payment_label,
+                'payment_chip': order.dashboard_payment_chip,
+                'accept_url': reverse('core:rider_accept_order', args=[order.id]),
+                'accept_label': 'Accept',
+            }
+        )
+    for collection_request in available_khatabook_requests:
+        dashboard_queue.append(
+            {
+                'kind': 'collection',
+                'display_id': collection_request.display_id,
+                'pickup_label': 'Current dispatch point',
+                'pickup_detail': 'Recovery task starts from your saved dispatch location.',
+                'drop_label': collection_request.customer.full_name,
+                'drop_detail': collection_request.collection_address,
+                'distance_km': collection_request.distance_km or Decimal('0.0'),
+                'distance_label': f'{collection_request.distance_km} km away' if collection_request.distance_km is not None else 'Nearby',
+                'payment_label': 'KhataBook',
+                'payment_chip': 'rider-payment-chip-khata',
+                'accept_url': reverse('core:rider_accept_khatabook_collection', args=[collection_request.id]),
+                'accept_label': 'Accept Collection',
+            }
+        )
+    dashboard_queue.sort(key=lambda job: (job['distance_km'], job['display_id']))
     return {
         'rider': rider,
         'available_orders': available_orders,
@@ -4012,8 +4176,14 @@ def rider_workspace_context(request: HttpRequest) -> dict[str, Any]:
         'completed_orders': completed_orders,
         'completed_khatabook_requests': completed_khatabook_requests,
         'location_form': RiderLocationForm(initial={'latitude': rider.latitude, 'longitude': rider.longitude}),
+        'google_maps_browser_api_key': getattr(settings, 'GOOGLE_MAPS_BROWSER_API_KEY', ''),
         'notifications': user_notifications(request.user),
         'dispatch_radius': dispatch_radius,
+        'today_completed_delivery_count': len(today_completed_orders),
+        'today_khatabook_collection_count': len(today_khatabook_collections),
+        'today_distance_travelled_km': today_distance_travelled_km,
+        'dashboard_queue': dashboard_queue,
+        'delivery_history': completed_orders[:6],
         'completed_delivery_count': completed_delivery_count,
         'completed_credit_delivery_count': completed_credit_delivery_count,
         'completed_direct_payment_delivery_count': completed_direct_payment_delivery_count,
@@ -4023,31 +4193,24 @@ def rider_workspace_context(request: HttpRequest) -> dict[str, Any]:
         'active_order_count': len(active_orders),
         'active_khatabook_collection_count': len(active_khatabook_requests),
         'today_earnings': today_earnings,
-        'total_earnings': total_earnings,
-        'commission_earnings': total_earnings,
+        'total_earnings': final_payout,
+        'commission_earnings': commission_earnings,
         'average_earnings': average_earnings,
-        'delivery_fee_per_order': DEFAULT_DELIVERY_FEE,
-        'earnings_goal': RIDER_EARNINGS_GOAL,
-        'fixed_pay_cap': RIDER_FIXED_PAY_CAP,
-        'fixed_pay_amount': fixed_pay_amount,
-        'goodwill_bonus': goodwill_bonus,
-        'net_earnings': net_earnings,
-        'fixed_income_percent': fixed_income_percent,
-        'fixed_pay_cap_usage_percent': fixed_pay_cap_usage_percent,
-        'commission_progress_percent': commission_progress_percent,
-        'net_progress_percent': net_progress_percent,
-        'completion_threshold_progress_percent': completion_threshold_progress_percent,
-        'commission_gap_to_goal': commission_gap_to_goal,
-        'remaining_gap_after_support': remaining_gap_after_support,
-        'orders_needed_for_goal': orders_needed_for_goal,
-        'orders_needed_after_support': orders_needed_after_support,
-        'completion_share_threshold': RIDER_COMPLETION_SHARE_THRESHOLD,
+        'delivery_fee_per_order': RIDER_COMMISSION_PER_DELIVERY,
+        'bonus_earned': bonus_earned,
+        'performance_bonus': bonus_earned,
+        'distance_incentive_earned': total_distance_incentive,
+        'peak_time_bonus_earned': total_peak_time_bonus,
+        'khatabook_collection_incentive_earned': khatabook_collection_incentive,
+        'incentive_earned': incentive_earned,
+        'penalty_amount': penalty_amount,
+        'final_payout': final_payout,
+        'today_commission_earnings': today_commission_earnings,
+        'today_distance_incentive': today_distance_incentive,
+        'today_peak_time_bonus': today_peak_time_bonus,
+        'today_khatabook_collection_incentive': today_khatabook_collection_incentive,
+        'today_incentive_earnings': today_incentive_earnings,
         'platform_completed_order_count': platform_completed_order_count,
-        'completion_share_percent': completion_share_percent,
-        'completion_share_gap_percent': completion_share_gap_percent,
-        'minimum_orders_for_fixed_pay': minimum_orders_for_fixed_pay,
-        'completion_share_gap_orders': completion_share_gap_orders,
-        'fixed_pay_eligible': fixed_pay_eligible,
         'peer_rider_count': peer_rider_count,
         'peer_average_commission': peer_average_commission,
         'peer_average_completed_deliveries': peer_average_completed_deliveries,
@@ -6476,6 +6639,67 @@ def rider_profile_view(request: HttpRequest) -> HttpResponse:
     return render(request, 'core/rider_profile.html', context)
 
 
+@require_GET
+def rider_profile_api(request: HttpRequest) -> JsonResponse:
+    if not request.user.is_authenticated or not hasattr(request.user, 'rider_profile'):
+        return JsonResponse({'error': 'Only riders can access this profile endpoint.'}, status=403)
+    return JsonResponse({'rider': rider_profile_payload(request.user.rider_profile)})
+
+
+@require_POST
+def rider_upload_photo_api(request: HttpRequest) -> JsonResponse:
+    account_type = request.POST.get('account_type') or request.GET.get('account_type')
+    if not request.user.is_authenticated and account_type != RoleType.RIDER:
+        return JsonResponse({'error': 'Only riders can upload a profile photo.'}, status=403)
+    if request.user.is_authenticated and not hasattr(request.user, 'rider_profile'):
+        return JsonResponse({'error': 'Only riders can upload a profile photo.'}, status=403)
+
+    content, extension, error_message = extract_rider_photo_upload(request)
+    if error_message:
+        return JsonResponse({'error': error_message}, status=400)
+
+    if request.user.is_authenticated and hasattr(request.user, 'rider_profile'):
+        rider = request.user.rider_profile
+        photo_url = save_rider_photo_to_profile(rider, content, extension)
+        return JsonResponse(
+            {
+                'ok': True,
+                'event': 'rider_photo_updated',
+                'photo_url': photo_url,
+                'rider': rider_profile_payload(rider),
+            }
+        )
+
+    photo_url = save_temporary_rider_photo(content, extension)
+    return JsonResponse(
+        {
+            'ok': True,
+            'photo_url': photo_url,
+        }
+    )
+
+
+@require_http_methods(['POST', 'PUT'])
+def rider_update_photo_api(request: HttpRequest) -> JsonResponse:
+    if not request.user.is_authenticated or not hasattr(request.user, 'rider_profile'):
+        return JsonResponse({'error': 'Only riders can update a profile photo.'}, status=403)
+
+    content, extension, error_message = extract_rider_photo_upload(request)
+    if error_message:
+        return JsonResponse({'error': error_message}, status=400)
+
+    rider = request.user.rider_profile
+    photo_url = save_rider_photo_to_profile(rider, content, extension)
+    return JsonResponse(
+        {
+            'ok': True,
+            'event': 'rider_photo_updated',
+            'photo_url': photo_url,
+            'rider': rider_profile_payload(rider),
+        }
+    )
+
+
 @role_required(RoleType.RIDER)
 @require_POST
 def rider_toggle_availability(request: HttpRequest) -> HttpResponse:
@@ -6561,6 +6785,12 @@ def rider_resend_customer_otp(request: HttpRequest, order_id: int) -> HttpRespon
 def rider_update_location(request: HttpRequest) -> HttpResponse:
     rider = request.role_profile
     form = RiderLocationForm(request.POST)
+    next_url = request.POST.get('next') or ''
+    redirect_target = (
+        next_url
+        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()})
+        else reverse('core:rider_profile')
+    )
     if form.is_valid():
         rider.latitude = form.cleaned_data['latitude']
         rider.longitude = form.cleaned_data['longitude']
@@ -6568,7 +6798,7 @@ def rider_update_location(request: HttpRequest) -> HttpResponse:
         messages.success(request, 'Dispatch location updated for your rider workspace.')
     else:
         messages.error(request, 'Could not update location.')
-    return redirect('core:rider_profile')
+    return redirect(redirect_target)
 
 
 @role_required(RoleType.RIDER)
