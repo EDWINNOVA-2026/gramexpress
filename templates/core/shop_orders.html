@@ -58,6 +58,29 @@
             </div>
             </div>
 
+            {% if order.rider %}
+              <div class="rider-visibility-card">
+                <div class="rider-visibility-summary">
+                  {% if order.rider.photo_source %}
+                    <img class="rider-photo-avatar" src="{{ order.rider.photo_source }}" alt="{{ order.rider.full_name }}" />
+                  {% else %}
+                    <div class="rider-avatar">{{ order.rider.full_name|first|upper }}</div>
+                  {% endif %}
+                  <div>
+                    <strong>{{ order.rider.full_name }}</strong>
+                    <p>{{ order.rider.phone }}{% if order.rider.email %} | {{ order.rider.email }}{% endif %}</p>
+                    <span class="soft-pill">{{ order.fulfillment_title }}</span>
+                  </div>
+                </div>
+                <div class="rider-visibility-actions">
+                  <a class="button small secondary" href="tel:{{ order.rider.phone }}">
+                    <span class="ui-icon icon-phone" aria-hidden="true"></span>
+                    <span>Call Rider</span>
+                  </a>
+                </div>
+              </div>
+            {% endif %}
+
             <div class="compact-list line-list">
               {% for item in order.items.all %}
                 <div class="list-item compact-item compact-item-tight">

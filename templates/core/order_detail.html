@@ -132,10 +132,31 @@
               </a>
             </div>
             {% if order.rider %}
-              <div class="compact-item content-stack">
-                <strong>Rider</strong>
-                <p>{{ order.rider.full_name }} | {{ order.rider.phone }}{% if order.rider.email %} | {{ order.rider.email }}{% endif %}</p>
-                <span class="soft-pill">{{ order.rider.get_vehicle_type_display }}</span>
+              <div class="compact-item content-stack rider-visibility-card rider-visibility-card-detail">
+                <strong>Delivery Partner</strong>
+                <div class="rider-visibility-summary">
+                  {% if order.rider.photo_source %}
+                    <img class="rider-photo-avatar" src="{{ order.rider.photo_source }}" alt="{{ order.rider.full_name }}" />
+                  {% else %}
+                    <div class="rider-avatar">{{ order.rider.full_name|first|upper }}</div>
+                  {% endif %}
+                  <div>
+                    <p>{{ order.rider.full_name }} | {{ order.rider.phone }}{% if order.rider.email %} | {{ order.rider.email }}{% endif %}</p>
+                    <span class="soft-pill">{{ order.rider.get_vehicle_type_display }}</span>
+                  </div>
+                </div>
+                {% if active_role == 'customer' %}
+                  <div class="rider-visibility-actions">
+                    <a class="button small secondary" href="tel:{{ order.rider.phone }}">
+                      <span class="ui-icon icon-phone" aria-hidden="true"></span>
+                      <span>Call Rider</span>
+                    </a>
+                    <a class="button small secondary" href="{{ customer_map_url }}" target="_blank" rel="noreferrer">
+                      <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+                      <span>Open Drop-off Pin</span>
+                    </a>
+                  </div>
+                {% endif %}
               </div>
             {% endif %}
             {% if order.status == 'out_for_delivery' and active_role == 'customer' %}
