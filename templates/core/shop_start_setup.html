@@ -73,6 +73,13 @@
               {% for error in form.district.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
             </div>
             <div class="auth-field">
+              <label for="{{ form.state.id_for_label }}">State</label>
+              {{ form.state }}
+              {% for error in form.state.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            </div>
+          </div>
+          <div class="auth-grid-two">
+            <div class="auth-field">
               <label for="{{ form.pincode.id_for_label }}">Pincode</label>
               {{ form.pincode }}
               {% for error in form.pincode.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
@@ -80,27 +87,62 @@
           </div>
         </section>
 
-        <section class="auth-role-section auth-role-section-location">
+        <section class="auth-role-section auth-role-section-location" data-store-registration-location-editor>
           <div class="auth-location-card">
             <div>
-              <strong>Current location</strong>
-              <p>Capture the store coordinates before saving the setup.</p>
+              <strong>Store location pin</strong>
+              <p>Capture GPS, then drag the pin to the exact pickup point before saving the setup.</p>
             </div>
-            <button class="auth-link-button" type="button" data-location-trigger>Use Current Location</button>
-          </div>
-          <div class="auth-grid-two">
-            <div class="auth-field">
-              <label for="{{ form.latitude.id_for_label }}">Latitude</label>
-              {{ form.latitude }}
-              {% for error in form.latitude.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
-            </div>
-            <div class="auth-field">
-              <label for="{{ form.longitude.id_for_label }}">Longitude</label>
-              {{ form.longitude }}
-              {% for error in form.longitude.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            <div class="shop-settings-location-toolbar">
+              <button class="button shop-location-button-blue" type="button" data-store-location-current>Use Current Location</button>
+              <button class="button secondary" type="button" data-store-location-pick>Pick On Map</button>
+              <button class="button primary" type="button" data-store-location-confirm>Confirm Location</button>
             </div>
           </div>
-          <small class="field-help" data-location-status>Location coordinates will stay here after capture.</small>
+
+          <div class="hidden">
+            {{ form.latitude }}
+            {{ form.longitude }}
+          </div>
+
+          <div class="shop-settings-location-status-row">
+            <span class="soft-pill">
+              <span class="ui-icon icon-map-pin" aria-hidden="true"></span>
+              <span data-store-location-coordinates>{{ form.latitude.value|default:'12.915300' }}, {{ form.longitude.value|default:'76.643800' }}</span>
+            </span>
+            <span class="soft-pill" data-store-location-accuracy-badge>Accuracy: Awaiting location</span>
+            <span class="tiny muted" data-store-location-status>
+              {% if google_maps_browser_api_key %}
+                Use current location or move the map pin to the exact shop entrance.
+              {% else %}
+                Add a Google Maps browser key to enable the live map pin editor.
+              {% endif %}
+            </span>
+          </div>
+
+          <div class="shop-settings-map-shell">
+            <div class="shop-settings-map-search">
+              <label for="shop-start-location-search">Search place</label>
+              <input
+                id="shop-start-location-search"
+                class="input"
+                type="text"
+                placeholder="Search shop, road, landmark, or area"
+                {% if not google_maps_browser_api_key %}disabled{% endif %}
+                data-store-location-search
+              />
+            </div>
+
+            <div class="shop-settings-map-canvas" data-store-location-map>
+              <div class="shop-settings-map-fallback">
+                <strong>Map loading</strong>
+                <p>Use the pin to place the exact pickup point for riders.</p>
+              </div>
+            </div>
+          </div>
+
+          {% for error in form.latitude.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+          {% for error in form.longitude.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
         </section>
 
         <section class="auth-role-section">
@@ -136,4 +178,275 @@
       </form>
     </article>
   </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (function () {
+      var editor = document.querySelector('[data-store-registration-location-editor]');
+      if (!editor) {
+        return;
+      }
+
+      var form = editor.closest('form');
+      var latInput = form && form.querySelector('[name="latitude"]');
+      var lngInput = form && form.querySelector('[name="longitude"]');
+      var addressLine1Input = form && form.querySelector('[name="address_line_1"]');
+      var addressLine2Input = form && form.querySelector('[name="address_line_2"]');
+      var areaInput = form && form.querySelector('[name="area"]');
+      var districtInput = form && form.querySelector('[name="district"]');
+      var stateInput = form && form.querySelector('[name="state"]');
+      var pincodeInput = form && form.querySelector('[name="pincode"]');
+      var coordinateText = editor.querySelector('[data-store-location-coordinates]');
+      var accuracyBadge = editor.querySelector('[data-store-location-accuracy-badge]');
+      var statusText = editor.querySelector('[data-store-location-status]');
+      var mapCanvas = editor.querySelector('[data-store-location-map]');
+      var searchInput = editor.querySelector('[data-store-location-search]');
+      var currentButton = editor.querySelector('[data-store-location-current]');
+      var pickButton = editor.querySelector('[data-store-location-pick]');
+      var confirmButton = editor.querySelector('[data-store-location-confirm]');
+      var mapsKey = '{{ google_maps_browser_api_key|escapejs }}';
+      var map;
+      var marker;
+      var circle;
+      var searchBox;
+
+      function toNumber(value, fallback) {
+        var parsed = parseFloat(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+      }
+
+      function setStatus(message) {
+        if (statusText) {
+          statusText.textContent = message;
+        }
+      }
+
+      function setAccuracyLabel(accuracyMeters) {
+        if (!accuracyBadge) {
+          return;
+        }
+        if (!accuracyMeters) {
+          accuracyBadge.textContent = 'Accuracy: Awaiting location';
+        } else if (accuracyMeters <= 20) {
+          accuracyBadge.textContent = 'Accuracy: High';
+        } else if (accuracyMeters <= 60) {
+          accuracyBadge.textContent = 'Accuracy: Medium';
+        } else {
+          accuracyBadge.textContent = 'Accuracy: Low';
+        }
+      }
+
+      function setCoordinates(lat, lng) {
+        if (latInput) {
+          latInput.value = Number(lat).toFixed(6);
+        }
+        if (lngInput) {
+          lngInput.value = Number(lng).toFixed(6);
+        }
+        if (coordinateText) {
+          coordinateText.textContent = Number(lat).toFixed(6) + ', ' + Number(lng).toFixed(6);
+        }
+      }
+
+      function fillIfPresent(input, value) {
+        if (!input || !value) {
+          return;
+        }
+        input.value = value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      function syncMarker(lat, lng) {
+        if (!map || !marker) {
+          return;
+        }
+        var position = { lat: Number(lat), lng: Number(lng) };
+        marker.setPosition(position);
+        map.panTo(position);
+        if (circle) {
+          circle.setCenter(position);
+        }
+      }
+
+      function autofillAddress(lat, lng, message) {
+        fetch("{% url 'core:reverse_geocode_location_api' %}?latitude=" + encodeURIComponent(lat) + "&longitude=" + encodeURIComponent(lng), {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+          .then(function (response) {
+            if (!response.ok) {
+              throw new Error('lookup_failed');
+            }
+            return response.json();
+          })
+          .then(function (details) {
+            fillIfPresent(addressLine1Input, details.address_line_1);
+            if (addressLine2Input && !addressLine2Input.value && details.locality) {
+              fillIfPresent(addressLine2Input, details.locality);
+            }
+            fillIfPresent(areaInput, details.locality || details.city || details.district);
+            fillIfPresent(districtInput, details.district);
+            fillIfPresent(stateInput, details.state);
+            fillIfPresent(pincodeInput, details.pincode);
+            setStatus(message || 'Address fields auto-filled. You can still edit them manually.');
+          })
+          .catch(function () {
+            setStatus('Address lookup failed. Move the pin if needed and complete the address manually.');
+          });
+      }
+
+      function confirmLocation() {
+        if (!latInput || !lngInput || !latInput.value || !lngInput.value) {
+          setStatus('Set a location first using GPS or the map pin.');
+          return;
+        }
+        if (confirmButton) {
+          confirmButton.disabled = true;
+          confirmButton.classList.add('is-loading');
+        }
+        setStatus('Confirming location...');
+        window.setTimeout(function () {
+          setStatus('Location confirmed. Save the setup after checking the address.');
+          if (confirmButton) {
+            confirmButton.disabled = false;
+            confirmButton.classList.remove('is-loading');
+          }
+        }, 850);
+      }
+
+      function loadMap() {
+        if (!(window.google && google.maps && mapCanvas)) {
+          return;
+        }
+        var initialPosition = {
+          lat: toNumber(latInput && latInput.value, 12.915300),
+          lng: toNumber(lngInput && lngInput.value, 76.643800),
+        };
+        map = new google.maps.Map(mapCanvas, {
+          center: initialPosition,
+          zoom: 17,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+        });
+        marker = new google.maps.Marker({
+          position: initialPosition,
+          map: map,
+          draggable: true,
+          title: 'Store location',
+        });
+        circle = new google.maps.Circle({
+          map: map,
+          center: initialPosition,
+          radius: 120,
+          strokeColor: '#0B5FFF',
+          strokeOpacity: 0.35,
+          strokeWeight: 1,
+          fillColor: '#0B5FFF',
+          fillOpacity: 0.08,
+        });
+
+        if (searchInput) {
+          searchBox = new google.maps.places.SearchBox(searchInput);
+          map.addListener('bounds_changed', function () {
+            searchBox.setBounds(map.getBounds());
+          });
+          searchBox.addListener('places_changed', function () {
+            var places = searchBox.getPlaces() || [];
+            var place = places[0];
+            if (!place || !place.geometry || !place.geometry.location) {
+              return;
+            }
+            var lat = place.geometry.location.lat();
+            var lng = place.geometry.location.lng();
+            setCoordinates(lat, lng);
+            syncMarker(lat, lng);
+            autofillAddress(lat, lng, 'Place selected. Drag the pin if the entrance needs a more exact pickup point.');
+          });
+        }
+
+        marker.addListener('dragend', function (event) {
+          var lat = event.latLng.lat();
+          var lng = event.latLng.lng();
+          setCoordinates(lat, lng);
+          setAccuracyLabel(80);
+          if (circle) {
+            circle.setCenter({ lat: lat, lng: lng });
+          }
+          autofillAddress(lat, lng, 'Pin moved. Confirm the location when the marker matches the exact entrance.');
+        });
+
+        map.addListener('click', function (event) {
+          var lat = event.latLng.lat();
+          var lng = event.latLng.lng();
+          setCoordinates(lat, lng);
+          syncMarker(lat, lng);
+          setAccuracyLabel(80);
+          autofillAddress(lat, lng, 'Map point selected. Drag further if you want the exact entrance.');
+        });
+
+        setStatus('Map ready. Search a place or drag the pin to the store entrance.');
+      }
+
+      function loadMapsScript() {
+        if (!mapsKey || document.getElementById('shop-start-maps-script')) {
+          return;
+        }
+        window.initShopStartMap = loadMap;
+        var script = document.createElement('script');
+        script.id = 'shop-start-maps-script';
+        script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(mapsKey) + '&libraries=places&callback=initShopStartMap';
+        script.async = true;
+        script.defer = true;
+        document.body.appendChild(script);
+      }
+
+      if (currentButton) {
+        currentButton.addEventListener('click', function () {
+          if (!navigator.geolocation) {
+            setStatus('Enable location or place the pin manually on the map.');
+            return;
+          }
+          currentButton.disabled = true;
+          setStatus('Requesting browser location permission...');
+          navigator.geolocation.getCurrentPosition(
+            function (position) {
+              var lat = position.coords.latitude;
+              var lng = position.coords.longitude;
+              setCoordinates(lat, lng);
+              setAccuracyLabel(position.coords.accuracy);
+              syncMarker(lat, lng);
+              autofillAddress(lat, lng, position.coords.accuracy > 60
+                ? 'GPS looks imprecise. Move the pin to the exact store entrance.'
+                : 'GPS captured. Drag the pin if the entrance needs adjustment.');
+              currentButton.disabled = false;
+            },
+            function () {
+              currentButton.disabled = false;
+              setStatus('Enable location or place the pin manually on the map.');
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          );
+        });
+      }
+
+      if (pickButton) {
+        pickButton.addEventListener('click', function () {
+          if (mapCanvas) {
+            mapCanvas.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        });
+      }
+
+      if (confirmButton) {
+        confirmButton.addEventListener('click', confirmLocation);
+      }
+
+      setCoordinates(
+        toNumber(latInput && latInput.value, 12.915300),
+        toNumber(lngInput && lngInput.value, 76.643800)
+      );
+      loadMapsScript();
+    }());
+  </script>
 {% endblock %}
