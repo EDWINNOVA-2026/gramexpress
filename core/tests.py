@@ -1983,3 +1983,27 @@ class CoreFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'shop-dashboard-panel-wide')
         self.assertContains(response, 'shop-dashboard-notification-grid')
+
+    def test_shop_dashboard_renders_requested_management_sections(self):
+        self.client.force_login(self.shop_user)
+
+        response = self.client.get(reverse('core:shop_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Store Status &amp; Setup Progress')
+        self.assertContains(response, 'Quick Actions')
+        self.assertContains(response, "Today's Summary")
+        self.assertContains(response, 'Business Overview')
+        self.assertContains(response, 'What Needs Attention')
+        self.assertContains(response, 'KhataBook / Credit Dashboard')
+        self.assertContains(response, 'Storefront Details')
+        self.assertContains(response, 'Share Store Link')
+
+    def test_shop_dashboard_exposes_store_share_link_for_signed_in_customers(self):
+        self.client.force_login(self.shop_user)
+
+        response = self.client.get(reverse('core:shop_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse('core:customer_store_detail', args=[self.shop.slug]))
+        self.assertContains(response, 'Copy Store Link')
