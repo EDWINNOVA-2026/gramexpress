@@ -66,5 +66,8 @@ email and SMS OTPs will stay in local/demo mode.
 
 ## Supporting docs
 
+- PythonAnywhere deployment: `PYTHONANYWHERE_DEPLOYMENT.md`
 - setup notes: `THIRD_PARTY_SETUP.txt`
+- Google auth setup: `GOOGLE_AUTH_SETUP.md`
+- Razorpay setup: `RAZORPAY_SETUP.md`
 - implementation plan: `implementation.md`
