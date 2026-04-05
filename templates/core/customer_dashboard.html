@@ -18,9 +18,9 @@
         </span>
       </div>
 
-      <form method="get" class="customer-home-search">
-        <span class="customer-home-search-icon"><span class="ui-icon icon-search" aria-hidden="true"></span></span>
-        <input id="store-search" class="input customer-home-search-input" type="search" name="q" value="{{ shop_query }}" placeholder="Search for stores or products" />
+      <form method="get" class="customer-home-search w-full relative">
+        <span class="customer-home-search-icon absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><span class="ui-icon icon-search" aria-hidden="true"></span></span>
+        <input id="store-search" class="input customer-home-search-input rounded-full pl-12 h-12 shadow-[0_2px_12px_rgba(0,0,0,0.06)]" type="search" name="q" value="{{ shop_query }}" placeholder="Search groceries, stores..." />
       </form>
 
       <div class="customer-home-filters" aria-label="Quick filters">
@@ -37,11 +37,14 @@
         <h1>Find stores near you</h1>
         <p>Enable your current location to browse nearby grocery stores with clearer delivery options.</p>
         {% if has_live_location %}
-          <div class="customer-home-location-active">
-            <strong>{{ location_heading }}</strong>
-            {% if location_subtitle %}
-              <span>{{ location_subtitle }}</span>
-            {% endif %}
+          <div class="customer-home-location-active bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-4">
+            <span class="text-emerald-600 bg-emerald-100 p-2 rounded-full mt-1"><span class="ui-icon icon-map-pinned"></span></span>
+            <div>
+              <strong class="text-emerald-900 block text-base">{{ location_heading }}</strong>
+              {% if location_subtitle %}
+                <span class="text-emerald-700 text-sm mt-1 block">{{ location_subtitle }}</span>
+              {% endif %}
+            </div>
           </div>
         {% endif %}
       </div>
@@ -65,13 +68,14 @@
       </div>
     </section>
 
-    <section class="customer-home-section card" data-appear>
-      <div class="customer-home-section-head">
+    <section class="customer-home-section card overflow-hidden relative border-orange-200 bg-gradient-to-br from-orange-50/80 to-amber-100/60" data-appear>
+      <div class="absolute -right-10 -top-10 opacity-20 text-9xl pointer-events-none" aria-hidden="true">₹</div>
+      <div class="customer-home-section-head relative z-10">
         <div>
-          <span class="eyebrow">KhataBook</span>
-          <h2 class="section-title">7-day credit for local orders</h2>
+          <span class="eyebrow flex items-center gap-2"><span class="ui-icon icon-wallet"></span> KhataBook</span>
+          <h2 class="section-title text-orange-950"><strong>7-day credit</strong> for local orders</h2>
         </div>
-        <span class="status-chip {{ khatabook_summary.badge_class }}">{{ khatabook_summary.status_label }}</span>
+        <span class="status-chip {{ khatabook_summary.badge_class }} flex-shrink-0">{{ khatabook_summary.status_label }}</span>
       </div>
       <div class="summary-grid">
         <div class="focus-card content-stack">
@@ -166,15 +170,15 @@
               </div>
             </a>
           {% empty %}
-            <div class="customer-home-empty">
-              <div class="customer-home-empty-icon" aria-hidden="true"><span class="ui-icon icon-map-pinned"></span></div>
-              <strong>No stores found nearby</strong>
-              <p>Try fetching your location again, clearing the search, or moving closer to an approved store area.</p>
-              <form method="post" action="{% url 'core:customer_update_location' %}" class="inline-actions customer-home-empty-actions" data-location-autosubmit data-location-scope>
+            <div class="customer-home-empty col-span-1 border-2 border-dashed border-slate-200 rounded-2xl p-10 flex flex-col items-center text-center bg-slate-50/50">
+              <div class="text-5xl mb-4" aria-hidden="true">🛒🤷‍♂️</div>
+              <strong class="text-lg text-slate-800">Oops, we couldn't find any stores nearby</strong>
+              <p class="text-slate-500 mt-2 max-w-sm mx-auto">Try refreshing your location or moving to an approved store area to see fresh groceries delivered in minutes.</p>
+              <form method="post" action="{% url 'core:customer_update_location' %}" class="mt-6 w-full max-w-xs" data-location-autosubmit data-location-scope>
                 {% csrf_token %}
                 <input type="hidden" name="latitude" value="{{ customer.latitude }}" />
                 <input type="hidden" name="longitude" value="{{ customer.longitude }}" />
-                <button class="button primary" type="button" data-location-trigger>
+                <button class="button primary w-full text-base py-3" type="button" data-location-trigger>
                   <span class="ui-icon icon-refresh-cw" aria-hidden="true"></span>
                   <span>Refresh Location</span>
                 </button>

@@ -2,42 +2,49 @@
 
 {% block content %}
   <section class="dashboard-top" id="top">
-    <article class="hero-card glass-card hero-card-customer" data-appear>
-      <span class="eyebrow">Cart</span>
-      <h1>Your Harvest Cart</h1>
-      <p class="hero-lead">Grouped store checkout, cleaner payment selection, and a focused cart page instead of a sidebar section.</p>
-      <div class="hero-inline-facts">
-        <span class="soft-pill"><span class="ui-icon icon-shopping-cart" aria-hidden="true"></span><span>{{ cart.item_count }} item{{ cart.item_count|pluralize }}</span></span>
-        <span class="soft-pill"><span class="ui-icon icon-store" aria-hidden="true"></span><span>{{ cart.groups|length }} store{{ cart.groups|length|pluralize }}</span></span>
-        {% if razorpay_enabled %}
-          <span class="status-chip success"><span class="ui-icon icon-credit-card" aria-hidden="true"></span><span>Razorpay ready</span></span>
-        {% else %}
-          <span class="status-chip warn"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>COD only until Razorpay keys are configured</span></span>
-        {% endif %}
-      </div>
-    </article>
-    <aside class="stack" data-appear>
-      <article class="metric-card">
-        <span class="metric-label">Subtotal</span>
-        <strong class="metric-value">Rs. {{ cart.subtotal }}</strong>
-        <p>{{ cart.groups|length }} store{{ cart.groups|length|pluralize }} grouped for checkout.</p>
+    <div class="flex flex-col gap-6">
+      <article class="hero-card glass-card hero-card-customer" data-appear>
+        <span class="eyebrow text-emerald-600 font-semibold tracking-wider">Cart</span>
+        <h1 class="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight">Your Harvest Cart</h1>
+        <p class="hero-lead text-slate-500">Grouped store checkout, cleaner payment selection, and a focused cart page instead of a sidebar section.</p>
+        <div class="hero-inline-facts">
+          <span class="soft-pill"><span class="ui-icon icon-shopping-cart" aria-hidden="true"></span><span>{{ cart.item_count }} item{{ cart.item_count|pluralize }}</span></span>
+          <span class="soft-pill"><span class="ui-icon icon-store" aria-hidden="true"></span><span>{{ cart.groups|length }} store{{ cart.groups|length|pluralize }}</span></span>
+          {% if razorpay_enabled %}
+            <span class="status-chip success"><span class="ui-icon icon-credit-card" aria-hidden="true"></span><span>Razorpay ready</span></span>
+          {% else %}
+            <span class="status-chip warn"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>COD only until Razorpay keys are configured</span></span>
+          {% endif %}
+        </div>
       </article>
-      <article class="card quick-card">
-        <span class="eyebrow">Checkout Status</span>
-        <h2 class="section-title">{% if cart.has_blocking_issues %}Needs review{% else %}Ready for review{% endif %}</h2>
-        <p>{% if cart.has_blocking_issues %}Fix the flagged stock or store issues below before continuing.{% else %}Your grouped cart is ready for payment and delivery notes.{% endif %}</p>
-      </article>
-      <article class="card quick-card">
-        <span class="eyebrow">KhataBook</span>
-        <h2 class="section-title">{{ khatabook_summary.status_label }}</h2>
-        <p>{{ khatabook_summary.headline }}</p>
-        <a class="button small secondary" href="{% url 'core:customer_khatabook' %}">Open KhataBook</a>
-      </article>
-    </aside>
-  </section>
 
-  <section class="layout-two" id="workspace">
-    <div class="stack">
+      <!-- Quick Actions + Insights Bar -->
+      <article class="card bg-gradient-to-r from-slate-50 to-slate-100/80 border border-slate-200 p-8 rounded-2xl shadow-[0_6px_20px_rgba(0,0,0,0.04)] hover:shadow-lg transition-transform hover:-translate-y-1 hover:scale-[1.01] duration-300" data-appear>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 divide-y md:divide-y-0 md:divide-x divide-slate-200/80">
+          <!-- Section 1 -->
+          <div class="flex flex-col items-center text-center px-4">
+            <span class="text-emerald-600 bg-emerald-100/60 p-4 rounded-full mb-4 shadow-[inset_0_2px_4px_rgba(255,255,255,0.5)]"><span class="ui-icon icon-shopping-cart text-2xl" aria-hidden="true"></span></span>
+            <strong class="text-slate-800 text-lg font-bold">Continue Shopping</strong>
+            <p class="text-slate-500 text-sm mb-5">Browse stores and add items</p>
+            <a href="{% url 'core:customer_dashboard' %}" class="button primary !px-8 !py-3 rounded-xl !text-sm mt-auto shadow-sm">Browse Stores</a>
+          </div>
+          <!-- Section 2 -->
+          <div class="flex flex-col items-center text-center px-4">
+            <span class="text-sky-600 bg-sky-100/60 p-4 rounded-full mb-4 shadow-[inset_0_2px_4px_rgba(255,255,255,0.5)]"><span class="ui-icon icon-bar-chart-2 text-2xl" aria-hidden="true"></span></span>
+            <strong class="text-slate-800 text-lg font-bold">Cart Insights</strong>
+            <p class="text-slate-500 text-sm mb-5">{{ cart.item_count }} item{{ cart.item_count|pluralize }} &bull; {{ cart.groups|length }} store{{ cart.groups|length|pluralize }}</p>
+            <div class="mt-auto px-6 py-3 bg-white/60 border border-slate-200/60 rounded-xl text-slate-600 text-sm w-full font-semibold shadow-inner">Rs. {{ cart.subtotal }} Subtotal</div>
+          </div>
+          <!-- Section 3 -->
+          <div class="flex flex-col items-center text-center px-4">
+            <span class="text-amber-500 bg-amber-100/60 p-4 rounded-full mb-4 shadow-[inset_0_2px_4px_rgba(255,255,255,0.5)]"><span class="ui-icon icon-star text-2xl" aria-hidden="true"></span></span>
+            <strong class="text-slate-800 text-lg font-bold">Recommendations</strong>
+            <p class="text-slate-500 text-sm mb-5">Popular items near you</p>
+            <button type="button" class="button secondary !px-8 !py-3 rounded-xl !text-sm mt-auto shadow-sm">Explore</button>
+          </div>
+        </div>
+      </article>
+      <!-- Left column continues seamlessly into cart items -->
       <article class="card" data-appear>
         <div class="split-row">
           <div>
@@ -112,12 +119,11 @@
             {% endfor %}
           </div>
         {% else %}
-          <div class="empty-card">
-            <span class="eyebrow">Start shopping</span>
-            <h2 class="section-title">Your cart is empty</h2>
-            <p>Add a few products from the home page to unlock checkout.</p>
-            <a class="button primary" href="{% url 'core:customer_dashboard' %}">
-              <span class="ui-icon icon-store" aria-hidden="true"></span>
+          <div class="empty-card flex flex-col justify-center items-center text-center bg-slate-50/80 border-2 border-dashed border-slate-200 rounded-3xl min-h-[400px] p-10">
+            <div class="text-7xl mb-6 relative">🛒<span class="absolute -bottom-2 -right-2 text-4xl">😕</span></div>
+            <strong class="text-2xl text-slate-800 font-bold tracking-tight">Your cart is empty</strong>
+            <p class="text-slate-500 mt-3 max-w-md mx-auto mb-8 text-base">Looks like you haven't added any groceries yet. Let's fix that!</p>
+            <a class="button primary px-8 py-4 rounded-xl text-lg shadow-soft hover:-translate-y-1 transition-all" href="{% url 'core:customer_dashboard' %}">
               <span>Browse Stores</span>
             </a>
           </div>
@@ -125,7 +131,26 @@
       </article>
     </div>
 
-    <div class="stack">
+    <!-- Responsive wrapper for Sidebar cards: stacks on desktop, tiles on tablet/mobile -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-col gap-6">
+      <!-- Restored Sidebar brought down naturally into Right Column -->
+      <article class="metric-card border border-l-4 border-l-emerald-500 bg-gradient-to-br from-white to-slate-50 relative overflow-hidden" data-appear>
+        <div class="absolute right-[-20%] top-[-10%] opacity-5 text-9xl pointer-events-none" aria-hidden="true">₹</div>
+        <span class="metric-label font-medium text-slate-500">Subtotal</span>
+        <strong class="metric-value text-emerald-600 block mt-1 font-bold">Rs. {{ cart.subtotal }}</strong>
+        <p class="text-slate-500 mt-2">{{ cart.groups|length }} store{{ cart.groups|length|pluralize }} grouped for checkout.</p>
+      </article>
+      <article class="card quick-card" data-appear>
+        <span class="eyebrow">Checkout Status</span>
+        <h2 class="section-title">{% if cart.has_blocking_issues %}Needs review{% else %}Ready for review{% endif %}</h2>
+        <p>{% if cart.has_blocking_issues %}Fix the flagged stock or store issues below before continuing.{% else %}Your grouped cart is ready for payment and delivery notes.{% endif %}</p>
+      </article>
+      <article class="card quick-card bg-gradient-to-br from-emerald-50/80 to-teal-50/60 border border-emerald-100" data-appear>
+        <span class="eyebrow flex items-center gap-2"><span class="ui-icon icon-wallet"></span> KhataBook</span>
+        <h2 class="section-title text-emerald-900 font-bold">{{ khatabook_summary.status_label }}</h2>
+        <p class="text-emerald-700">{{ khatabook_summary.headline }}</p>
+        <a class="button small secondary" href="{% url 'core:customer_khatabook' %}">Open KhataBook</a>
+      </article>
       <article class="card" data-appear>
         <span class="eyebrow">Checkout</span>
         <h2 class="section-title">Payment and notes</h2>
@@ -185,10 +210,10 @@
       </article>
 
       <article class="card" data-appear>
-        <span class="eyebrow">Delivery Address</span>
-        <h2 class="section-title">{{ customer.full_name }}</h2>
-        <p>{{ customer.address_line_1 }}{% if customer.address_line_2 %}, {{ customer.address_line_2 }}{% endif %}, {{ customer.district }} {{ customer.pincode }}</p>
-        <a class="button secondary" href="{% url 'core:customer_profile' %}">
+        <span class="eyebrow flex items-center gap-2"><span class="ui-icon icon-map-pin"></span> Delivery Address</span>
+        <h2 class="section-title font-bold text-slate-900 mt-2">{{ customer.full_name }}</h2>
+        <p class="text-slate-600 my-4 bg-slate-50 p-4 rounded-lg border border-slate-100">{{ customer.address_line_1 }}{% if customer.address_line_2 %}, {{ customer.address_line_2 }}{% endif %}, {{ customer.district }} {{ customer.pincode }}</p>
+        <a class="button secondary w-full !justify-center" href="{% url 'core:customer_profile' %}">
           <span class="ui-icon icon-square-pen" aria-hidden="true"></span>
           <span>Edit Profile</span>
         </a>
