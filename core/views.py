@@ -56,7 +56,10 @@ from .models import (
     CodCollectionMode,
     CheckoutSession,
     CustomerProfile,
+    DEFAULT_DELIVERY_SLOT,
     DEFAULT_DELIVERY_FEE,
+    DELIVERY_SLOT_RULES,
+    DeliverySlot,
     EmailOtpToken,
     KhataBookCollectionRequest,
     KhataBookCollectionStatus,
@@ -78,6 +81,9 @@ from .models import (
     SettlementStatus,
     Shop,
     ShopOwnerProfile,
+    delivery_slot_deadline_from,
+    delivery_slot_fee,
+    delivery_slot_rule,
 )
 
 CART_SESSION_KEY = 'customer_cart'
@@ -743,6 +749,7 @@ RIDER_PHOTO_EXTENSIONS = {
     'image/png': 'png',
     'image/webp': 'webp',
 }
+RIDER_LIVE_CAPTURE_SOURCE = 'front_selfie_live'
 
 
 def rider_profile_payload(rider: RiderProfile) -> dict[str, Any]:
@@ -762,6 +769,32 @@ def rider_profile_payload(rider: RiderProfile) -> dict[str, Any]:
 
 def rider_photo_extension_for_content_type(content_type: str) -> str | None:
     return RIDER_PHOTO_EXTENSIONS.get((content_type or '').lower())
+
+
+def extract_rider_capture_context(request: HttpRequest) -> tuple[str, str]:
+    if request.content_type and request.content_type.startswith('application/json') and request.body:
+        try:
+            payload = json.loads(request.body.decode('utf-8'))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return '', ''
+        return (
+            str(payload.get('capture_source', '')).strip(),
+            str(payload.get('camera_facing', '')).strip().lower(),
+        )
+
+    return (
+        (request.POST.get('capture_source') or request.GET.get('capture_source') or '').strip(),
+        (request.POST.get('camera_facing') or request.GET.get('camera_facing') or '').strip().lower(),
+    )
+
+
+def validate_live_rider_capture(request: HttpRequest) -> str | None:
+    capture_source, camera_facing = extract_rider_capture_context(request)
+    if capture_source != RIDER_LIVE_CAPTURE_SOURCE:
+        return 'Take a live selfie with the front camera to continue.'
+    if camera_facing and camera_facing != 'user':
+        return 'Only front-camera selfies are allowed.'
+    return None
 
 
 def save_temporary_rider_photo(content: bytes, extension: str) -> str:
@@ -1454,6 +1487,21 @@ def build_order_flow_steps(order: Order) -> list[dict[str, Any]]:
 def enrich_order_progress(order: Order) -> Order:
     order.flow_steps = build_order_flow_steps(order)
     order.milestone_timestamps = build_order_milestone_timestamps(order)
+    slot_meta = order.delivery_slot_config
+    order.delivery_slot_name = slot_meta['name']
+    order.delivery_slot_time_label = slot_meta['time_label']
+    order.delivery_slot_tag = slot_meta['tag']
+    order.delivery_slot_chip = delivery_slot_chip_class(order.delivery_slot)
+    deadline_state = delivery_deadline_state(
+        order.delivery_deadline,
+        reference_time=timezone.now(),
+        window_start=order.created_at,
+    )
+    order.time_remaining = deadline_state['time_remaining']
+    order.time_remaining_label = deadline_state['time_remaining_label']
+    order.deadline_chip = deadline_state['deadline_chip']
+    order.is_deadline_overdue = deadline_state['is_overdue']
+    order.deadline_label = timezone.localtime(order.delivery_deadline).strftime('%b %d, %H:%M') if order.delivery_deadline else 'Pending'
     order.customer_otp_masked = f'••••{order.customer_otp[-2:]}' if order.customer_otp else 'Unavailable'
     order.customer_otp_valid_until = delivery_otp_valid_until(order) if order.status == OrderStatus.OUT_FOR_DELIVERY else None
     order.customer_otp_expired = delivery_otp_is_expired(order) if order.status == OrderStatus.OUT_FOR_DELIVERY else False
@@ -1481,22 +1529,22 @@ def enrich_order_progress(order: Order) -> Order:
     order.last_update_timestamp_label = timezone.localtime(order.last_update_at).strftime('%b %d, %H:%M')
     if order.status == OrderStatus.DELIVERED:
         order.flow_headline = 'Delivered to customer'
-        order.flow_detail = 'The final handoff is complete and both customer and store have been updated.'
+        order.flow_detail = f'The final handoff is complete and the {order.delivery_slot_name.lower()} order is closed.'
         order.support_prompt = 'Need help after delivery?'
         order.support_copy = 'Use support for billing issues, missing items, or post-delivery help.'
     elif order.status == OrderStatus.OUT_FOR_DELIVERY:
         order.flow_headline = 'Picked up and on the way'
-        order.flow_detail = 'The rider confirmed pickup at the store and is now heading to the customer.'
+        order.flow_detail = f'The rider confirmed pickup and is working toward the {order.delivery_slot_name.lower()} deadline.'
         order.support_prompt = 'Need delivery help?'
         order.support_copy = 'Use support if the rider cannot reach you, the OTP expired, or delivery feels delayed.'
     elif order.rider_id:
         order.flow_headline = 'Rider accepted and heading to pickup'
-        order.flow_detail = 'The next app action is confirming arrival at the store.'
+        order.flow_detail = f'The next app action is confirming arrival at the store before the {order.delivery_slot_name.lower()} window closes.'
         order.support_prompt = 'Need dispatch help?'
         order.support_copy = 'Use support if the order should be reassigned or the rider cannot reach the store.'
     else:
         order.flow_headline = 'Waiting for rider acceptance'
-        order.flow_detail = 'A nearby rider still needs to claim this delivery.'
+        order.flow_detail = f'A nearby rider still needs to claim this {order.delivery_slot_name.lower()} delivery.'
         order.support_prompt = 'Need order help?'
         order.support_copy = 'Use support for address issues, store delays, or payment questions.'
     order.payment_reference_display = order_payment_reference(order)
@@ -1620,6 +1668,37 @@ def enrich_rider_order(order: Order, rider: RiderProfile) -> Order:
     return order
 
 
+def order_slot_sort_key(order: Order) -> tuple[Any, ...]:
+    return (
+        getattr(order, 'slot_priority', order.delivery_slot_config.get('priority_level', 99)),
+        order.delivery_deadline or timezone.now() + timedelta(days=365),
+        Decimal(str(getattr(order, 'delivery_distance_km', order.distance_km or Decimal('0.00')))),
+        order.id,
+    )
+
+
+def build_order_slot_sections(orders: list[Order]) -> list[dict[str, Any]]:
+    sections = []
+    for slot_code, _ in DeliverySlot.choices:
+        config = delivery_slot_config(slot_code)
+        slot_orders = sorted(
+            [order for order in orders if normalize_delivery_slot(order.delivery_slot) == slot_code],
+            key=order_slot_sort_key,
+        )
+        sections.append(
+            {
+                'code': slot_code,
+                'label': config['name'],
+                'time_label': config['time_label'],
+                'description': config['description'],
+                'tag': config['tag'],
+                'chip': delivery_slot_chip_class(slot_code),
+                'orders': slot_orders,
+            }
+        )
+    return sections
+
+
 def role_required(role: str):
     def decorator(view_func):
         @login_required
@@ -1646,8 +1725,10 @@ def save_cart(request: HttpRequest, cart: dict[str, int]) -> None:
     request.session.modified = True
 
 
-def build_cart_context(request: HttpRequest):
+def build_cart_context(request: HttpRequest, *, delivery_slot: str | None = None):
     cart = cart_from_session(request)
+    selected_slot = normalize_delivery_slot(delivery_slot or DEFAULT_DELIVERY_SLOT)
+    selected_delivery_fee = delivery_slot_fee(selected_slot)
     product_ids = [int(product_id) for product_id in cart.keys()]
     products = Product.objects.filter(pk__in=product_ids).select_related('shop')
     product_map = {product.id: product for product in products}
@@ -1701,7 +1782,7 @@ def build_cart_context(request: HttpRequest):
     for shop, shop_items in grouped.items():
         fee_breakup = checkout_fee_breakup(
             subtotal=sum(item['line_total'] for item in shop_items),
-            delivery_fee=DEFAULT_DELIVERY_FEE,
+            delivery_fee=selected_delivery_fee,
         )
         groups.append(
             {
@@ -1715,6 +1796,7 @@ def build_cart_context(request: HttpRequest):
                 'shop_credit_exposure': fee_breakup['shop_credit_exposure'],
                 'has_blocking_issue': any(item['has_blocking_issue'] for item in shop_items),
                 'item_count': sum(item['quantity'] for item in shop_items),
+                'delivery_slot': selected_slot,
             }
         )
     groups.sort(key=lambda group: group['shop'].name)
@@ -1725,6 +1807,8 @@ def build_cart_context(request: HttpRequest):
         'subtotal': subtotal,
         'validation_errors': validation_errors,
         'has_blocking_issues': bool(validation_errors),
+        'delivery_slot': selected_slot,
+        'delivery_slot_fee': selected_delivery_fee,
     }
 
 
@@ -1751,6 +1835,90 @@ def quantize_money(value: Decimal) -> Decimal:
 
 def quantize_percent(value: Decimal) -> Decimal:
     return value.quantize(Decimal('0.1'))
+
+
+def normalize_delivery_slot(slot_code: str) -> str:
+    if slot_code in DELIVERY_SLOT_RULES:
+        return slot_code
+    return DEFAULT_DELIVERY_SLOT
+
+
+def delivery_slot_config(slot_code: str) -> dict[str, Any]:
+    return delivery_slot_rule(normalize_delivery_slot(slot_code))
+
+
+def delivery_slot_options(selected_slot: str | None = None) -> list[dict[str, Any]]:
+    current_slot = normalize_delivery_slot(selected_slot or DEFAULT_DELIVERY_SLOT)
+    options = []
+    for slot_code, _ in DeliverySlot.choices:
+        config = delivery_slot_config(slot_code)
+        options.append(
+            {
+                'code': slot_code,
+                'name': config['name'],
+                'time_label': config['time_label'],
+                'description': config['description'],
+                'fee': Decimal(str(config['delivery_fee'])).quantize(Decimal('0.01')),
+                'fee_label': 'Free' if Decimal(str(config['delivery_fee'])) <= Decimal('0.00') else f'+ Rs. {config["delivery_fee"]}',
+                'color': config['color'],
+                'chip_class': delivery_slot_chip_class(slot_code),
+                'priority_level': config['priority_level'],
+                'tag': config['tag'],
+                'is_selected': slot_code == current_slot,
+                'is_recommended': slot_code == DEFAULT_DELIVERY_SLOT,
+            }
+        )
+    return options
+
+
+def delivery_slot_chip_class(slot_code: str) -> str:
+    color = delivery_slot_config(slot_code)['color']
+    return {
+        'red': 'warn',
+        'green': 'success',
+        'blue': 'info',
+        'gray': 'info',
+    }.get(color, 'info')
+
+
+def format_countdown(total_seconds: float) -> str:
+    remaining_seconds = max(int(total_seconds), 0)
+    hours, remainder = divmod(remaining_seconds, 3600)
+    minutes = remainder // 60
+    return f'{hours:02d}:{minutes:02d}'
+
+
+def delivery_deadline_state(deadline, *, reference_time=None, window_start=None) -> dict[str, Any]:
+    if not deadline:
+        return {
+            'time_remaining': None,
+            'time_remaining_label': 'No deadline',
+            'deadline_chip': 'info',
+            'is_overdue': False,
+        }
+    now = reference_time or timezone.now()
+    remaining_seconds = (deadline - now).total_seconds()
+    if remaining_seconds <= 0:
+        return {
+            'time_remaining': timedelta(seconds=0),
+            'time_remaining_label': 'Overdue',
+            'deadline_chip': 'warn',
+            'is_overdue': True,
+        }
+    total_window_seconds = max((deadline - (window_start or now)).total_seconds(), 1)
+    ratio = remaining_seconds / total_window_seconds if total_window_seconds else 0
+    if ratio > 0.5:
+        chip = 'success'
+    elif ratio > 0.25:
+        chip = 'info'
+    else:
+        chip = 'warn'
+    return {
+        'time_remaining': timedelta(seconds=int(remaining_seconds)),
+        'time_remaining_label': format_countdown(remaining_seconds),
+        'deadline_chip': chip,
+        'is_overdue': False,
+    }
 
 
 def rider_peak_hour_bonus_eligible(moment) -> bool:
@@ -1798,13 +1966,16 @@ def build_order_bill_breakup(order: Order) -> dict[str, Decimal]:
     return fee_breakup
 
 
-def build_cart_snapshot(cart: dict[str, Any]) -> dict[str, Any]:
+def build_cart_snapshot(cart: dict[str, Any], *, delivery_slot: str = DEFAULT_DELIVERY_SLOT) -> dict[str, Any]:
+    selected_slot = normalize_delivery_slot(delivery_slot)
+    selected_delivery_fee = delivery_slot_fee(selected_slot)
     groups = []
     for group in cart['groups']:
-        fee_breakup = checkout_fee_breakup(subtotal=group['subtotal'], delivery_fee=DEFAULT_DELIVERY_FEE)
+        fee_breakup = checkout_fee_breakup(subtotal=group['subtotal'], delivery_fee=selected_delivery_fee)
         groups.append(
             {
                 'shop_id': group['shop'].id,
+                'delivery_slot': selected_slot,
                 'delivery_fee': decimal_to_str(fee_breakup['delivery_fee']),
                 'shopkeeper_commission_fee': decimal_to_str(fee_breakup['shopkeeper_commission_fee']),
                 'platform_fee': decimal_to_str(fee_breakup['platform_fee']),
@@ -1825,17 +1996,26 @@ def build_cart_snapshot(cart: dict[str, Any]) -> dict[str, Any]:
     return {
         'item_count': cart['item_count'],
         'subtotal': decimal_to_str(cart['subtotal']),
+        'delivery_slot': selected_slot,
         'groups': groups,
     }
 
 
-def build_checkout_signature(*, snapshot: dict[str, Any], payment_method: str, customer_notes: str, delivery_address: str) -> str:
+def build_checkout_signature(
+    *,
+    snapshot: dict[str, Any],
+    payment_method: str,
+    customer_notes: str,
+    delivery_address: str,
+    delivery_slot: str,
+) -> str:
     signature_source = json.dumps(
         {
             'snapshot': snapshot,
             'payment_method': payment_method,
             'customer_notes': customer_notes,
             'delivery_address': delivery_address,
+            'delivery_slot': delivery_slot,
         },
         sort_keys=True,
         separators=(',', ':'),
@@ -2692,12 +2872,14 @@ def enrich_khatabook_collection_request(
 
 
 def build_checkout_session_payload(*, customer: CustomerProfile, cart: dict[str, Any], checkout_data: dict[str, str]) -> dict[str, Any]:
-    snapshot = build_cart_snapshot(cart)
+    delivery_slot = normalize_delivery_slot(checkout_data.get('delivery_slot', DEFAULT_DELIVERY_SLOT))
+    snapshot = build_cart_snapshot(cart, delivery_slot=delivery_slot)
     delivery_address = build_delivery_address(customer)
     payment_method = checkout_data.get('payment_method', PaymentMethod.COD)
     customer_notes = checkout_data.get('customer_notes', '')
     amount = sum(Decimal(group['total']) for group in snapshot['groups']) if snapshot['groups'] else Decimal('0.00')
     return {
+        'delivery_slot': delivery_slot,
         'payment_method': payment_method,
         'customer_notes': customer_notes,
         'delivery_address': delivery_address,
@@ -2707,14 +2889,16 @@ def build_checkout_session_payload(*, customer: CustomerProfile, cart: dict[str,
             payment_method=payment_method,
             customer_notes=customer_notes,
             delivery_address=delivery_address,
+            delivery_slot=delivery_slot,
         ),
         'amount': amount,
         'currency': 'INR',
     }
 
 
-def save_pending_checkout(request: HttpRequest, *, payment_method: str, customer_notes: str) -> None:
+def save_pending_checkout(request: HttpRequest, *, payment_method: str, customer_notes: str, delivery_slot: str) -> None:
     request.session[PENDING_CHECKOUT_SESSION_KEY] = {
+        'delivery_slot': normalize_delivery_slot(delivery_slot),
         'payment_method': payment_method,
         'customer_notes': customer_notes,
     }
@@ -2751,8 +2935,10 @@ def clear_pending_checkout(request: HttpRequest) -> None:
 
 def set_last_checkout_payload(request: HttpRequest, *, orders: list[Order], payment_method: str, checkout_session: CheckoutSession | None = None) -> None:
     khata_cycle = next((order.khata_cycle for order in orders if order.khata_cycle_id), None)
+    delivery_slot = orders[0].delivery_slot if orders else DEFAULT_DELIVERY_SLOT
     request.session[LAST_CHECKOUT_SESSION_KEY] = {
         'order_ids': [order.id for order in orders],
+        'delivery_slot': delivery_slot,
         'payment_method': payment_method,
         'estimated_total': decimal_to_str(sum(order.total_amount for order in orders)) if orders else '0.00',
         'checkout_session_id': checkout_session.id if checkout_session else None,
@@ -3108,6 +3294,8 @@ def build_checkout_context(
     checkout_data: dict[str, str],
     checkout_session: CheckoutSession | None = None,
 ) -> dict[str, Any]:
+    selected_slot = normalize_delivery_slot(checkout_data.get('delivery_slot', DEFAULT_DELIVERY_SLOT))
+    selected_slot_config = delivery_slot_config(selected_slot)
     payment_method = checkout_data.get('payment_method', PaymentMethod.COD)
     customer_notes = checkout_data.get('customer_notes', '')
     razorpay_enabled = is_razorpay_ready()
@@ -3118,7 +3306,7 @@ def build_checkout_context(
     estimated_shopkeeper_commission_fee = Decimal('0.00')
     estimated_platform_fee = Decimal('0.00')
     for group in cart['groups']:
-        fee_breakup = checkout_fee_breakup(subtotal=group['subtotal'], delivery_fee=DEFAULT_DELIVERY_FEE)
+        fee_breakup = checkout_fee_breakup(subtotal=group['subtotal'], delivery_fee=delivery_slot_fee(selected_slot))
         totals.append(
             {
                 'shop': group['shop'],
@@ -3128,6 +3316,7 @@ def build_checkout_context(
                 'platform_fee': fee_breakup['platform_fee'],
                 'total': fee_breakup['total'],
                 'item_count': sum(item['quantity'] for item in group['items']),
+                'delivery_slot': selected_slot,
             }
         )
         estimated_subtotal += fee_breakup['subtotal']
@@ -3139,6 +3328,10 @@ def build_checkout_context(
         'customer': customer,
         'cart': cart,
         'checkout_data': checkout_data,
+        'selected_delivery_slot': selected_slot,
+        'selected_delivery_slot_config': selected_slot_config,
+        'selected_delivery_slot_chip': delivery_slot_chip_class(selected_slot),
+        'delivery_slot_options': delivery_slot_options(selected_slot),
         'payment_method': payment_method,
         'payment_method_label': dict(PaymentMethod.choices).get(payment_method, payment_method),
         'customer_notes': customer_notes,
@@ -3149,7 +3342,7 @@ def build_checkout_context(
         'estimated_delivery_fee': estimated_delivery_fee,
         'estimated_shopkeeper_commission_fee': estimated_shopkeeper_commission_fee,
         'estimated_platform_fee': estimated_platform_fee,
-        'estimated_eta': '40-55 min',
+        'estimated_eta': selected_slot_config['time_label'],
         'is_cod': payment_method == PaymentMethod.COD,
         'is_khatabook': payment_method == PaymentMethod.KHATABOOK,
         'razorpay_enabled': razorpay_enabled,
@@ -3242,6 +3435,13 @@ def finalize_checkout_session(checkout_session: CheckoutSession) -> list[Order]:
             shop = Shop.objects.select_related('owner').get(pk=group_snapshot['shop_id'])
             if shop.approval_status != ApprovalStatus.APPROVED or not shop.is_open:
                 raise CheckoutValidationError(f'{shop.name} is no longer available for checkout.')
+            order_time = timezone.now()
+            delivery_slot = normalize_delivery_slot(group_snapshot.get('delivery_slot') or cart_snapshot.get('delivery_slot'))
+            delivery_fee = Decimal(group_snapshot.get('delivery_fee', '0.00'))
+            delivery_deadline = delivery_slot_deadline_from(order_time, delivery_slot)
+            order_distance_km = Decimal(
+                str(kilometers_between(shop.latitude, shop.longitude, locked_session.customer.latitude, locked_session.customer.longitude))
+            ).quantize(Decimal('0.01'))
 
             locked_items = []
             subtotal = Decimal('0.00')
@@ -3267,6 +3467,10 @@ def finalize_checkout_session(checkout_session: CheckoutSession) -> list[Order]:
                 payment_method=locked_session.payment_method,
                 payment_status=locked_session.payment_status,
                 credit_due_date=khata_cycle.due_date if khata_cycle else None,
+                delivery_slot=delivery_slot,
+                delivery_deadline=delivery_deadline,
+                delivery_fee=delivery_fee,
+                distance_km=order_distance_km,
                 delivery_address=locked_session.delivery_address,
                 customer_notes=locked_session.customer_notes,
                 customer_otp=generate_delivery_otp(),
@@ -3466,6 +3670,7 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
         order.can_mark_confirmed = order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED]
         order.can_mark_packed = order.status in [OrderStatus.CONFIRMED, OrderStatus.PACKED]
         order.can_cancel_from_store = order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PACKED]
+        order.packing_priority_label = f'P{order.slot_priority}'
         if order.status == OrderStatus.CONFIRMED:
             order.fulfillment_title = 'Prepare and pack this order'
             order.fulfillment_hint = 'Items are confirmed. Finish packing so rider dispatch can move faster.'
@@ -3521,7 +3726,12 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
             order.queue_priority_label = 'Closed'
             order.queue_priority_chip = 'info'
         order.store_support_copy = 'Use support if packing is blocked, rider handoff is delayed, or delivery closes with an issue.'
-    active_queue_sort = lambda order: (order.queue_anchor_at, order.id)
+    active_queue_sort = lambda order: (
+        order.slot_priority,
+        order.delivery_deadline or timezone.now() + timedelta(days=365),
+        order.queue_anchor_at,
+        order.id,
+    )
     needs_packing_orders = sorted(
         [order for order in orders if order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED]],
         key=active_queue_sort,
@@ -3533,6 +3743,9 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
     out_for_delivery_orders = sorted(
         [order for order in orders if order.status == OrderStatus.OUT_FOR_DELIVERY],
         key=active_queue_sort,
+    )
+    slot_order_sections = build_order_slot_sections(
+        [order for order in orders if order.status not in [OrderStatus.DELIVERED, OrderStatus.CANCELLED]]
     )
     closed_orders = sorted(
         [order for order in orders if order.status in [OrderStatus.DELIVERED, OrderStatus.CANCELLED]],
@@ -3876,6 +4089,7 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
     return {
         'shop': shop,
         'orders': orders,
+        'slot_order_sections': slot_order_sections,
         'order_sections': [
             {
                 'label': 'Needs packing',
@@ -3941,6 +4155,7 @@ def redirect_missing_shop_setup(request: HttpRequest) -> HttpResponse:
 
 def rider_workspace_context(request: HttpRequest) -> dict[str, Any]:
     rider = request.role_profile
+    slot_filter = normalize_delivery_slot(request.GET.get('slot', '')) if request.GET.get('slot') else ''
     active_riders = RiderProfile.objects.filter(approval_status=ApprovalStatus.APPROVED, is_available=True).count()
     dispatch_radius = rider.max_service_radius_km if active_riders < 3 else rider.service_radius_km
     order_candidates = (
@@ -3990,15 +4205,19 @@ def rider_workspace_context(request: HttpRequest) -> dict[str, Any]:
                 and collection_request.distance_km <= dispatch_radius
             ):
                 available_khatabook_requests.append(collection_request)
-    available_orders.sort(key=lambda order: (order.pickup_distance_km, order.id))
+    available_orders.sort(
+        key=lambda order: (
+            order.slot_priority,
+            order.delivery_deadline or timezone.now() + timedelta(days=365),
+            order.pickup_distance_km,
+            order.id,
+        )
+    )
     available_khatabook_requests.sort(key=lambda collection_request: (collection_request.distance_km or 9999, collection_request.id))
-    active_status_rank = {
-        OrderStatus.CONFIRMED: 0,
-        OrderStatus.PACKED: 0,
-        OrderStatus.OUT_FOR_DELIVERY: 1,
-    }
-    active_orders.sort(key=lambda order: (active_status_rank.get(order.status, 9), order.id))
+    active_orders.sort(key=order_slot_sort_key)
     active_khatabook_requests.sort(key=lambda collection_request: (collection_request.created_at, collection_request.id))
+    filtered_active_orders = [order for order in active_orders if not slot_filter or order.delivery_slot == slot_filter]
+    active_orders_by_slot = build_order_slot_sections(filtered_active_orders if slot_filter else active_orders)
     completed_queryset = (
         rider.orders.filter(status=OrderStatus.DELIVERED)
         .select_related('customer', 'shop', 'checkout_session', 'khata_cycle')
@@ -4169,9 +4388,11 @@ def rider_workspace_context(request: HttpRequest) -> dict[str, Any]:
         'rider': rider,
         'available_orders': available_orders,
         'available_khatabook_requests': available_khatabook_requests,
-        'active_orders': active_orders,
+        'active_orders': filtered_active_orders,
+        'all_active_orders': active_orders,
+        'active_orders_by_slot': active_orders_by_slot,
         'active_khatabook_requests': active_khatabook_requests,
-        'priority_order': active_orders[0] if active_orders else None,
+        'priority_order': filtered_active_orders[0] if filtered_active_orders else (active_orders[0] if active_orders else None),
         'priority_khatabook_request': active_khatabook_requests[0] if active_khatabook_requests else None,
         'completed_orders': completed_orders,
         'completed_khatabook_requests': completed_khatabook_requests,
@@ -4188,6 +4409,8 @@ def rider_workspace_context(request: HttpRequest) -> dict[str, Any]:
         'completed_credit_delivery_count': completed_credit_delivery_count,
         'completed_direct_payment_delivery_count': completed_direct_payment_delivery_count,
         'completed_khatabook_collection_count': completed_khatabook_collection_count,
+        'slot_filter': slot_filter,
+        'delivery_slot_filters': delivery_slot_options(slot_filter or DEFAULT_DELIVERY_SLOT),
         'new_order_count': len(available_orders),
         'new_khatabook_collection_count': len(available_khatabook_requests),
         'active_order_count': len(active_orders),
@@ -4338,6 +4561,10 @@ def build_order_timeline(order: Order) -> list[dict[str, Any]]:
 
 
 def build_order_eta_label(order: Order) -> str:
+    if getattr(order, 'is_deadline_overdue', False):
+        return 'Overdue'
+    if getattr(order, 'time_remaining_label', '') and order.status not in [OrderStatus.DELIVERED, OrderStatus.CANCELLED]:
+        return order.time_remaining_label
     return {
         OrderStatus.PENDING: '35-45 min',
         OrderStatus.CONFIRMED: '25-35 min',
@@ -5315,7 +5542,25 @@ def customer_store_detail_view(request: HttpRequest, shop_slug: str) -> HttpResp
 @role_required(RoleType.CUSTOMER)
 def customer_cart_view(request: HttpRequest) -> HttpResponse:
     context = customer_workspace_context(request)
-    checkout_data = pending_checkout_data(request) or {'payment_method': PaymentMethod.COD, 'customer_notes': ''}
+    checkout_data = pending_checkout_data(request) or {
+        'delivery_slot': DEFAULT_DELIVERY_SLOT,
+        'payment_method': PaymentMethod.COD,
+        'customer_notes': '',
+    }
+    context['cart'] = build_cart_context(request, delivery_slot=checkout_data.get('delivery_slot'))
+    context['cart_fixed_total'] = sum(
+        (
+            group['subtotal'] + group['shopkeeper_commission_fee'] + group['platform_fee']
+            for group in context['cart']['groups']
+        ),
+        Decimal('0.00'),
+    )
+    context['cart_estimated_total'] = context['cart_fixed_total'] + (
+        context['cart']['delivery_slot_fee'] * len(context['cart']['groups'])
+    )
+    context['delivery_slot_options'] = delivery_slot_options(checkout_data.get('delivery_slot'))
+    context['selected_delivery_slot'] = normalize_delivery_slot(checkout_data.get('delivery_slot', DEFAULT_DELIVERY_SLOT))
+    context['selected_delivery_slot_config'] = delivery_slot_config(context['selected_delivery_slot'])
     context['order_form'] = CustomerOrderMetaForm(
         initial=checkout_data,
         enable_razorpay=context['razorpay_enabled'],
@@ -5738,7 +5983,12 @@ def cart_clear(request: HttpRequest) -> HttpResponse:
 @role_required(RoleType.CUSTOMER)
 def customer_checkout(request: HttpRequest) -> HttpResponse:
     customer = request.role_profile
-    cart = build_cart_context(request)
+    checkout_data = pending_checkout_data(request) or {
+        'delivery_slot': DEFAULT_DELIVERY_SLOT,
+        'payment_method': PaymentMethod.COD,
+        'customer_notes': '',
+    }
+    cart = build_cart_context(request, delivery_slot=checkout_data.get('delivery_slot'))
     razorpay_enabled = is_razorpay_ready()
     try:
         validate_checkout_cart(cart)
@@ -5751,9 +6001,11 @@ def customer_checkout(request: HttpRequest) -> HttpResponse:
             form = CustomerOrderMetaForm(request.POST, enable_razorpay=razorpay_enabled)
             if form.is_valid():
                 checkout_data = {
+                    'delivery_slot': form.cleaned_data['delivery_slot'],
                     'payment_method': form.cleaned_data['payment_method'],
                     'customer_notes': form.cleaned_data['customer_notes'],
                 }
+                cart = build_cart_context(request, delivery_slot=checkout_data['delivery_slot'])
                 save_pending_checkout(request, **checkout_data)
                 if checkout_data['payment_method'] != PaymentMethod.RAZORPAY:
                     save_active_checkout_session(request, None)
@@ -5765,6 +6017,7 @@ def customer_checkout(request: HttpRequest) -> HttpResponse:
             if not checkout_data:
                 messages.error(request, 'Your checkout session expired. Please review the cart again.')
                 return redirect('core:customer_cart')
+            cart = build_cart_context(request, delivery_slot=checkout_data.get('delivery_slot'))
             if checkout_data['payment_method'] == PaymentMethod.RAZORPAY:
                 messages.info(request, 'Use the Razorpay payment button to complete your online order.')
                 return redirect('core:customer_checkout')
@@ -5779,7 +6032,7 @@ def customer_checkout(request: HttpRequest) -> HttpResponse:
                 checkout_session.failure_reason = str(error)
                 checkout_session.save(update_fields=['failure_reason', 'updated_at'])
                 messages.error(request, str(error))
-                refreshed_cart = build_cart_context(request)
+                refreshed_cart = build_cart_context(request, delivery_slot=checkout_data.get('delivery_slot'))
                 context = build_checkout_context(
                     customer=customer,
                     cart=refreshed_cart,
@@ -5804,12 +6057,8 @@ def customer_checkout(request: HttpRequest) -> HttpResponse:
             else:
                 messages.success(request, f'{len(created_orders)} order(s) placed across your selected stores.')
             return redirect('core:customer_checkout_success')
-    checkout_data = pending_checkout_data(request)
-    if not checkout_data:
-        checkout_data = {
-            'payment_method': PaymentMethod.COD,
-            'customer_notes': '',
-        }
+    checkout_data = pending_checkout_data(request) or checkout_data
+    cart = build_cart_context(request, delivery_slot=checkout_data.get('delivery_slot'))
 
     checkout_session = None
     if checkout_data.get('payment_method') == PaymentMethod.RAZORPAY and razorpay_enabled:
@@ -6115,11 +6364,14 @@ def customer_checkout_success(request: HttpRequest) -> HttpResponse:
         if payload.get('khata_cycle_id')
         else None
     )
+    delivery_slot = normalize_delivery_slot(payload.get('delivery_slot', DEFAULT_DELIVERY_SLOT))
     return render(
         request,
         'core/checkout_success.html',
         {
             'orders': orders,
+            'delivery_slot': delivery_slot,
+            'delivery_slot_config': delivery_slot_config(delivery_slot),
             'payment_method': payload.get('payment_method', PaymentMethod.COD),
             'payment_method_label': dict(PaymentMethod.choices).get(
                 payload.get('payment_method', PaymentMethod.COD),
@@ -6127,7 +6379,7 @@ def customer_checkout_success(request: HttpRequest) -> HttpResponse:
             ),
             'estimated_total': Decimal(payload.get('estimated_total', '0.00')),
             'primary_order': orders[0] if orders else None,
-            'estimated_eta': '40-55 min',
+            'estimated_eta': delivery_slot_config(delivery_slot)['time_label'],
             'khatabook_summary': build_khatabook_cycle_summary(khata_cycle),
             'checkout_session': (
                 CheckoutSession.objects.filter(pk=payload.get('checkout_session_id')).first()
@@ -6138,33 +6390,164 @@ def customer_checkout_success(request: HttpRequest) -> HttpResponse:
     )
 
 
+def order_slot_api_payload(order: Order) -> dict[str, Any]:
+    slot_meta = delivery_slot_config(order.delivery_slot)
+    deadline_state = delivery_deadline_state(
+        order.delivery_deadline,
+        reference_time=timezone.now(),
+        window_start=order.created_at,
+    )
+    return {
+        'id': order.id,
+        'display_id': order.display_id,
+        'status': order.status,
+        'status_label': order.get_status_display(),
+        'delivery_slot': order.delivery_slot,
+        'delivery_slot_label': getattr(order, 'delivery_slot_name', slot_meta['name']),
+        'delivery_slot_time_label': getattr(order, 'delivery_slot_time_label', slot_meta['time_label']),
+        'deadline': order.delivery_deadline.isoformat() if order.delivery_deadline else '',
+        'deadline_label': getattr(
+            order,
+            'deadline_label',
+            timezone.localtime(order.delivery_deadline).strftime('%b %d, %H:%M') if order.delivery_deadline else 'Pending',
+        ),
+        'time_remaining': getattr(order, 'time_remaining_label', deadline_state['time_remaining_label']),
+        'is_overdue': getattr(order, 'is_deadline_overdue', deadline_state['is_overdue']),
+        'total_amount': decimal_to_str(order.total_amount),
+        'delivery_fee': decimal_to_str(order.delivery_fee),
+        'distance_km': decimal_to_str(order.distance_km),
+        'shop': order.shop.name,
+        'customer': order.customer.full_name,
+        'item_count': sum(item.quantity for item in order.items.all()),
+    }
+
+
+@role_required(RoleType.SHOP)
+@require_GET
+def shop_orders_by_slot_api(request: HttpRequest) -> JsonResponse:
+    context = shop_workspace_context(request)
+    return JsonResponse(
+        {
+            'slots': [
+                {
+                    'code': section['code'],
+                    'label': section['label'],
+                    'time_label': section['time_label'],
+                    'tag': section['tag'],
+                    'order_count': len(section['orders']),
+                    'orders': [order_slot_api_payload(order) for order in section['orders']],
+                }
+                for section in context['slot_order_sections']
+            ]
+        }
+    )
+
+
+@role_required(RoleType.RIDER)
+@require_GET
+def rider_orders_by_slot_api(request: HttpRequest) -> JsonResponse:
+    context = rider_workspace_context(request)
+    return JsonResponse(
+        {
+            'slot_filter': context['slot_filter'],
+            'slots': [
+                {
+                    'code': section['code'],
+                    'label': section['label'],
+                    'time_label': section['time_label'],
+                    'tag': section['tag'],
+                    'order_count': len(section['orders']),
+                    'orders': [order_slot_api_payload(order) for order in section['orders']],
+                }
+                for section in context['active_orders_by_slot']
+            ]
+        }
+    )
+
+
+@role_required(RoleType.CUSTOMER)
+@require_POST
+def customer_order_create_api(request: HttpRequest) -> JsonResponse:
+    try:
+        payload = json.loads(request.body.decode('utf-8')) if request.body else {}
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return JsonResponse({'error': 'Could not read the order payload.'}, status=400)
+
+    delivery_slot = normalize_delivery_slot(str(payload.get('delivery_slot', DEFAULT_DELIVERY_SLOT)).strip())
+    payment_method = str(payload.get('payment_method', PaymentMethod.COD)).strip() or PaymentMethod.COD
+    customer_notes = str(payload.get('customer_notes', '')).strip()
+    if payment_method == PaymentMethod.RAZORPAY:
+        return JsonResponse({'error': 'Use the web checkout review flow for Razorpay orders.'}, status=400)
+
+    cart = build_cart_context(request, delivery_slot=delivery_slot)
+    try:
+        validate_checkout_cart(cart)
+    except CheckoutValidationError as error:
+        return JsonResponse({'error': str(error)}, status=400)
+
+    checkout_data = {
+        'delivery_slot': delivery_slot,
+        'payment_method': payment_method,
+        'customer_notes': customer_notes,
+    }
+    checkout_session = (
+        create_khatabook_checkout_session(customer=request.role_profile, cart=cart, checkout_data=checkout_data)
+        if payment_method == PaymentMethod.KHATABOOK
+        else create_cod_checkout_session(customer=request.role_profile, cart=cart, checkout_data=checkout_data)
+    )
+    try:
+        created_orders = finalize_checkout_session(checkout_session)
+    except CheckoutValidationError as error:
+        checkout_session.failure_reason = str(error)
+        checkout_session.save(update_fields=['failure_reason', 'updated_at'])
+        return JsonResponse({'error': str(error)}, status=400)
+
+    save_cart(request, {})
+    set_last_checkout_payload(
+        request,
+        orders=created_orders,
+        payment_method=checkout_data['payment_method'],
+        checkout_session=checkout_session,
+    )
+    clear_pending_checkout(request)
+    return JsonResponse(
+        {
+            'ok': True,
+            'delivery_slot': delivery_slot,
+            'orders': [order_slot_api_payload(order) for order in created_orders],
+        }
+    )
+
+
 @role_required(RoleType.CUSTOMER)
 @require_POST
 def customer_rate_order(request: HttpRequest, order_id: int) -> HttpResponse:
     order = get_object_or_404(Order, pk=order_id, customer=request.role_profile)
+    can_rate_order = order.can_be_rated_by_customer
     form = RatingForm(request.POST, instance=order)
-    if form.is_valid() and order.can_be_rated_by_customer:
-        form.save()
+    next_url = request.POST.get('next') or reverse('core:order_detail', args=[order.id])
+    if can_rate_order and form.is_valid():
+        rated_order = form.save()
         refresh_ratings()
         create_notification(
-            shop_owner=order.shop.owner,
-            order=order,
-            title='New customer rating',
-            body=f'Order #{order.id} received a {order.customer_rating}/5 rating.',
+            shop_owner=rated_order.shop.owner,
+            order=rated_order,
+            title='New delivery feedback',
+            body=f'Order #{rated_order.id} received delivery feedback with a {rated_order.customer_rating}/5 driver rating.',
             notification_type=NotificationType.ORDER,
         )
-        if order.rider:
+        if rated_order.rider:
             create_notification(
-                rider=order.rider,
-                order=order,
-                title='Delivery completed and rated',
-                body=f'Customer rated order #{order.id} with {order.customer_rating}/5.',
+                rider=rated_order.rider,
+                order=rated_order,
+                title='Customer rated your delivery',
+                body=f'Customer rated your delivery on order #{rated_order.id} with {rated_order.customer_rating}/5.',
                 notification_type=NotificationType.RIDER,
             )
-        messages.success(request, 'Thanks for rating your order.')
+        messages.success(request, 'Thanks for rating the driver and sharing your delivery feedback.')
     else:
-        messages.error(request, 'This order cannot be rated right now.')
-    return redirect('core:customer_dashboard')
+        messages.error(request, 'This delivery cannot be rated right now.')
+    return redirect(next_url)
 
 
 @role_required(RoleType.CUSTOMER)
@@ -6585,15 +6968,16 @@ def shop_update_order_status(request: HttpRequest, order_id: int) -> HttpRespons
 @require_POST
 def shop_rate_order(request: HttpRequest, order_id: int) -> HttpResponse:
     order = get_object_or_404(Order, pk=order_id, shop__owner=request.role_profile)
+    can_rate_order = order.can_be_rated_by_store
     form = StoreRatingForm(request.POST, instance=order)
-    if form.is_valid() and order.can_be_rated_by_store:
-        form.save()
+    if can_rate_order and form.is_valid():
+        rated_order = form.save()
         refresh_ratings()
         create_notification(
-            rider=order.rider,
-            order=order,
+            rider=rated_order.rider,
+            order=rated_order,
             title='Store rated your delivery',
-            body=f'The store rated order #{order.id} with {order.store_rating}/5.',
+            body=f'The store rated order #{rated_order.id} with {rated_order.store_rating}/5.',
             notification_type=NotificationType.RIDER,
         )
         messages.success(request, 'Rider rating saved.')
@@ -6653,6 +7037,9 @@ def rider_upload_photo_api(request: HttpRequest) -> JsonResponse:
         return JsonResponse({'error': 'Only riders can upload a profile photo.'}, status=403)
     if request.user.is_authenticated and not hasattr(request.user, 'rider_profile'):
         return JsonResponse({'error': 'Only riders can upload a profile photo.'}, status=403)
+    capture_error = validate_live_rider_capture(request)
+    if capture_error:
+        return JsonResponse({'error': capture_error}, status=400)
 
     content, extension, error_message = extract_rider_photo_upload(request)
     if error_message:
@@ -6683,6 +7070,9 @@ def rider_upload_photo_api(request: HttpRequest) -> JsonResponse:
 def rider_update_photo_api(request: HttpRequest) -> JsonResponse:
     if not request.user.is_authenticated or not hasattr(request.user, 'rider_profile'):
         return JsonResponse({'error': 'Only riders can update a profile photo.'}, status=403)
+    capture_error = validate_live_rider_capture(request)
+    if capture_error:
+        return JsonResponse({'error': capture_error}, status=400)
 
     content, extension, error_message = extract_rider_photo_upload(request)
     if error_message:
