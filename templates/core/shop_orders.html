@@ -10,6 +10,48 @@
     {% endfor %}
   </section>
 
+  <section class="card section-stack" data-appear>
+    <div class="split-row">
+      <div class="content-stack">
+        <span class="eyebrow">Orders by Delivery Slot</span>
+        <h2 class="section-title">Pack by time commitment</h2>
+        <p class="subtle">Priority orders surface first, while slower slots stay grouped for calmer batching and packing decisions.</p>
+      </div>
+    </div>
+    <div class="stack">
+      {% for slot_section in slot_order_sections %}
+        <div class="nested-panel">
+          <div class="split-row">
+            <div class="content-stack">
+              <strong>{{ slot_section.label }}</strong>
+              <p>{{ slot_section.time_label }} | {{ slot_section.description }}</p>
+            </div>
+            <div class="action-cluster">
+              <span class="status-chip {{ slot_section.chip }}">{{ slot_section.tag }}</span>
+              <span class="soft-pill">{{ slot_section.orders|length }} order{{ slot_section.orders|length|pluralize }}</span>
+            </div>
+          </div>
+          {% if slot_section.orders %}
+            <div class="compact-list top-gap-sm">
+              {% for order in slot_section.orders %}
+                <div class="list-item compact-item">
+                  <div>
+                    <strong>{{ order.display_id }}</strong>
+                    <p>{{ order.customer.full_name }} | {{ order.item_count }} item{{ order.item_count|pluralize }}</p>
+                    <p class="utility-note">Time remaining {{ order.time_remaining_label }} | Deadline {{ order.deadline_label }}</p>
+                  </div>
+                  <span class="status-chip {{ order.deadline_chip }}">{{ order.get_status_display }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="utility-note top-gap-sm">No orders in this slot right now.</p>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
   {% for section in order_sections %}
     <section class="card section-stack" data-appear>
       <div class="split-row">
@@ -27,6 +69,7 @@
               <div class="content-stack">
                 <strong>{{ order.display_id }}</strong>
                 <p>{{ order.customer.full_name }} | {{ order.get_status_display }}{% if order.rider %} | Rider: {{ order.rider.full_name }}{% endif %}</p>
+                <p class="utility-note">{{ order.delivery_slot_name }} | {{ order.time_remaining_label }} left | Deadline {{ order.deadline_label }}</p>
                 <p class="utility-note">{{ order.fulfillment_title }}</p>
                 <p class="utility-note">{{ order.fulfillment_hint }}</p>
               </div>
@@ -34,7 +77,9 @@
                 <span class="pill">Rs. {{ order.total_amount }}</span>
                 <span class="soft-pill">{{ order.item_count }} item{{ order.item_count|pluralize }}</span>
                 <span class="soft-pill">Queue age {{ order.queue_age_label }}</span>
+                <span class="soft-pill">{{ order.packing_priority_label }}</span>
                 <span class="status-chip {{ order.queue_priority_chip }}">{{ order.queue_priority_label }}</span>
+                <span class="status-chip {{ order.deadline_chip }}">{{ order.time_remaining_label }}</span>
                 <span class="status-chip {{ order.fulfillment_chip }}">{{ order.get_status_display }}</span>
               </div>
             </div>
