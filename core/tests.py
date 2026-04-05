@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core import mail
 from django.test import Client, RequestFactory, TestCase
 from django.test.utils import override_settings
@@ -125,7 +126,7 @@ class CoreFlowTests(TestCase):
             rider=cls.rider,
             status=OrderStatus.OUT_FOR_DELIVERY,
             total_amount=Decimal('76.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
             customer_otp='123456',
         )
@@ -186,6 +187,15 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, 'Use Current Location')
         self.assertContains(response, 'Confirm Location')
         self.assertContains(response, 'State')
+
+    def test_register_details_rider_shows_live_photo_capture_controls(self):
+        response = self.client.get(f'{reverse("core:register_details")}?account_type={RoleType.RIDER}')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Verify Your Identity')
+        self.assertContains(response, 'Open Camera')
+        self.assertContains(response, 'Capture')
+        self.assertContains(response, 'Upload')
 
     def test_root_renders_landing_page_for_anonymous_users(self):
         response = self.client.get(reverse('core:home'))
@@ -507,7 +517,7 @@ class CoreFlowTests(TestCase):
             shop=self.shop,
             status=OrderStatus.CONFIRMED,
             total_amount=Decimal('48.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
         )
         OrderItem.objects.create(order=pending_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
@@ -517,11 +527,43 @@ class CoreFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, pending_order.display_id)
-        self.assertContains(response, 'Accept Order')
+        self.assertContains(response, 'Nearby jobs ready to accept')
+        self.assertContains(response, 'Accept')
 
         active_response = self.client.get(reverse('core:rider_deliveries'))
         self.assertEqual(active_response.status_code, 200)
         self.assertNotContains(active_response, pending_order.display_id)
+
+    @override_settings(MEDIA_ROOT='/tmp/gramexpress-test-media')
+    def test_rider_photo_upload_api_updates_profile_and_returns_payload(self):
+        self.client.force_login(self.rider_user)
+
+        response = self.client.post(
+            reverse('core:api_rider_upload_photo'),
+            {
+                'photo': SimpleUploadedFile('rider.jpg', b'fake-image-bytes', content_type='image/jpeg'),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.rider.refresh_from_db()
+        payload = response.json()
+        self.assertTrue(payload['ok'])
+        self.assertIn('/media/riders/', payload['photo_url'])
+        self.assertEqual(payload['rider']['photo_url'], self.rider.photo_source)
+        self.assertTrue(self.rider.photo_source)
+
+    def test_rider_profile_api_returns_photo_payload(self):
+        self.rider.photo_url = '/media/riders/live/rider-test.jpg'
+        self.rider.save(update_fields=['photo_url', 'updated_at'])
+        self.client.force_login(self.rider_user)
+
+        response = self.client.get(reverse('core:api_rider_profile'))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['rider']['photo_url'], '/media/riders/live/rider-test.jpg')
+        self.assertEqual(payload['rider']['name'], self.rider.full_name)
 
     def test_checkout_blocks_when_stock_changes_after_cart_add(self):
         self.client.force_login(self.customer_user)
@@ -731,7 +773,7 @@ class CoreFlowTests(TestCase):
             shop=self.shop,
             status=OrderStatus.CONFIRMED,
             total_amount=Decimal('48.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
         )
         OrderItem.objects.create(order=available_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
@@ -759,7 +801,7 @@ class CoreFlowTests(TestCase):
             rider=self.rider,
             status=OrderStatus.PACKED,
             total_amount=Decimal('48.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
         )
         OrderItem.objects.create(order=pickup_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
@@ -787,7 +829,7 @@ class CoreFlowTests(TestCase):
             rider=self.rider,
             status=OrderStatus.PACKED,
             total_amount=Decimal('48.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
             customer_otp='456789',
         )
@@ -820,7 +862,7 @@ class CoreFlowTests(TestCase):
             rider=self.rider,
             status=OrderStatus.OUT_FOR_DELIVERY,
             total_amount=Decimal('48.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
             customer_otp='777888',
         )
@@ -851,7 +893,7 @@ class CoreFlowTests(TestCase):
             rider=self.rider,
             status=OrderStatus.OUT_FOR_DELIVERY,
             total_amount=Decimal('48.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
             customer_otp='777888',
         )
@@ -883,7 +925,7 @@ class CoreFlowTests(TestCase):
             rider=self.rider,
             status=OrderStatus.OUT_FOR_DELIVERY,
             total_amount=Decimal('48.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
             customer_otp='654321',
         )
@@ -920,7 +962,7 @@ class CoreFlowTests(TestCase):
             rider=self.rider,
             status=OrderStatus.OUT_FOR_DELIVERY,
             total_amount=Decimal('48.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
             customer_otp='654321',
         )
@@ -964,7 +1006,7 @@ class CoreFlowTests(TestCase):
             payment_method=PaymentMethod.COD,
             payment_status=PaymentStatus.PENDING,
             total_amount=Decimal('48.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
             customer_otp='654321',
         )
@@ -1000,7 +1042,7 @@ class CoreFlowTests(TestCase):
             cod_payment_link_url='https://rzp.io/i/cod-online-123',
             cod_payment_link_status='created',
             total_amount=Decimal('48.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
             customer_otp='654321',
         )
@@ -1038,7 +1080,7 @@ class CoreFlowTests(TestCase):
             payment_method=PaymentMethod.COD,
             payment_status=PaymentStatus.PENDING,
             total_amount=Decimal('48.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
             delivered_at=timezone.now(),
         )
@@ -1076,7 +1118,7 @@ class CoreFlowTests(TestCase):
             cod_payment_link_url='https://rzp.io/i/cod-online-123',
             cod_payment_link_status='created',
             total_amount=Decimal('48.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
         )
         payload = {
@@ -1123,7 +1165,7 @@ class CoreFlowTests(TestCase):
             cod_collection_mode=CodCollectionMode.CASH,
             cash_confirmed_at=timezone.now(),
             total_amount=Decimal('48.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
             settlement_status=SettlementStatus.QR_READY,
             settlement_qr_id='qr_test_123',
@@ -1167,7 +1209,10 @@ class CoreFlowTests(TestCase):
         self.assertEqual(completed_response.status_code, 200)
         self.assertEqual(earnings_response.status_code, 200)
         self.assertContains(completed_response, 'Completed Orders')
-        self.assertContains(earnings_response, 'Commission, fixed support, and payout tracker')
+        self.assertContains(earnings_response, 'Commission-based rider payout')
+        self.assertContains(earnings_response, 'Commission Earnings')
+        self.assertContains(earnings_response, 'Final Payout')
+        self.assertNotContains(earnings_response, 'fixed support')
 
     def test_rider_sees_khatabook_delivery_as_credit_order(self):
         khata_cycle = KhataBookCycle.objects.create(
@@ -1232,7 +1277,7 @@ class CoreFlowTests(TestCase):
         dashboard_response = self.client.get(reverse('core:rider_dashboard'))
         self.assertEqual(dashboard_response.status_code, 200)
         self.assertContains(dashboard_response, collection_request.display_id)
-        self.assertContains(dashboard_response, 'Accept KhataBook Collection')
+        self.assertContains(dashboard_response, 'Accept Collection')
 
     def test_rider_can_accept_and_complete_khatabook_collection(self):
         khata_cycle = KhataBookCycle.objects.create(
@@ -1330,7 +1375,7 @@ class CoreFlowTests(TestCase):
             rider=self.rider,
             status=OrderStatus.PACKED,
             total_amount=Decimal('48.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
             customer_otp='222333',
         )
@@ -1371,13 +1416,32 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, 'You can receive new orders')
         self.assertContains(response, reverse('core:rider_toggle_availability'))
 
+    def test_rider_location_update_can_return_to_dashboard(self):
+        self.client.force_login(self.rider_user)
+
+        response = self.client.post(
+            reverse('core:rider_update_location'),
+            {
+                'latitude': '12.918800',
+                'longitude': '76.650100',
+                'next': reverse('core:rider_dashboard'),
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.rider.refresh_from_db()
+        self.assertEqual(str(self.rider.latitude), '12.918800')
+        self.assertEqual(str(self.rider.longitude), '76.650100')
+        self.assertEqual(response.request['PATH_INFO'], reverse('core:rider_dashboard'))
+
     def test_store_can_mark_confirmed_order_packed(self):
         pack_order = Order.objects.create(
             customer=self.customer,
             shop=self.shop,
             status=OrderStatus.CONFIRMED,
             total_amount=Decimal('48.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
         )
         OrderItem.objects.create(order=pack_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
@@ -1400,7 +1464,7 @@ class CoreFlowTests(TestCase):
             rider=self.rider,
             status=OrderStatus.OUT_FOR_DELIVERY,
             total_amount=Decimal('48.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
         )
         OrderItem.objects.create(order=transit_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
@@ -1433,7 +1497,7 @@ class CoreFlowTests(TestCase):
             rider=self.rider,
             status=OrderStatus.CONFIRMED,
             total_amount=Decimal('50.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
         )
         OrderItem.objects.create(order=cancellable_order, product=product, quantity=1, unit_price=Decimal('30.00'))
@@ -1459,7 +1523,7 @@ class CoreFlowTests(TestCase):
             shop=self.shop,
             status=OrderStatus.CANCELLED,
             total_amount=Decimal('50.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
             cancellation_reason='Store was offline',
             cancelled_by_role=RoleType.SHOP,
@@ -1488,7 +1552,7 @@ class CoreFlowTests(TestCase):
             shop=self.shop,
             status=OrderStatus.DELIVERED,
             total_amount=Decimal('60.00'),
-            delivery_fee=Decimal('20.00'),
+            delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
         )
         OrderItem.objects.create(order=delivered_order, product=reorder_product, quantity=2, unit_price=Decimal('20.00'))
@@ -1518,6 +1582,17 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, 'Last update')
         self.assertContains(response, reverse('core:support'))
         self.assertEqual(response['Cache-Control'], 'no-store, no-cache, must-revalidate, max-age=0')
+
+    def test_customer_orders_show_assigned_rider_photo(self):
+        self.rider.photo_url = '/media/riders/live/rider-test.jpg'
+        self.rider.save(update_fields=['photo_url', 'updated_at'])
+        self.client.force_login(self.customer_user)
+
+        response = self.client.get(reverse('core:customer_orders'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Call Rider')
+        self.assertContains(response, '/media/riders/live/rider-test.jpg')
 
     def test_customer_khatabook_page_renders_weekly_due_section(self):
         cycle = KhataBookCycle.objects.create(
@@ -1738,6 +1813,17 @@ class CoreFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Queue age')
+
+    def test_shop_orders_show_assigned_rider_photo(self):
+        self.rider.photo_url = '/media/riders/live/rider-test.jpg'
+        self.rider.save(update_fields=['photo_url', 'updated_at'])
+        self.client.force_login(self.shop_user)
+
+        response = self.client.get(reverse('core:shop_orders'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Call Rider')
+        self.assertContains(response, '/media/riders/live/rider-test.jpg')
 
     def test_shop_products_page_shows_catalog_management_workspace(self):
         self.client.force_login(self.shop_user)
