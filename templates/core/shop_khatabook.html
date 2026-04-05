@@ -3,24 +3,57 @@
 {% block content %}
   <section class="feature-nav card shop-segmented-nav" data-appear>
     {% for item in page_nav %}
-      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}"{% if request.path == item.url %} aria-current="page"{% endif %}>{{ item.label }}</a>
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}"{% if request.path == item.url %} aria-current="page"{% endif %}>
+        <span class="ui-icon icon-{{ item.icon }}" aria-hidden="true"></span>
+        <span>{{ item.label }}</span>
+      </a>
     {% endfor %}
   </section>
 
   <section class="page-stack shop-khatabook-shell" id="top">
-    <article class="card success-hero-card" data-appear>
-      <div class="split-row">
-        <div class="content-stack">
-          <span class="eyebrow">KhataBook</span>
-          <h1 class="page-title">Credit risk desk for {{ shop.name }}</h1>
-          <p>Follow every KhataBook order placed from this storefront, see who is still on platform credit, and understand exactly how much exposure the shop is carrying inside the 7-day cycle.</p>
+    <article class="card shop-khatabook-hero-v2" data-appear>
+      <div class="shop-khatabook-hero-grid">
+        <div class="shop-khatabook-hero-copy">
+          <span class="eyebrow">KhataBook Risk Desk</span>
+          <h1 class="page-title">Credit risk dashboard for {{ shop.name }}</h1>
+          <p>Track live customer credit, spot risky exposure in seconds, and act on recovery before overdue amounts start hurting your cash flow.</p>
+          <div class="shop-khatabook-hero-pills">
+            <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>{{ shop_khatabook.active_order_count }} open credit orders</span></span>
+            <span class="soft-pill"><span class="ui-icon icon-bell" aria-hidden="true"></span><span>{{ shop_khatabook.active_collection_count }} recovery request{{ shop_khatabook.active_collection_count|pluralize }}</span></span>
+            <span class="soft-pill"><span class="ui-icon icon-badge-check" aria-hidden="true"></span><span>{{ shop_khatabook.settled_order_count }} recovered</span></span>
+          </div>
         </div>
-        <div class="hero-inline-facts">
-          <span class="soft-pill">{{ shop_khatabook.active_order_count }} open</span>
-          <span class="soft-pill">{{ shop_khatabook.active_collection_count }} recovery request{{ shop_khatabook.active_collection_count|pluralize }}</span>
-          <span class="status-chip {% if shop_khatabook.has_warning %}danger{% elif shop_khatabook.active_credit_exposure %}warn{% else %}success{% endif %}">
-            Rs. {{ shop_khatabook.active_credit_exposure }} live exposure
-          </span>
+
+        <div class="shop-khatabook-risk-summary">
+          <div class="shop-khatabook-risk-summary-head">
+            <span class="eyebrow">Top Risk Summary</span>
+            <span class="status-chip {{ shop_khatabook.risk_chip }}">Risk {{ shop_khatabook.risk_level }}</span>
+          </div>
+          <div class="shop-khatabook-risk-grid">
+            <article class="shop-khatabook-risk-card">
+              <span class="metric-label" title="The total unpaid store exposure currently sitting on customer credit.">Live Exposure</span>
+              <strong>Rs. {{ shop_khatabook.active_credit_exposure }}</strong>
+            </article>
+            <article class="shop-khatabook-risk-card">
+              <span class="metric-label" title="Exposure that has crossed the due date and needs recovery.">Overdue Amount</span>
+              <strong>Rs. {{ shop_khatabook.defaulted_amount }}</strong>
+            </article>
+            <article class="shop-khatabook-risk-card">
+              <span class="metric-label" title="Credit already recovered from customers.">Recovered Amount</span>
+              <strong>Rs. {{ shop_khatabook.settled_credit_amount }}</strong>
+            </article>
+            <article class="shop-khatabook-risk-card">
+              <span class="metric-label" title="Share of total credit sales that has become overdue.">Default Rate</span>
+              <strong>{{ shop_khatabook.default_rate_percentage }}%</strong>
+            </article>
+          </div>
+          <div class="shop-khatabook-recommended-action">
+            <span class="shop-khatabook-inline-icon"><span class="ui-icon icon-shield" aria-hidden="true"></span></span>
+            <div>
+              <strong>Recommended action</strong>
+              <p>{{ shop_khatabook.recommended_action_message }}</p>
+            </div>
+          </div>
         </div>
       </div>
     </article>
@@ -34,171 +67,279 @@
       </article>
     {% endif %}
 
-    <section class="card shop-khatabook-metrics-card" data-appear>
-      <div class="split-row">
-        <div class="content-stack">
-          <span class="eyebrow">Numbers</span>
-          <h2 class="section-title">Exposure across the 7-day cycle</h2>
-        </div>
-        <span class="soft-pill">Default rate {{ shop_khatabook.default_rate_percentage }}%</span>
-      </div>
-      <div class="summary-grid">
-        {% for metric in shop_khatabook.metrics %}
-          <article class="checkout-summary-card content-stack">
-            <div class="split-row">
-              <span class="metric-label">{{ metric.label }}</span>
-              <span class="status-chip {{ metric.chip }}">{{ metric.value }}</span>
-            </div>
-            <p>{{ metric.detail }}</p>
-          </article>
-        {% endfor %}
-      </div>
-      <div class="summary-grid">
-        <article class="checkout-summary-card content-stack">
-          <span class="metric-label">Total credit sales</span>
-          <strong class="metric-value">Rs. {{ shop_khatabook.total_credit_sales }}</strong>
-          <p>All KhataBook orders ever placed from this storefront.</p>
-        </article>
-        <article class="checkout-summary-card content-stack">
-          <span class="metric-label">Recovered credit</span>
-          <strong class="metric-value">Rs. {{ shop_khatabook.settled_credit_amount }}</strong>
-          <p>Credit that has already been repaid by customers and is ready for storefront settlement flow.</p>
-        </article>
-      </div>
-    </section>
-
-    <section class="card" data-appear>
-      <div class="split-row">
-        <div class="content-stack">
-          <span class="eyebrow">Open Exposure</span>
-          <h2 class="section-title">Orders still on customer credit</h2>
-          <p class="subtle">The shop does not see customer identity here. Instead, use order-level monetary visibility, rider pickup status, and item data to judge live risk.</p>
-        </div>
-        <span class="status-chip warn">{{ shop_khatabook.active_order_count }} open</span>
-      </div>
-
-      <div class="shop-khatabook-order-list">
-        {% for order in shop_khatabook.active_orders %}
-          <article class="nested-panel shop-khatabook-order-card">
-            <div class="split-row">
-              <div class="content-stack">
-                <strong>{{ order.display_id }}</strong>
-                <p>{{ order.credit_cycle_label }}{% if order.current_due_date %} | due {{ order.current_due_date|date:"M d, Y" }}{% endif %}</p>
-                <p class="utility-note">{{ order.credit_state_detail }}</p>
-              </div>
-              <div class="action-cluster">
-                <span class="pill">Exposure Rs. {{ order.credit_exposure_amount }}</span>
-                <span class="status-chip {{ order.credit_state_chip }}">{{ order.credit_state_label }}</span>
-              </div>
-            </div>
-
-            <div class="summary-grid">
-              <div class="checkout-summary-card content-stack">
-                <span class="metric-label">Customer checkout total</span>
-                <strong>Rs. {{ order.total_amount }}</strong>
-                <p>This includes delivery and platform-side fees, but those are excluded from your storefront credit exposure.</p>
-              </div>
-              <div class="checkout-summary-card content-stack">
-                <span class="metric-label">Shop risk share</span>
-                <strong>Rs. {{ order.shop_exposure_share }}</strong>
-                <p>50% of this order's exposure sits with the storefront during the live credit window.</p>
-              </div>
-              <div class="checkout-summary-card content-stack">
-                <span class="metric-label">Rider pickup status</span>
-                <strong>{{ order.rider_summary }}</strong>
-                <p>{{ order.rider_status_detail }}</p>
-              </div>
-            </div>
-
-            <div class="compact-list line-list">
-              {% for item in order.product_lines %}
-                <div class="list-item compact-item compact-item-tight">
-                  <div>
-                    <strong>{{ item.name }}</strong>
-                    <p>{{ item.quantity }} x {{ item.unit }} at Rs. {{ item.unit_price }}</p>
-                    <p class="tiny muted">Current stock left {{ item.stock_left }}</p>
-                  </div>
-                  <span class="muted">Rs. {{ item.line_total }}</span>
-                </div>
-              {% endfor %}
-            </div>
-
-            {% if order.collection_request %}
-              <div class="checkout-cod-panel">
-                <strong>Recovery request is already active</strong>
-                <p>
-                  {{ order.collection_request.get_status_display }}{% if order.collection_request.rider %} with {{ order.collection_request.rider.full_name }}{% endif %}
-                  for Rs. {{ order.collection_request.amount }}.
-                </p>
-              </div>
-            {% endif %}
-          </article>
-        {% empty %}
-          <div class="empty-card">
-            <span class="eyebrow">No open exposure</span>
-            <h2 class="section-title">All current KhataBook credit is closed</h2>
-            <p>Fresh credit orders will appear here as soon as customers place a KhataBook checkout from your store.</p>
-          </div>
-        {% endfor %}
-      </div>
-    </section>
-
-    <section class="layout-two shop-khatabook-lower">
-      <article class="card" data-appear>
+    <section class="shop-khatabook-analytics-layout" data-appear>
+      <article class="card shop-khatabook-analytics-card">
         <div class="split-row">
           <div class="content-stack">
-            <span class="eyebrow">Defaulted</span>
-            <h2 class="section-title">Amounts already overdue</h2>
+            <span class="eyebrow">Exposure Analytics</span>
+            <h2 class="section-title">7-day exposure trend</h2>
+            <p class="subtle">A quick view of how much unpaid storefront credit was open on each day.</p>
           </div>
-          <span class="status-chip {% if shop_khatabook.defaulted_order_count %}danger{% else %}success{% endif %}">{{ shop_khatabook.defaulted_order_count }} order{{ shop_khatabook.defaulted_order_count|pluralize }}</span>
+          <span class="status-chip {% if shop_khatabook.exposure_delta > 0 %}warn{% elif shop_khatabook.exposure_delta < 0 %}success{% else %}info{% endif %}">
+            {% if shop_khatabook.exposure_delta > 0 %}+{% endif %}Rs. {{ shop_khatabook.exposure_delta }}
+          </span>
         </div>
-
-        <div class="stack">
-          {% for order in shop_khatabook.defaulted_orders %}
-            <article class="checkout-alert checkout-alert-error">
-              <div class="split-row">
-                <strong>{{ order.display_id }}</strong>
-                <span class="pill">Exposure Rs. {{ order.credit_exposure_amount }}</span>
+        <div class="shop-khatabook-trend-chart">
+          {% for point in shop_khatabook.exposure_trend %}
+            <div class="shop-khatabook-trend-point{% if point.is_today %} is-today{% endif %}">
+              <span class="shop-khatabook-trend-value">Rs. {{ point.amount }}</span>
+              <div class="shop-khatabook-trend-bar-shell">
+                <span class="shop-khatabook-trend-bar" style="height: {{ point.bar_height }}%;"></span>
               </div>
-              <p>{{ order.credit_state_detail }}</p>
-              <p class="tiny muted">Customer checkout total Rs. {{ order.total_amount }}</p>
-              <p class="tiny muted">Expected recovery date {{ order.current_due_date|date:"M d, Y" }} | Shop share at risk Rs. {{ order.shop_exposure_share }}</p>
-            </article>
-          {% empty %}
-            <div class="checkout-cod-panel">
-              <strong>No defaulted money right now</strong>
-              <p>Nothing has crossed the 7-day KhataBook deadline for this storefront.</p>
+              <strong>{{ point.day_label }}</strong>
+              <span class="tiny muted">{{ point.date_label }}</span>
             </div>
           {% endfor %}
         </div>
       </article>
 
-      <article class="card" data-appear>
+      <article class="card shop-khatabook-analytics-card">
+        <div class="content-stack">
+          <span class="eyebrow">Analytics Snapshot</span>
+          <h2 class="section-title">Credit performance</h2>
+        </div>
+        <div class="shop-khatabook-analytics-grid">
+          {% for item in shop_khatabook.analytics_cards %}
+            <article class="shop-khatabook-analytics-metric">
+              <span class="metric-label">{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <p>{{ item.detail }}</p>
+            </article>
+          {% endfor %}
+        </div>
+      </article>
+    </section>
+
+    <article class="card shop-khatabook-table-card" data-appear>
+      <div class="split-row">
+        <div class="content-stack">
+          <span class="eyebrow">Open Credit Orders</span>
+          <h2 class="section-title">Recovery queue with quick actions</h2>
+          <p class="subtle">Green rows are fresh, yellow rows are aging, and red rows need immediate follow-up.</p>
+        </div>
+        <span class="status-chip warn">{{ shop_khatabook.unpaid_orders|length }} active</span>
+      </div>
+
+      {% if shop_khatabook.unpaid_orders %}
+        <div class="shop-khatabook-table-shell">
+          <table class="shop-khatabook-table">
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Customer Name</th>
+                <th>Amount</th>
+                <th>Days Pending</th>
+                <th>Rider</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for order in shop_khatabook.unpaid_orders %}
+                <tr class="shop-khatabook-table-row {{ order.risk_row_class }}">
+                  <td>
+                    <strong>{{ order.display_id }}</strong>
+                    <span class="tiny muted">Due {{ order.current_due_date|date:"M d, Y" }}</span>
+                  </td>
+                  <td>
+                    <strong>{{ order.customer_name }}</strong>
+                    <span class="tiny muted">{{ order.customer_phone }}</span>
+                  </td>
+                  <td>
+                    <strong>Rs. {{ order.credit_exposure_amount }}</strong>
+                    <span class="tiny muted">Shop share Rs. {{ order.shop_exposure_share }}</span>
+                  </td>
+                  <td>
+                    <span class="shop-khatabook-risk-badge {{ order.risk_badge_class }}">{{ order.days_pending }} day{{ order.days_pending|pluralize }}</span>
+                    {% if order.days_overdue %}
+                      <span class="tiny muted">{{ order.days_overdue }} day{{ order.days_overdue|pluralize }} overdue</span>
+                    {% else %}
+                      <span class="tiny muted">Risk {{ order.risk_level }}</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <strong>{{ order.rider.full_name|default:"Unassigned" }}</strong>
+                    <span class="tiny muted">{{ order.shop_khata_dispatch_label }}</span>
+                  </td>
+                  <td>
+                    <span class="status-chip {{ order.credit_state_chip }}">{{ order.credit_state_label }}</span>
+                    <span class="tiny muted">{{ order.recovery_status_label }}</span>
+                  </td>
+                  <td>
+                    <div class="shop-khatabook-action-row">
+                      <a class="button small secondary" href="tel:{{ order.customer_phone }}">
+                        <span>Call Customer</span>
+                      </a>
+                      <form method="post" action="{% url 'core:shop_send_khatabook_reminder' order.id %}">
+                        {% csrf_token %}
+                        <button class="button small secondary" type="submit" title="Send a GramExpress payment reminder to this customer.">
+                          <span class="ui-icon icon-bell" aria-hidden="true"></span>
+                          <span>Send Reminder</span>
+                        </button>
+                      </form>
+                      <form method="post" action="{% url 'core:shop_mark_khatabook_order_paid' order.id %}">
+                        {% csrf_token %}
+                        <button class="button small primary" type="submit" title="Marks the weekly KhataBook cycle as recovered when this order is part of a shared credit batch.">
+                          <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
+                          <span>Mark as Paid</span>
+                        </button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-card">
+          <span class="eyebrow">No active credit orders</span>
+          <h2 class="section-title">No active credit orders right now</h2>
+          <p>Fresh KhataBook orders will appear here with risk color coding and recovery shortcuts.</p>
+        </div>
+      {% endif %}
+    </article>
+
+    <section class="shop-khatabook-secondary-grid" data-appear>
+      <article class="card shop-khatabook-recovery-card">
         <div class="split-row">
           <div class="content-stack">
-            <span class="eyebrow">Recovered</span>
-            <h2 class="section-title">Credit already paid back</h2>
+            <span class="eyebrow">Overdue / Defaulted Payments</span>
+            <h2 class="section-title">Recovery actions pending</h2>
           </div>
-          <span class="status-chip success">{{ shop_khatabook.settled_order_count }} settled</span>
+          <span class="status-chip {% if shop_khatabook.defaulted_order_count %}danger{% else %}success{% endif %}">{{ shop_khatabook.defaulted_order_count }} overdue</span>
         </div>
 
-        <div class="stack">
-          {% for order in shop_khatabook.settled_orders|slice:":6" %}
-            <div class="compact-item">
+        <div class="shop-khatabook-recovery-list">
+          {% for order in shop_khatabook.defaulted_orders %}
+            <article class="shop-khatabook-recovery-item">
               <div class="split-row">
                 <div>
                   <strong>{{ order.display_id }}</strong>
-                  <p>{{ order.credit_cycle_label }}</p>
+                  <p>{{ order.customer_name }} | {{ order.days_overdue }} day{{ order.days_overdue|pluralize }} overdue</p>
                 </div>
-                <span class="pill">Exposure Rs. {{ order.credit_exposure_amount }}</span>
+                <span class="status-chip danger">Rs. {{ order.credit_exposure_amount }}</span>
               </div>
-              <p class="utility-note">{{ order.credit_state_detail }}</p>
-            </div>
+              <div class="shop-khatabook-recovery-meta">
+                <span>Assigned rider: {{ order.rider.full_name|default:"Not assigned" }}</span>
+                <span>Recovery status: {{ order.recovery_status_label }}</span>
+                <span>Shop share at risk: Rs. {{ order.shop_exposure_share }}</span>
+              </div>
+              <div class="shop-khatabook-action-row">
+                <a class="button small secondary" href="tel:{{ order.customer_phone }}">Call Customer</a>
+                <form method="post" action="{% url 'core:shop_send_khatabook_reminder' order.id %}">
+                  {% csrf_token %}
+                  <button class="button small secondary" type="submit">Send Reminder</button>
+                </form>
+                <form method="post" action="{% url 'core:shop_mark_khatabook_order_paid' order.id %}">
+                  {% csrf_token %}
+                  <button class="button small primary" type="submit">Mark as Recovered</button>
+                </form>
+              </div>
+            </article>
           {% empty %}
             <div class="checkout-cod-panel">
-              <strong>No recovered credit yet</strong>
-              <p>Once a customer clears KhataBook dues, the recovered orders will appear here.</p>
+              <strong>No overdue payments</strong>
+              <p>No recovery actions pending.</p>
             </div>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="card shop-khatabook-controls-card">
+        <div class="content-stack">
+          <span class="eyebrow">Credit Control Settings</span>
+          <h2 class="section-title">Recommended policy guardrails</h2>
+          <p class="subtle">These are dashboard recommendations based on your current exposure and repayment history.</p>
+        </div>
+
+        <div class="shop-khatabook-settings-grid">
+          <label class="field shop-khatabook-setting-field">
+            <span>Maximum credit per customer</span>
+            <input type="number" value="{{ shop_khatabook.suggested_credit_limit }}" readonly />
+          </label>
+          <label class="field shop-khatabook-setting-field">
+            <span>Maximum credit days</span>
+            <input type="number" value="7" readonly />
+          </label>
+          <div class="shop-khatabook-toggle-card">
+            <div>
+              <strong>Auto stop credit after limit</strong>
+              <p>Suggested when exposure is rising or overdue amounts exist.</p>
+            </div>
+            <span class="status-chip {% if shop_khatabook.risk_level == 'High' %}danger{% elif shop_khatabook.risk_level == 'Medium' %}warn{% else %}success{% endif %}">
+              {% if shop_khatabook.risk_level == 'Low' %}Optional{% else %}Recommended{% endif %}
+            </span>
+          </div>
+          <div class="shop-khatabook-toggle-card">
+            <div>
+              <strong>Manual approval for credit orders</strong>
+              <p>Turn this on when high-risk customers or repeated late payments appear.</p>
+            </div>
+            <span class="status-chip {% if shop_khatabook.customer_scores and shop_khatabook.customer_scores.0.risk_level == 'High' %}danger{% else %}info{% endif %}">
+              {% if shop_khatabook.customer_scores and shop_khatabook.customer_scores.0.risk_level == 'High' %}Turn on{% else %}Monitor{% endif %}
+            </span>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="shop-khatabook-secondary-grid" data-appear>
+      <article class="card shop-khatabook-score-card">
+        <div class="split-row">
+          <div class="content-stack">
+            <span class="eyebrow">Customer Credit Score</span>
+            <h2 class="section-title">Who is safest to extend credit to</h2>
+          </div>
+          <span class="status-chip info">{{ shop_khatabook.customer_scores|length }} customers</span>
+        </div>
+
+        <div class="shop-khatabook-score-list">
+          {% for customer in shop_khatabook.customer_scores %}
+            <article class="shop-khatabook-score-item">
+              <div class="split-row">
+                <div>
+                  <strong>{{ customer.customer_name }}</strong>
+                  <p>{{ customer.customer_phone }}</p>
+                </div>
+                <span class="status-chip {{ customer.risk_chip }}">Risk {{ customer.risk_level }}</span>
+              </div>
+              <div class="shop-khatabook-score-metrics">
+                <span>Total credit orders: {{ customer.total_credit_orders }}</span>
+                <span>On-time payments: {{ customer.on_time_payments }}</span>
+                <span>Late payments: {{ customer.late_payments }}</span>
+                <span>Credit score: {{ customer.credit_score }}/100</span>
+              </div>
+            </article>
+          {% empty %}
+            <div class="checkout-cod-panel">
+              <strong>No customer scorecards yet</strong>
+              <p>Credit scores will appear after the first KhataBook repayment cycles complete.</p>
+            </div>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="card shop-khatabook-insights-card">
+        <div class="content-stack">
+          <span class="eyebrow">Insights &amp; Alerts</span>
+          <h2 class="section-title">What needs your attention</h2>
+        </div>
+
+        <div class="shop-khatabook-insight-list">
+          {% for insight in shop_khatabook.insights %}
+            <article class="shop-khatabook-insight-item">
+              <div class="shop-khatabook-inline-icon">
+                <span class="ui-icon icon-{{ insight.icon }}" aria-hidden="true"></span>
+              </div>
+              <div>
+                <div class="split-row">
+                  <strong>{{ insight.title }}</strong>
+                  <span class="status-chip {{ insight.chip }}">{{ insight.chip|title }}</span>
+                </div>
+                <p>{{ insight.detail }}</p>
+              </div>
+            </article>
           {% endfor %}
         </div>
       </article>
