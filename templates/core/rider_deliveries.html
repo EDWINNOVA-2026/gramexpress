@@ -156,8 +156,14 @@
         <label>Collection OTP
           <input type="text" name="collection_otp" placeholder="Enter customer KhataBook OTP" required />
         </label>
-        <p class="utility-note">Completion works only when you are close to the customer location.</p>
-        <button class="button primary" type="submit">Collected And Closed</button>
+        <p class="utility-note">Ask the customer for the repayment OTP sent to their registered contact. Completion works only when you are close to the customer location.</p>
+        <div class="inline-actions">
+          <button class="button primary" type="submit">Collected And Closed</button>
+        </div>
+      </form>
+      <form method="post" action="{% url 'core:rider_resend_khatabook_collection_otp' priority_khatabook_request.id %}" class="inline-actions">
+        {% csrf_token %}
+        <button class="button small secondary" type="submit">Resend KhataBook OTP</button>
       </form>
     </section>
   {% endif %}
@@ -345,8 +351,12 @@
             <label>Collection OTP
               <input type="text" name="collection_otp" placeholder="Enter customer KhataBook OTP" required />
             </label>
-            <p class="utility-note">The customer should share the KhataBook collection OTP only at the repayment handoff.</p>
+            <p class="utility-note">The customer should share the KhataBook collection OTP sent to their registered contact only at the repayment handoff.</p>
             <button class="button primary" type="submit">Collected And Closed</button>
+          </form>
+          <form method="post" action="{% url 'core:rider_resend_khatabook_collection_otp' collection_request.id %}" class="inline-actions">
+            {% csrf_token %}
+            <button class="button small secondary" type="submit">Resend KhataBook OTP</button>
           </form>
         </article>
       {% empty %}
