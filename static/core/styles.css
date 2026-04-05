@@ -960,11 +960,14 @@ textarea {
 .pill,
 .soft-pill,
 .status-chip {
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(10px) saturate(1.4);
+  -webkit-backdrop-filter: blur(10px) saturate(1.4);
   color: var(--text-muted);
   text-transform: none;
   letter-spacing: 0;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255,255,255,0.5);
 }
 
 .status-chip.success {
@@ -992,14 +995,16 @@ textarea {
   padding: 0.9rem 1.15rem;
   font-weight: 800;
   cursor: pointer;
-  transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  transition: all 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
 }
 
 .button:hover,
 .auth-primary-button:hover,
 .auth-secondary-button:hover,
 .auth-social-button:hover {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
 }
 
 .button:disabled,
@@ -1014,17 +1019,33 @@ textarea {
 
 .button.primary,
 .auth-primary-button {
-  background: linear-gradient(180deg, #1f2d55 0%, #1a1a2e 100%);
+  background: rgba(15, 23, 42, 0.88);
   color: #ffffff;
-  box-shadow: 0 12px 30px rgba(26, 26, 46, 0.24);
+  border: 1px solid rgba(15, 23, 42, 0.7);
+  box-shadow: 0 4px 16px rgba(26, 26, 46, 0.28), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+.button.primary:hover,
+.auth-primary-button:hover {
+  background: rgba(15, 23, 42, 0.95);
+  box-shadow: 0 8px 28px rgba(26, 26, 46, 0.38), inset 0 1px 0 rgba(255,255,255,0.1);
 }
 
 .button.secondary,
 .auth-secondary-button,
 .auth-social-button {
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.55);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255,255,255,0.6);
+}
+
+.button.secondary:hover,
+.auth-secondary-button:hover,
+.auth-social-button:hover {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(226, 232, 240, 0.6);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255,255,255,0.7);
 }
 
 .button.danger {
@@ -1615,24 +1636,33 @@ textarea {
   width: 100%;
   padding: 0.95rem 1rem;
   border-radius: 1rem;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(226, 232, 240, 0.5);
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: var(--text);
   outline: none;
-  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  transition: all 250ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: rgba(255, 171, 46, 0.55);
-  box-shadow: 0 0 0 4px rgba(255, 171, 46, 0.16);
-  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.25);
+  box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.06), 0 4px 16px rgba(15, 23, 42, 0.06);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+input:hover:not(:focus),
+select:hover:not(:focus),
+textarea:hover:not(:focus) {
+  border-color: rgba(148, 163, 184, 0.5);
+  background: rgba(255, 255, 255, 0.65);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: #9aa79d;
+  color: #94a3b8;
 }
 
 textarea {
@@ -1675,16 +1705,30 @@ code {
   width: 100%;
   display: grid;
   justify-items: center;
+  animation: auth-entrance 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+@keyframes auth-entrance {
+  0% {
+    opacity: 0;
+    transform: translateY(28px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .auth-card {
   width: min(100%, 30rem);
   border-radius: 2rem;
-  padding: 1.5rem 1.2rem;
+  padding: 1.75rem 1.4rem;
   text-align: center;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 249, 253, 0.96) 100%);
-  box-shadow: var(--shadow-lg);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.10), 0 4px 12px rgba(15, 23, 42, 0.04);
 }
 
 .auth-card-wide {
@@ -1697,6 +1741,16 @@ code {
   width: 3.45rem;
   height: 3.45rem;
   border-radius: 1.1rem;
+  animation: lock-glow 3s ease-in-out infinite;
+}
+
+@keyframes lock-glow {
+  0%, 100% {
+    box-shadow: 0 18px 30px rgba(255, 87, 51, 0.26);
+  }
+  50% {
+    box-shadow: 0 18px 40px rgba(255, 87, 51, 0.38), 0 0 20px rgba(255, 87, 51, 0.12);
+  }
 }
 
 .auth-subtitle {
@@ -1729,7 +1783,34 @@ code {
 
 .auth-inline-links a,
 .auth-footer-copy a {
-  text-decoration: underline;
+  text-decoration: none;
+  color: var(--text);
+  font-weight: 600;
+  position: relative;
+  transition: color 200ms ease;
+}
+
+.auth-inline-links a::after,
+.auth-footer-copy a::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 1px;
+  transition: width 250ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.auth-inline-links a:hover::after,
+.auth-footer-copy a:hover::after {
+  width: 100%;
+}
+
+.auth-inline-links a:hover,
+.auth-footer-copy a:hover {
+  color: #0f172a;
 }
 
 .auth-inline-links-centered {
@@ -1747,10 +1828,13 @@ code {
 
 .auth-note-panel {
   margin-top: 1rem;
-  padding: 1rem;
+  padding: 1.1rem;
   border-radius: 1.4rem;
-  border: 1px solid rgba(17, 24, 39, 0.08);
-  background: rgba(249, 250, 253, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04);
   flex-direction: column;
 }
 
@@ -1805,10 +1889,11 @@ code {
 }
 
 .auth-field label {
-  font-size: 0.82rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: #4b5563;
+  letter-spacing: 0.14em;
+  color: #64748b;
+  font-weight: 600;
 }
 
 .auth-primary-button,
@@ -1820,14 +1905,18 @@ code {
 .auth-otp-card,
 .auth-role-section {
   text-align: left;
-  padding: 1rem;
+  padding: 1.1rem;
   border-radius: 1.5rem;
-  border: 1px solid rgba(17, 24, 39, 0.08);
-  background: rgba(249, 250, 253, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04);
 }
 
 .auth-otp-card {
   margin-bottom: 1rem;
+  border-left: 3px solid rgba(15, 23, 42, 0.7);
 }
 
 .auth-section-head {
@@ -1874,10 +1963,21 @@ code {
 }
 
 .role-entry-card {
-  padding: 1rem;
-  border-radius: 1.2rem;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.84);
+  padding: 1.15rem;
+  border-radius: 1.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255,255,255,0.5);
+  transition: all 250ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.role-entry-card:hover {
+  transform: translateY(-3px);
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255,255,255,0.6);
+  border-color: rgba(15, 23, 42, 0.12);
 }
 
 .mobile-bottom-nav {
@@ -2658,5 +2758,163 @@ code {
   .customer-home-location-button {
     width: 100%;
     min-width: 0;
+  }
+}
+
+/* ── Desktop Enhancements ── */
+
+@media (min-width: 720px) {
+  .topbar {
+    padding: 0.9rem 1.5rem;
+    border-radius: 1.5rem;
+  }
+
+  .brand-mark {
+    width: 2.9rem;
+    height: 2.9rem;
+    border-radius: 1rem;
+  }
+
+  .ambient-one {
+    width: 24rem;
+    height: 24rem;
+    filter: blur(120px);
+  }
+
+  .ambient-two {
+    width: 24rem;
+    height: 24rem;
+    filter: blur(120px);
+  }
+
+  .ambient-three {
+    width: 28rem;
+    height: 28rem;
+    filter: blur(140px);
+  }
+
+  .card:hover,
+  .glass-card:hover,
+  .quick-card:hover,
+  .metric-card:hover,
+  .nested-panel:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 24px 56px rgba(15, 23, 42, 0.12);
+  }
+
+  .customer-home-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 28px 64px rgba(15, 23, 42, 0.14);
+  }
+
+  .menu-panel {
+    border-radius: 1.5rem;
+    padding: 0.7rem;
+  }
+
+  .feature-nav {
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(20px) saturate(1.6);
+    -webkit-backdrop-filter: blur(20px) saturate(1.6);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    box-shadow: 0 6px 24px rgba(15, 23, 42, 0.06);
+    border-radius: 1.4rem;
+  }
+
+  .rider-segmented-nav {
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(20px) saturate(1.6);
+    -webkit-backdrop-filter: blur(20px) saturate(1.6);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    box-shadow: 0 6px 24px rgba(15, 23, 42, 0.06);
+    border-radius: 1.4rem;
+  }
+
+  .hero-card h1,
+  .auth-card h1,
+  .page-header h1,
+  .hero-title {
+    font-size: clamp(2.2rem, 4vw, 3.2rem);
+    line-height: 1.06;
+  }
+}
+
+@media (min-width: 1040px) {
+  .topbar {
+    padding: 1rem 1.75rem;
+  }
+
+  .hero-card h1,
+  .auth-card h1,
+  .page-header h1,
+  .hero-title {
+    font-size: clamp(2.6rem, 4vw, 3.6rem);
+  }
+
+  .section-title {
+    font-size: 1.35rem;
+  }
+
+  .metric-value {
+    font-size: clamp(2rem, 5vw, 2.8rem);
+  }
+
+  .rider-topbar-card {
+    padding: 1.5rem;
+    border-radius: 2rem;
+  }
+
+  .rider-job-card {
+    padding: 1.35rem;
+    border-radius: 1.75rem;
+  }
+
+  .customer-home-hero {
+    padding: 1.5rem;
+    border-radius: 2rem;
+  }
+
+  .customer-home-card {
+    border-radius: 2rem;
+  }
+
+  .customer-home-card-media {
+    min-height: 220px;
+  }
+
+  .auth-card {
+    padding: 2.5rem 2rem;
+    border-radius: 2.5rem;
+  }
+
+  .shop-dashboard-state-card {
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .hero-card h1,
+  .auth-card h1,
+  .page-header h1,
+  .hero-title {
+    font-size: clamp(3rem, 4.5vw, 4rem);
+  }
+
+  .section-title {
+    font-size: 1.65rem;
+  }
+
+  .auth-card {
+    width: min(100%, 34rem);
+    padding: 3rem 2.5rem;
+  }
+
+  .customer-home-card-media {
+    min-height: 240px;
+  }
+
+  .customer-home-card-copy strong {
+    font-size: 1.4rem;
   }
 }
