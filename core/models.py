@@ -209,6 +209,7 @@ class Shop(TimeStampedModel, LocationMixin):
     address_line_1 = models.CharField(max_length=160)
     address_line_2 = models.CharField(max_length=160, blank=True)
     district = models.CharField(max_length=80)
+    state = models.CharField(max_length=80, blank=True)
     pincode = models.CharField(max_length=12)
     description = models.TextField(default='Local quick-commerce partner')
     offer = models.CharField(max_length=160, default='Fresh local delivery')
