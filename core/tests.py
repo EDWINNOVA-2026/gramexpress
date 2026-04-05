@@ -178,6 +178,16 @@ class CoreFlowTests(TestCase):
         self.assertNotContains(response, 'Vehicle Type')
         self.assertNotContains(response, 'Open shop onboarding')
 
+    def test_register_details_shop_shows_map_pin_controls(self):
+        response = self.client.get(f'{reverse("core:register_details")}?account_type={RoleType.SHOP}')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Store location pin')
+        self.assertContains(response, 'Use Current Location')
+        self.assertContains(response, 'Pick On Map')
+        self.assertContains(response, 'Confirm Location')
+        self.assertContains(response, 'State')
+
     def test_root_renders_landing_page_for_anonymous_users(self):
         response = self.client.get(reverse('core:home'))
         self.assertEqual(response.status_code, 200)
@@ -243,6 +253,7 @@ class CoreFlowTests(TestCase):
             'locality': 'VV Nagar',
             'city': 'Mandya',
             'district': 'Mandya',
+            'state': 'Karnataka',
             'pincode': '571401',
         }
 
@@ -260,6 +271,7 @@ class CoreFlowTests(TestCase):
                 'locality': 'VV Nagar',
                 'city': 'Mandya',
                 'district': 'Mandya',
+                'state': 'Karnataka',
                 'pincode': '571401',
             },
         )
@@ -351,6 +363,32 @@ class CoreFlowTests(TestCase):
         )
 
         self.assertEqual(get_dashboard_url_for_user(user), reverse('core:shop_start'))
+
+    def test_shop_settings_page_shows_location_editor_controls(self):
+        self.client.force_login(self.shop_user)
+
+        response = self.client.get(reverse('core:shop_settings'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Store Location')
+        self.assertContains(response, 'Use Current Location')
+        self.assertContains(response, 'Pick On Map')
+        self.assertContains(response, 'Confirm Location')
+
+    def test_shop_cannot_go_live_when_location_is_not_ready(self):
+        self.client.force_login(self.shop_user)
+        self.shop.is_open = False
+        self.shop.address_line_1 = ''
+        self.shop.district = ''
+        self.shop.pincode = ''
+        self.shop.save(update_fields=['is_open', 'address_line_1', 'district', 'pincode', 'updated_at'])
+
+        response = self.client.post(reverse('core:shop_toggle_store_state'), follow=True)
+
+        self.shop.refresh_from_db()
+        self.assertRedirects(response, reverse('core:shop_settings'))
+        self.assertFalse(self.shop.is_open)
+        self.assertContains(response, 'Set your exact store location in Storefront Settings before going live.')
 
     def test_shop_start_renders_setup_form_for_authenticated_shop_without_store(self):
         user = get_user_model().objects.create_user(
@@ -626,6 +664,7 @@ class CoreFlowTests(TestCase):
                 'locality': 'Basavanahalli',
                 'city': 'Chikkamagaluru',
                 'district': 'Basavanahalli',
+                'state': '',
                 'pincode': '577101',
             },
         )
