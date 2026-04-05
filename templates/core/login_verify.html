@@ -4,7 +4,7 @@
   <section class="auth-stage" data-appear>
     <article class="auth-card auth-shell-narrow">
       <div class="auth-lockmark" aria-hidden="true">
-        <span class="auth-lock-body"></span>
+        <img src="/static/core/gramexpress.webp?v={{ shell_asset_version }}" alt="" loading="eager" decoding="async" />
       </div>
       <h1>Verify Sign In</h1>
       <p class="auth-subtitle">The email verification step now opens on its own page.</p>
@@ -26,11 +26,7 @@
       <form class="auth-form auth-form-tight" method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="verify_login_otp" />
-        <div class="auth-field">
-          <label for="{{ otp_form.code.id_for_label }}">Email OTP</label>
-          {{ otp_form.code }}
-          {% for error in otp_form.code.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
-        </div>
+        {% include 'core/otp_input.html' with otp_field=otp_form.code otp_label='Email OTP' otp_autofocus=True %}
         <button class="auth-primary-button" type="submit">Verify OTP</button>
       </form>
 

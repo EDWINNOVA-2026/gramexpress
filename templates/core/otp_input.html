@@ -1,0 +1,21 @@
+<div class="auth-field">
+  <label for="{{ otp_field.id_for_label }}">{{ otp_label|default:otp_field.label }}</label>
+  <div class="otp-input-shell{% if otp_field.errors %} otp-input-shell-error{% endif %}" data-otp-input{% if otp_autofocus %} data-otp-autofocus="true"{% endif %}>
+    {{ otp_field.as_hidden }}
+    <div class="otp-input-grid" role="group" aria-label="{{ otp_label|default:otp_field.label }}">
+      {% for _ in '123456'|make_list %}
+        <input
+          type="text"
+          class="otp-digit-input"
+          inputmode="numeric"
+          pattern="[0-9]*"
+          maxlength="1"
+          data-otp-digit
+          aria-label="{{ otp_label|default:otp_field.label }} digit {{ forloop.counter }}"
+          autocomplete="one-time-code"
+        />
+      {% endfor %}
+    </div>
+  </div>
+  {% for error in otp_field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+</div>
