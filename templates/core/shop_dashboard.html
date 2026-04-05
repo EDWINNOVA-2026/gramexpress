@@ -44,7 +44,9 @@
               {% else %}
                 <a class="button {% if go_live_status.chip == 'success' %}secondary{% else %}primary{% endif %}" href="{{ go_live_status.action_url }}">{{ go_live_status.action_label }}</a>
               {% endif %}
-              <a class="button secondary" href="{% url 'core:shop_settings' %}">Edit Store</a>
+              {% if go_live_status.action_label != 'Edit Store' %}
+                <a class="button secondary" href="{% url 'core:shop_settings' %}">Edit Store</a>
+              {% endif %}
             </div>
           </article>
 
