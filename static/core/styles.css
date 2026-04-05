@@ -1876,11 +1876,12 @@ code {
   gap: 0.45rem;
   width: min(96vw, 520px);
   padding: 0.55rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(18px);
+  border-radius: 1.4rem;
+  background: rgba(255, 255, 255, 0.52);
+  backdrop-filter: blur(24px) saturate(1.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 8px 40px rgba(15, 23, 42, 0.10), 0 2px 8px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255,255,255,0.6);
 }
 
 .mobile-bottom-link {
