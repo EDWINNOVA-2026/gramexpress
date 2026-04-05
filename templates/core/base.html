@@ -122,7 +122,10 @@
                 <div class="topbar-actions">
                   <nav class="nav nav-primary" aria-label="Primary navigation">
                     {% for link in shell_primary_links %}
-                      <a href="{{ link.url }}" class="{% if request.path == link.url %}nav-active{% endif %}">{{ link.label }}</a>
+                      <a href="{{ link.url }}" class="{% if request.path == link.url %}nav-active{% endif %}">
+                        <span class="ui-icon icon-{{ link.icon }}" aria-hidden="true"></span>
+                        <span>{{ link.label }}</span>
+                      </a>
                     {% endfor %}
                   </nav>
 
@@ -139,7 +142,12 @@
                         <small>{{ shell_dashboard_label }}</small>
                       </div>
                       {% for link in shell_menu_links %}
-                        <a href="{{ link.url }}" class="menu-link{% if request.path == link.url %} menu-link-active{% endif %}">{{ link.label }}</a>
+                        <a href="{{ link.url }}" class="menu-link{% if request.path == link.url %} menu-link-active{% endif %}">
+                          <span class="menu-link-copy">
+                            <span class="ui-icon icon-{{ link.icon }}" aria-hidden="true"></span>
+                            <span>{{ link.label }}</span>
+                          </span>
+                        </a>
                       {% endfor %}
                       {% if shell_active_role == 'rider' and shell_rider_menu_state %}
                         <form method="post" action="{% url 'core:rider_toggle_availability' %}" class="menu-status-form">
@@ -170,7 +178,10 @@
                         </form>
                       {% endif %}
                       <a href="{% url 'core:notifications' %}" class="menu-link menu-link-alerts{% if route_name == 'notifications' %} menu-link-active{% endif %}">
-                        Alerts
+                        <span class="menu-link-copy">
+                          <span class="ui-icon icon-bell" aria-hidden="true"></span>
+                          <span>Alerts</span>
+                        </span>
                         {% if shell_unread_notification_count %}
                           <span class="nav-bell-count nav-bell-count-live">
                             {% if shell_unread_notification_count > 9 %}9+{% else %}{{ shell_unread_notification_count|default:0 }}{% endif %}
@@ -178,17 +189,36 @@
                         {% endif %}
                       </a>
                       {% if user.is_staff %}
-                        <a href="/admin/" class="menu-link">Django Admin</a>
+                        <a href="/admin/" class="menu-link">
+                          <span class="menu-link-copy">
+                            <span class="ui-icon icon-shield" aria-hidden="true"></span>
+                            <span>Django Admin</span>
+                          </span>
+                        </a>
                       {% endif %}
-                      <a href="{% url 'core:logout' %}" class="menu-link menu-link-danger">Logout</a>
+                      <a href="{% url 'core:logout' %}" class="menu-link menu-link-danger">
+                        <span class="menu-link-copy">
+                          <span class="ui-icon icon-log-out" aria-hidden="true"></span>
+                          <span>Logout</span>
+                        </span>
+                      </a>
                     </div>
                   </div>
                 </div>
               {% else %}
                 <nav class="nav nav-guest" aria-label="Guest navigation">
-                  <a href="{% url 'core:home' %}" class="{% if route_name == 'home' %}nav-active{% endif %}">Home</a>
-                  <a href="{% url 'core:login' %}" class="nav-active">Sign In</a>
-                  <a href="{% url 'core:register' %}">Register</a>
+                  <a href="{% url 'core:home' %}" class="{% if route_name == 'home' %}nav-active{% endif %}">
+                    <span class="ui-icon icon-house" aria-hidden="true"></span>
+                    <span>Home</span>
+                  </a>
+                  <a href="{% url 'core:login' %}" class="nav-active">
+                    <span class="ui-icon icon-log-in" aria-hidden="true"></span>
+                    <span>Sign In</span>
+                  </a>
+                  <a href="{% url 'core:register' %}">
+                    <span class="ui-icon icon-user-plus" aria-hidden="true"></span>
+                    <span>Register</span>
+                  </a>
                 </nav>
               {% endif %}
             </div>
@@ -213,11 +243,17 @@
           <nav class="mobile-bottom-nav{% if shell_active_role == 'shop' %} mobile-bottom-nav-shop{% endif %}" aria-label="Bottom navigation">
             {% if shell_active_role == 'shop' %}
               {% for link in shell_role_links %}
-                <a href="{{ link.url }}" class="mobile-bottom-link{% if request.path == link.url %} mobile-bottom-link-active{% endif %}"{% if request.path == link.url %} aria-current="page"{% endif %}>{{ link.label }}</a>
+                <a href="{{ link.url }}" class="mobile-bottom-link{% if request.path == link.url %} mobile-bottom-link-active{% endif %}"{% if request.path == link.url %} aria-current="page"{% endif %}>
+                  <span class="ui-icon icon-{{ link.icon }}" aria-hidden="true"></span>
+                  <span>{{ link.label }}</span>
+                </a>
               {% endfor %}
             {% else %}
               {% for link in shell_primary_links %}
-                <a href="{{ link.url }}" class="mobile-bottom-link{% if request.path == link.url %} mobile-bottom-link-active{% endif %}">{{ link.label }}</a>
+                <a href="{{ link.url }}" class="mobile-bottom-link{% if request.path == link.url %} mobile-bottom-link-active{% endif %}">
+                  <span class="ui-icon icon-{{ link.icon }}" aria-hidden="true"></span>
+                  <span>{{ link.label }}</span>
+                </a>
               {% endfor %}
             {% endif %}
           </nav>
