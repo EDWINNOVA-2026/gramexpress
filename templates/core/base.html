@@ -803,6 +803,261 @@
           });
         }
 
+        function attachRiderPhotoPanels() {
+          var panels = document.querySelectorAll('[data-rider-photo-panel]');
+          if (!panels.length) {
+            return;
+          }
+
+          panels.forEach(function (panel) {
+            var uploadUrl = panel.getAttribute('data-upload-url');
+            var csrfInput = document.querySelector('[name="csrfmiddlewaretoken"]');
+            var hiddenInput = panel.querySelector('[data-rider-photo-hidden]') || panel.querySelector('input[name="photo_url"]');
+            var video = panel.querySelector('[data-rider-photo-video]');
+            var canvas = panel.querySelector('[data-rider-photo-canvas]');
+            var preview = panel.querySelector('[data-rider-photo-preview]');
+            var fileInput = panel.querySelector('[data-rider-photo-file]');
+            var openButton = panel.querySelector('[data-rider-photo-open]');
+            var captureButton = panel.querySelector('[data-rider-photo-capture]');
+            var retakeButton = panel.querySelector('[data-rider-photo-retake]');
+            var uploadButton = panel.querySelector('[data-rider-photo-upload]');
+            var statusNode = panel.querySelector('[data-rider-photo-status]');
+            var accountType = panel.getAttribute('data-account-type') || '';
+            var stream = null;
+            var pendingFile = null;
+
+            if (!uploadUrl || !preview || !openButton || !uploadButton) {
+              return;
+            }
+
+            function setStatus(message, tone) {
+              if (!statusNode) {
+                return;
+              }
+              statusNode.textContent = message;
+              statusNode.classList.remove('field-error', 'field-success');
+              if (tone === 'error') {
+                statusNode.classList.add('field-error');
+              } else if (tone === 'success') {
+                statusNode.classList.add('field-success');
+              }
+            }
+
+            function toggleButton(button, enabled) {
+              if (!button) {
+                return;
+              }
+              button.disabled = !enabled;
+            }
+
+            function stopStream() {
+              if (!stream) {
+                return;
+              }
+              stream.getTracks().forEach(function (track) {
+                track.stop();
+              });
+              stream = null;
+            }
+
+            function setPreviewSource(url) {
+              if (!url) {
+                preview.removeAttribute('src');
+                preview.classList.remove('is-ready');
+                return;
+              }
+              preview.src = url;
+              preview.classList.add('is-ready');
+              Array.prototype.slice.call(document.querySelectorAll('[data-rider-photo-target]')).forEach(function (image) {
+                image.src = url;
+              });
+            }
+
+            function resetCaptureState(keepPreview) {
+              pendingFile = null;
+              panel.classList.remove('is-camera-live');
+              stopStream();
+              if (!keepPreview) {
+                setPreviewSource('');
+              }
+              toggleButton(captureButton, false);
+              toggleButton(retakeButton, !!preview.getAttribute('src'));
+              toggleButton(uploadButton, false);
+            }
+
+            async function startCamera() {
+              if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+                if (fileInput) {
+                  fileInput.click();
+                  setStatus('Camera access is unavailable here, so choose or capture a photo from your device.', null);
+                } else {
+                  setStatus('Camera access is unavailable in this browser.', 'error');
+                }
+                return;
+              }
+
+              stopStream();
+              try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                  video: {
+                    facingMode: 'user',
+                    width: { ideal: 960 },
+                    height: { ideal: 960 }
+                  },
+                  audio: false
+                });
+                video.srcObject = stream;
+                panel.classList.add('is-camera-live');
+                toggleButton(captureButton, true);
+                toggleButton(retakeButton, false);
+                toggleButton(uploadButton, false);
+                setStatus('Center your face in the frame, then capture and upload the photo.', null);
+              } catch (error) {
+                panel.classList.remove('is-camera-live');
+                if (fileInput) {
+                  fileInput.click();
+                  setStatus('Camera permission was denied. Choose a photo from your device instead.', 'error');
+                } else {
+                  setStatus('Camera permission was denied.', 'error');
+                }
+              }
+            }
+
+            function buildFileFromBlob(blob) {
+              return new File([blob], 'rider-live-photo.jpg', { type: 'image/jpeg' });
+            }
+
+            function captureFrame() {
+              if (!stream || !video || !canvas) {
+                return;
+              }
+
+              var width = video.videoWidth || 720;
+              var height = video.videoHeight || 720;
+              canvas.width = width;
+              canvas.height = height;
+              var context = canvas.getContext('2d');
+              context.drawImage(video, 0, 0, width, height);
+              canvas.toBlob(function (blob) {
+                if (!blob) {
+                  setStatus('Could not capture the photo. Please try again.', 'error');
+                  return;
+                }
+                pendingFile = buildFileFromBlob(blob);
+                panel.classList.remove('is-camera-live');
+                stopStream();
+                setPreviewSource(URL.createObjectURL(blob));
+                toggleButton(uploadButton, true);
+                toggleButton(retakeButton, true);
+                toggleButton(captureButton, false);
+                setStatus('Photo captured. Upload it to save it to the rider profile.', null);
+              }, 'image/jpeg', 0.82);
+            }
+
+            function updateFromFile(file) {
+              if (!file) {
+                return;
+              }
+              pendingFile = file;
+              panel.classList.remove('is-camera-live');
+              setPreviewSource(URL.createObjectURL(file));
+              toggleButton(uploadButton, true);
+              toggleButton(retakeButton, true);
+              setStatus('Photo selected. Upload it to save it to the rider profile.', null);
+            }
+
+            function uploadPhoto() {
+              if (!pendingFile) {
+                setStatus('Capture or choose a rider photo first.', 'error');
+                return;
+              }
+
+              var formData = new FormData();
+              formData.append('photo', pendingFile);
+              if (accountType) {
+                formData.append('account_type', accountType);
+              }
+
+              toggleButton(uploadButton, false);
+              uploadButton.classList.add('is-loading');
+              uploadButton.setAttribute('aria-busy', 'true');
+              setStatus('Uploading rider photo...', null);
+
+              fetch(uploadUrl, {
+                method: 'POST',
+                body: formData,
+                headers: csrfInput ? { 'X-CSRFToken': csrfInput.value } : {}
+              })
+                .then(function (response) {
+                  return response.json().then(function (payload) {
+                    if (!response.ok) {
+                      throw new Error(payload.error || 'Upload failed.');
+                    }
+                    return payload;
+                  });
+                })
+                .then(function (payload) {
+                  var nextUrl = payload.photo_url || (payload.rider && payload.rider.photo_url) || '';
+                  if (hiddenInput) {
+                    hiddenInput.value = nextUrl;
+                    hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+                  }
+                  setPreviewSource(nextUrl);
+                  setStatus('Rider photo saved successfully.', 'success');
+                  resetCaptureState(true);
+                })
+                .catch(function (error) {
+                  toggleButton(uploadButton, true);
+                  setStatus(error.message || 'Upload failed. Please try again.', 'error');
+                })
+                .finally(function () {
+                  uploadButton.classList.remove('is-loading');
+                  uploadButton.removeAttribute('aria-busy');
+                });
+            }
+
+            if (preview.getAttribute('src')) {
+              preview.classList.add('is-ready');
+            }
+
+            openButton.addEventListener('click', function () {
+              startCamera();
+            });
+
+            if (captureButton) {
+              captureButton.addEventListener('click', function () {
+                captureFrame();
+              });
+            }
+
+            if (retakeButton) {
+              retakeButton.addEventListener('click', function () {
+                resetCaptureState(false);
+                startCamera();
+              });
+            }
+
+            if (fileInput) {
+              fileInput.addEventListener('change', function () {
+                var file = fileInput.files && fileInput.files[0];
+                if (file) {
+                  stopStream();
+                  panel.classList.remove('is-camera-live');
+                  updateFromFile(file);
+                }
+              });
+            }
+
+            uploadButton.addEventListener('click', function () {
+              uploadPhoto();
+            });
+
+            window.addEventListener('beforeunload', function () {
+              stopStream();
+            });
+          });
+        }
+
         attachNavToggle();
         attachLocationButtons();
         attachAppearObserver();
@@ -813,6 +1068,7 @@
         attachInstallPrompt();
         attachCopyButtons();
         attachOtpInputs();
+        attachRiderPhotoPanels();
 
         if ('caches' in window) {
           caches.keys().then(function (keys) {
