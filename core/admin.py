@@ -4,6 +4,7 @@ from django.utils.html import format_html
 from .models import (
     ApprovalStatus,
     CustomerProfile,
+    DeliverySlotSetting,
     EmailOtpToken,
     Notification,
     Order,
@@ -121,10 +122,30 @@ class ProductAdmin(admin.ModelAdmin):
     search_fields = ('name', 'shop__name')
 
 
+@admin.register(DeliverySlotSetting)
+class DeliverySlotSettingAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'delivery_fee', 'time_label', 'priority_level', 'tag')
+    list_editable = ('delivery_fee', 'time_label', 'priority_level', 'tag')
+    search_fields = ('code', 'name', 'description')
+
+
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('id', 'customer', 'shop', 'rider', 'status', 'payment_method', 'payment_status', 'total_amount', 'delivered_at')
-    list_filter = ('status', 'payment_method', 'payment_status')
+    list_display = (
+        'id',
+        'customer',
+        'shop',
+        'rider',
+        'status',
+        'delivery_slot',
+        'delivery_deadline',
+        'delivery_fee',
+        'payment_method',
+        'payment_status',
+        'total_amount',
+        'delivered_at',
+    )
+    list_filter = ('status', 'delivery_slot', 'payment_method', 'payment_status')
     search_fields = ('customer__full_name', 'shop__name', 'rider__full_name')
     inlines = [OrderItemInline]
 
