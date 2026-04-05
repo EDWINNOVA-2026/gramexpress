@@ -50,15 +50,15 @@
         {% for product in products %}
           <div class="product-card product-card-rich">
             <div class="product-media" style="background: linear-gradient(135deg, {{ product.color }}, #fff4ee);">
-              {% if product.image_url %}
-                <img src="{{ product.image_url }}" alt="{{ product.name }}" />
+              {% if product.image_source %}
+                <img src="{{ product.image_source }}" alt="{{ product.name }}" />
               {% else %}
                 <span>{{ product.name|first|upper }}</span>
               {% endif %}
             </div>
             <div class="product-copy">
               <strong>{{ product.name }}</strong>
-              <p>{{ product.subtitle }}</p>
+              <p>{{ product.preview_description|default:product.subtitle }}</p>
               <div class="product-meta-row">
                 <span class="soft-pill">{{ product.unit }}</span>
                 <span class="soft-pill">Stock {{ product.stock }}</span>

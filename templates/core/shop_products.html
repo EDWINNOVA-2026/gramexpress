@@ -10,63 +10,390 @@
     {% endfor %}
   </section>
 
-  <section class="layout-two shop-catalog-layout" id="workspace">
-    <article class="card shop-catalog-composer" data-appear>
-      <span class="eyebrow">Product Composer</span>
-      <h2 class="section-title">{% if editing_product %}Edit product{% else %}Add product{% endif %}</h2>
-      <form method="post" class="stack">
-        {% csrf_token %}
-        {% if editing_product %}
-          <input type="hidden" name="product_id" value="{{ editing_product.id }}" />
-        {% endif %}
-        {{ product_form.as_p }}
-        <button class="button primary" type="submit">
+  <section class="page-stack shop-catalog-shell" id="workspace">
+    <article class="card shop-catalog-toolbar" data-appear>
+      <div class="shop-catalog-toolbar-copy">
+        <span class="eyebrow">Catalog Management</span>
+        <h1 class="page-title">Manage your shelf in one place</h1>
+        <p>Add products quickly, preview exactly how customers will see them, and keep stock status clear at a glance.</p>
+      </div>
+      <div class="shop-catalog-toolbar-actions">
+        <a class="button primary" href="#product-form">
           <span class="ui-icon icon-plus" aria-hidden="true"></span>
-          <span>Save Product</span>
-        </button>
+          <span>Add Product</span>
+        </a>
+      </div>
+      <form method="get" class="shop-catalog-toolbar-filters">
+        <label>
+          <span>Category Filter</span>
+          <select name="category">
+            <option value="">All Categories</option>
+            {% for category in catalog_category_options %}
+              <option value="{{ category }}"{% if catalog_category == category %} selected{% endif %}>{{ category }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          <span>Search Product</span>
+          <input type="search" name="q" value="{{ catalog_query }}" placeholder="Search by name, category, or unit" />
+        </label>
+        <button class="button secondary" type="submit">Apply</button>
       </form>
     </article>
 
-    <article class="card shop-catalog-panel" data-appear>
-      <span class="eyebrow">Catalog</span>
-      <h2 class="section-title">Products on the shelf</h2>
-      <div class="store-grid store-grid-catalog shop-catalog-grid">
-        {% for product in shop.products.all %}
-          <div class="store-card product-showcase-card shop-catalog-card">
-            <div class="store-card-media product-card-media" style="background: linear-gradient(135deg, {{ product.color }}, #fff4ee);">
-              {% if product.image_url %}
-                <img src="{{ product.image_url }}" alt="{{ product.name }}" />
-              {% else %}
-                <div class="store-card-placeholder">{{ product.name|first|upper }}</div>
-              {% endif %}
-            </div>
-            <div class="store-card-body">
-              <strong>{{ product.name }}</strong>
-              <p>{{ product.subtitle }}</p>
-              <div class="store-card-meta">
-                <span>Rs. {{ product.price }}</span>
-                <span>{{ product.unit }}</span>
-                <span>Stock {{ product.stock }}</span>
-              </div>
-            </div>
-            <div class="inline-actions">
-              <a class="button small secondary" href="?edit_product={{ product.id }}">
-                <span class="ui-icon icon-square-pen" aria-hidden="true"></span>
-                <span>Edit</span>
-              </a>
-              <form method="post" action="{% url 'core:shop_delete_product' product.id %}">
-                {% csrf_token %}
-                <button class="button small danger" type="submit">
-                  <span class="ui-icon icon-trash-2" aria-hidden="true"></span>
-                  <span>Delete</span>
-                </button>
-              </form>
+    <section class="shop-catalog-main-grid">
+      <article class="card shop-catalog-composer-v2" data-appear>
+        <div class="shop-catalog-section-head">
+          <div>
+            <span class="eyebrow">Add New Product</span>
+            <h2 class="section-title">{% if editing_product %}Edit product{% else %}Add New Product{% endif %}</h2>
+          </div>
+          <span class="status-chip info">{{ live_product_count }} live</span>
+        </div>
+
+        <form method="post" enctype="multipart/form-data" class="shop-catalog-form" id="product-form">
+          {% csrf_token %}
+          {% if editing_product %}
+            <input type="hidden" name="product_id" value="{{ editing_product.id }}" />
+          {% endif %}
+
+          <div class="shop-catalog-form-grid">
+            <label>
+              <span>{{ product_form.name.label }}</span>
+              {{ product_form.name }}
+              {{ product_form.name.errors }}
+            </label>
+            <label>
+              <span>{{ product_form.category.label }}</span>
+              {{ product_form.category }}
+              {{ product_form.category.errors }}
+            </label>
+            <label>
+              <span>{{ product_form.unit.label }}</span>
+              {{ product_form.unit }}
+              {{ product_form.unit.errors }}
+            </label>
+            <label>
+              <span>{{ product_form.mrp.label }}</span>
+              {{ product_form.mrp }}
+              {{ product_form.mrp.errors }}
+            </label>
+            <label>
+              <span>{{ product_form.price.label }}</span>
+              {{ product_form.price }}
+              {{ product_form.price.errors }}
+            </label>
+            <label>
+              <span>{{ product_form.stock.label }}</span>
+              {{ product_form.stock }}
+              {{ product_form.stock.errors }}
+            </label>
+          </div>
+
+          <div class="shop-catalog-upload-grid">
+            <label class="shop-catalog-upload-card">
+              <span>{{ product_form.image.label }}</span>
+              {{ product_form.image }}
+              {{ product_form.image.errors }}
+            </label>
+            <label>
+              <span>{{ product_form.image_url.label }}</span>
+              {{ product_form.image_url }}
+              {{ product_form.image_url.errors }}
+            </label>
+          </div>
+
+          <label>
+            <span>{{ product_form.description.label }}</span>
+            {{ product_form.description }}
+            {{ product_form.description.errors }}
+          </label>
+
+          <label class="shop-catalog-visibility-toggle">
+            <span>{{ product_form.is_visible }}</span>
+            <span>
+              <strong>Show in storefront</strong>
+              <small>This product will appear to customers only when this toggle is on.</small>
+            </span>
+          </label>
+
+          <button class="button primary" type="submit">
+            <span class="ui-icon icon-plus" aria-hidden="true"></span>
+            <span>Save Product</span>
+          </button>
+        </form>
+      </article>
+
+      <article class="card shop-catalog-preview-panel" data-appear>
+        <div class="shop-catalog-section-head">
+          <div>
+            <span class="eyebrow">Live Product Preview</span>
+            <h2 class="section-title">This is how customers will see this product</h2>
+          </div>
+        </div>
+
+        <div class="shop-catalog-preview-card" data-product-preview>
+          <div class="shop-catalog-preview-media" data-preview-media style="background: linear-gradient(135deg, {% if editing_product %}{{ editing_product.color }}{% else %}#dbeafe{% endif %}, #fff7ed);">
+            {% if editing_product and editing_product.image_source %}
+              <img src="{{ editing_product.image_source }}" alt="{{ editing_product.name }}" data-preview-image />
+            {% else %}
+              <span data-preview-placeholder>{% if editing_product %}{{ editing_product.name|first|upper }}{% else %}P{% endif %}</span>
+              <img src="" alt="" data-preview-image hidden />
+            {% endif %}
+          </div>
+          <div class="shop-catalog-preview-copy">
+            <strong data-preview-name>{% if editing_product %}{{ editing_product.name }}{% else %}Product Name{% endif %}</strong>
+            <p data-preview-description>{% if editing_product %}{{ editing_product.description|default:editing_product.subtitle }}{% else %}Short description will appear here as you type.{% endif %}</p>
+            <div class="shop-catalog-preview-meta">
+              <span class="soft-pill" data-preview-price>{% if editing_product %}Rs. {{ editing_product.price }}{% else %}Rs. 0.00{% endif %}</span>
+              <span class="soft-pill" data-preview-unit>{% if editing_product %}{{ editing_product.unit }}{% else %}piece{% endif %}</span>
+              <span class="status-chip {% if editing_product %}{{ editing_product.stock_status_chip }}{% else %}info{% endif %}" data-preview-stock>
+                {% if editing_product %}{{ editing_product.stock_status_label }}{% else %}Stock Status{% endif %}
+              </span>
+              <span class="soft-pill" data-preview-category>{% if editing_product %}{{ editing_product.category }}{% else %}Category{% endif %}</span>
             </div>
           </div>
-        {% empty %}
-          <p>No products yet.</p>
-        {% endfor %}
+        </div>
+      </article>
+    </section>
+
+    <section class="shop-catalog-alert-grid" data-appear>
+      <article class="card shop-catalog-alert-card">
+        <div class="shop-catalog-section-head">
+          <div>
+            <span class="eyebrow">Low Stock Products</span>
+            <h2 class="section-title">{{ low_stock_products|length }} products need refill soon</h2>
+          </div>
+          <span class="status-chip warn">1-10 left</span>
+        </div>
+        <div class="shop-catalog-alert-list">
+          {% for product in low_stock_products %}
+            <div class="shop-catalog-alert-item">
+              <strong>{{ product.name }}</strong>
+              <span>Stock {{ product.stock }}</span>
+            </div>
+          {% empty %}
+            <p class="subtle">Low stock items will appear here before they go out of stock.</p>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="card shop-catalog-alert-card">
+        <div class="shop-catalog-section-head">
+          <div>
+            <span class="eyebrow">Out of Stock Products</span>
+            <h2 class="section-title">{{ out_of_stock_products|length }} products unavailable now</h2>
+          </div>
+          <span class="status-chip danger">0 left</span>
+        </div>
+        <div class="shop-catalog-alert-list">
+          {% for product in out_of_stock_products %}
+            <div class="shop-catalog-alert-item">
+              <strong>{{ product.name }}</strong>
+              <span>Stock {{ product.stock }}</span>
+            </div>
+          {% empty %}
+            <p class="subtle">Out of stock products will appear here when quantity reaches zero.</p>
+          {% endfor %}
+        </div>
+      </article>
+    </section>
+
+    <article class="card shop-catalog-shelf" data-appear>
+      <div class="shop-catalog-section-head">
+        <div>
+          <span class="eyebrow">Products On Shelf</span>
+          <h2 class="section-title">Your live catalog and inventory controls</h2>
+        </div>
+        <div class="shop-catalog-view-toggle" role="group" aria-label="Catalog view toggle">
+          <button class="button small secondary is-active" type="button" data-catalog-view="grid">Grid View</button>
+          <button class="button small secondary" type="button" data-catalog-view="list">List View</button>
+        </div>
       </div>
+
+      {% if catalog_products %}
+        <div class="shop-catalog-product-grid" data-catalog-grid>
+          {% for product in catalog_products %}
+            <article class="shop-catalog-product-card" data-catalog-card>
+              <div class="shop-catalog-product-media" style="background: linear-gradient(135deg, {{ product.color }}, #fff4ee);">
+                {% if product.image_source %}
+                  <img src="{{ product.image_source }}" alt="{{ product.name }}" />
+                {% else %}
+                  <span>{{ product.name|first|upper }}</span>
+                {% endif %}
+              </div>
+              <div class="shop-catalog-product-body">
+                <div class="shop-catalog-product-head">
+                  <div>
+                    <strong>{{ product.name }}</strong>
+                    <p>{{ product.preview_description|default:"No description added yet." }}</p>
+                  </div>
+                  <span class="status-chip {{ product.stock_status_chip }}">{{ product.stock_status_label }}</span>
+                </div>
+                <div class="shop-catalog-product-meta">
+                  <span>Price {{ product.catalog_price_label }}</span>
+                  <span>MRP {{ product.mrp_label }}</span>
+                  <span>{{ product.unit }}</span>
+                  <span>{{ product.category }}</span>
+                  <span>{{ product.visibility_label }}</span>
+                </div>
+                <div class="shop-catalog-stock-row">
+                  <form method="post" action="{% url 'core:shop_update_product_stock' product.id %}" class="shop-catalog-stock-form">
+                    {% csrf_token %}
+                    <label>
+                      <span>Stock</span>
+                      <input type="number" min="0" name="stock" value="{{ product.stock }}" />
+                    </label>
+                    <button class="button small secondary" type="submit">Update Stock</button>
+                  </form>
+                  <div class="shop-catalog-card-actions">
+                    <a class="button small secondary" href="?edit_product={{ product.id }}#product-form">
+                      <span class="ui-icon icon-square-pen" aria-hidden="true"></span>
+                      <span>Edit</span>
+                    </a>
+                    <form method="post" action="{% url 'core:shop_toggle_product_visibility' product.id %}">
+                      {% csrf_token %}
+                      <button class="button small secondary" type="submit">
+                        <span>{% if product.is_visible %}Hide{% else %}Show{% endif %}</span>
+                      </button>
+                    </form>
+                    <form method="post" action="{% url 'core:shop_delete_product' product.id %}">
+                      {% csrf_token %}
+                      <button class="button small danger" type="submit">
+                        <span class="ui-icon icon-trash-2" aria-hidden="true"></span>
+                        <span>Delete</span>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-card">
+          <span class="eyebrow">Catalog Empty</span>
+          <h2 class="section-title">No products added yet. Add your first product to make your store live.</h2>
+          <p>Once you save your first item, it will appear here with stock controls and storefront visibility toggles.</p>
+        </div>
+      {% endif %}
     </article>
   </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (function () {
+      var nameInput = document.getElementById('id_name');
+      var categoryInput = document.getElementById('id_category');
+      var unitInput = document.getElementById('id_unit');
+      var priceInput = document.getElementById('id_price');
+      var stockInput = document.getElementById('id_stock');
+      var descriptionInput = document.getElementById('id_description');
+      var imageFileInput = document.getElementById('id_image');
+      var imageUrlInput = document.getElementById('id_image_url');
+      var previewName = document.querySelector('[data-preview-name]');
+      var previewDescription = document.querySelector('[data-preview-description]');
+      var previewPrice = document.querySelector('[data-preview-price]');
+      var previewUnit = document.querySelector('[data-preview-unit]');
+      var previewStock = document.querySelector('[data-preview-stock]');
+      var previewCategory = document.querySelector('[data-preview-category]');
+      var previewImage = document.querySelector('[data-preview-image]');
+      var previewPlaceholder = document.querySelector('[data-preview-placeholder]');
+      var viewButtons = document.querySelectorAll('[data-catalog-view]');
+      var grid = document.querySelector('[data-catalog-grid]');
+
+      function stockLabel(value) {
+        var stock = parseInt(value || '0', 10);
+        if (stock <= 0) {
+          return { text: 'Out Of Stock', cls: 'danger' };
+        }
+        if (stock <= 10) {
+          return { text: 'Low Stock', cls: 'warn' };
+        }
+        return { text: 'In Stock', cls: 'success' };
+      }
+
+      function updatePreviewImageFromUrl(url) {
+        if (!previewImage || !previewPlaceholder) {
+          return;
+        }
+        if (url) {
+          previewImage.src = url;
+          previewImage.hidden = false;
+          previewPlaceholder.hidden = true;
+        } else {
+          previewImage.src = '';
+          previewImage.hidden = true;
+          previewPlaceholder.hidden = false;
+        }
+      }
+
+      function updatePreview() {
+        if (previewName && nameInput) {
+          previewName.textContent = nameInput.value || 'Product Name';
+        }
+        if (previewDescription && descriptionInput) {
+          previewDescription.textContent = descriptionInput.value || 'Short description will appear here as you type.';
+        }
+        if (previewPrice && priceInput) {
+          previewPrice.textContent = 'Rs. ' + (priceInput.value || '0.00');
+        }
+        if (previewUnit && unitInput) {
+          previewUnit.textContent = unitInput.value || 'piece';
+        }
+        if (previewCategory && categoryInput) {
+          previewCategory.textContent = categoryInput.value || 'Category';
+        }
+        if (previewStock && stockInput) {
+          var stockState = stockLabel(stockInput.value);
+          previewStock.textContent = stockState.text;
+          previewStock.classList.remove('danger', 'warn', 'success', 'info');
+          previewStock.classList.add(stockState.cls);
+        }
+        if (previewPlaceholder && nameInput) {
+          previewPlaceholder.textContent = (nameInput.value || 'P').charAt(0).toUpperCase();
+        }
+      }
+
+      [nameInput, categoryInput, unitInput, priceInput, stockInput, descriptionInput, imageUrlInput].forEach(function (input) {
+        if (!input) {
+          return;
+        }
+        input.addEventListener('input', function () {
+          if (input === imageUrlInput && imageFileInput && !imageFileInput.value) {
+            updatePreviewImageFromUrl(imageUrlInput.value.trim());
+          }
+          updatePreview();
+        });
+      });
+
+      if (imageFileInput) {
+        imageFileInput.addEventListener('change', function () {
+          if (imageFileInput.files && imageFileInput.files[0]) {
+            updatePreviewImageFromUrl(URL.createObjectURL(imageFileInput.files[0]));
+            return;
+          }
+          updatePreviewImageFromUrl(imageUrlInput ? imageUrlInput.value.trim() : '');
+        });
+      }
+
+      viewButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          var nextView = button.getAttribute('data-catalog-view');
+          viewButtons.forEach(function (item) {
+            item.classList.toggle('is-active', item === button);
+          });
+          if (grid) {
+            grid.setAttribute('data-view', nextView);
+          }
+        });
+      });
+
+      updatePreview();
+      if (imageUrlInput && imageUrlInput.value && imageFileInput && !imageFileInput.value) {
+        updatePreviewImageFromUrl(imageUrlInput.value.trim());
+      }
+    }());
+  </script>
 {% endblock %}
