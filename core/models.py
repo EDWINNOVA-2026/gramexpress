@@ -1,7 +1,10 @@
+from datetime import timedelta
 from decimal import Decimal
+from functools import lru_cache
 
 from django.conf import settings
 from django.db import models
+from django.db.utils import OperationalError, ProgrammingError
 from django.utils import timezone
 from django.utils.text import slugify
 
@@ -44,6 +47,13 @@ class PaymentStatus(models.TextChoices):
     PENDING = 'pending', 'Pending'
     PAID = 'paid', 'Paid'
     FAILED = 'failed', 'Failed'
+
+
+class DeliverySlot(models.TextChoices):
+    PRIORITY = 'PRIORITY', 'Priority Delivery'
+    ECO = 'ECO', 'Eco Delivery'
+    COST_SAVER = 'COST_SAVER', 'Cost Saver'
+    BUDGET = 'BUDGET', 'Budget Delivery'
 
 
 class CodCollectionMode(models.TextChoices):
@@ -92,12 +102,128 @@ class NotificationType(models.TextChoices):
     SYSTEM = 'system', 'System'
 
 
+DEFAULT_DELIVERY_SLOT = DeliverySlot.ECO
+DELIVERY_SLOT_RULES = {
+    DeliverySlot.PRIORITY: {
+        'name': 'Priority Delivery',
+        'time_label': '30-40 minutes',
+        'description': 'Fast delivery with highest priority.',
+        'delivery_fee': Decimal('20.00'),
+        'color': 'red',
+        'priority_level': 1,
+        'time_limit': timedelta(minutes=40),
+        'tag': 'Fastest',
+    },
+    DeliverySlot.ECO: {
+        'name': 'Eco Delivery',
+        'time_label': '1-4 hours',
+        'description': 'Optimized route delivery.',
+        'delivery_fee': Decimal('10.00'),
+        'color': 'green',
+        'priority_level': 2,
+        'time_limit': timedelta(hours=4),
+        'tag': 'Recommended',
+    },
+    DeliverySlot.COST_SAVER: {
+        'name': 'Cost Saver',
+        'time_label': '4-8 hours',
+        'description': 'Delivered during low traffic routes.',
+        'delivery_fee': Decimal('5.00'),
+        'color': 'blue',
+        'priority_level': 3,
+        'time_limit': timedelta(hours=8),
+        'tag': 'Save Money',
+    },
+    DeliverySlot.BUDGET: {
+        'name': 'Budget Delivery',
+        'time_label': '8-12 hours',
+        'description': 'Lowest cost delivery with flexible timing.',
+        'delivery_fee': Decimal('0.00'),
+        'color': 'gray',
+        'priority_level': 4,
+        'time_limit': timedelta(hours=12),
+        'tag': 'Lowest Cost',
+    },
+}
+
+
+def clear_delivery_slot_cache() -> None:
+    get_delivery_slot_setting_overrides.cache_clear()
+
+
+@lru_cache(maxsize=1)
+def get_delivery_slot_setting_overrides() -> dict[str, dict[str, object]]:
+    try:
+        settings_map = {
+            setting.code: {
+                'name': setting.name,
+                'time_label': setting.time_label,
+                'description': setting.description,
+                'delivery_fee': setting.delivery_fee,
+                'color': setting.color,
+                'priority_level': setting.priority_level,
+                'time_limit': timedelta(minutes=setting.time_limit_minutes),
+                'tag': setting.tag,
+            }
+            for setting in DeliverySlotSetting.objects.all()
+        }
+    except (OperationalError, ProgrammingError):
+        return {}
+    return settings_map
+
+
+def delivery_slot_rule(slot_code: str) -> dict[str, object]:
+    selected_slot = slot_code if slot_code in DELIVERY_SLOT_RULES else DEFAULT_DELIVERY_SLOT
+    rule = dict(DELIVERY_SLOT_RULES[selected_slot])
+    override = get_delivery_slot_setting_overrides().get(selected_slot)
+    if override:
+        rule.update(override)
+    return rule
+
+
+def delivery_slot_fee(slot_code: str) -> Decimal:
+    return Decimal(str(delivery_slot_rule(slot_code)['delivery_fee'])).quantize(Decimal('0.01'))
+
+
+def delivery_slot_deadline_from(order_time, slot_code: str):
+    return order_time + delivery_slot_rule(slot_code)['time_limit']
+
+
 class TimeStampedModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         abstract = True
+
+
+class DeliverySlotSetting(TimeStampedModel):
+    code = models.CharField(max_length=20, choices=DeliverySlot.choices, unique=True)
+    name = models.CharField(max_length=80)
+    description = models.CharField(max_length=200, blank=True)
+    time_label = models.CharField(max_length=40)
+    time_limit_minutes = models.PositiveIntegerField(default=240)
+    delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    color = models.CharField(max_length=20, default='gray')
+    priority_level = models.PositiveSmallIntegerField(default=1)
+    tag = models.CharField(max_length=40, blank=True)
+
+    class Meta:
+        ordering = ['priority_level', 'code']
+        verbose_name = 'Delivery slot setting'
+        verbose_name_plural = 'Delivery slot settings'
+
+    def __str__(self) -> str:
+        return f'{self.name} ({self.code})'
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        clear_delivery_slot_cache()
+
+    def delete(self, *args, **kwargs):
+        response = super().delete(*args, **kwargs)
+        clear_delivery_slot_cache()
+        return response
 
 
 class LocationMixin(models.Model):
@@ -459,7 +585,10 @@ class Order(TimeStampedModel):
     settlement_generated_at = models.DateTimeField(null=True, blank=True)
     settlement_paid_at = models.DateTimeField(null=True, blank=True)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    delivery_slot = models.CharField(max_length=20, choices=DeliverySlot.choices, default=DEFAULT_DELIVERY_SLOT)
+    delivery_deadline = models.DateTimeField(null=True, blank=True)
     delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=DEFAULT_DELIVERY_FEE)
+    distance_km = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal('0.00'))
     delivery_address = models.CharField(max_length=240)
     customer_otp = models.CharField(max_length=6, default='123456')
     customer_notes = models.CharField(max_length=200, blank=True)
@@ -490,6 +619,14 @@ class Order(TimeStampedModel):
         if self.rider:
             return f'Assigned to {self.rider.full_name}. Updates are shared by email.'
         return 'Waiting for rider assignment'
+
+    @property
+    def delivery_slot_config(self) -> dict[str, object]:
+        return delivery_slot_rule(self.delivery_slot)
+
+    @property
+    def slot_priority(self) -> int:
+        return int(self.delivery_slot_config['priority_level'])
 
     @property
     def can_be_cancelled_by_customer(self) -> bool:
