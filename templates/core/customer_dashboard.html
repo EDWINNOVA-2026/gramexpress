@@ -5,17 +5,17 @@
     <section class="customer-home-hero card" data-appear>
       <div class="customer-home-badges">
         <span class="customer-home-badge">
-          <span class="customer-home-badge-icon">C</span>
+          <span class="customer-home-badge-icon"><span class="ui-icon icon-shopping-cart" aria-hidden="true"></span></span>
           <span>Cart {{ cart.item_count }}</span>
         </span>
         <span class="customer-home-badge">
-          <span class="customer-home-badge-icon">S</span>
+          <span class="customer-home-badge-icon"><span class="ui-icon icon-store" aria-hidden="true"></span></span>
           <span>Stores {{ shops|length }}</span>
         </span>
       </div>
 
       <form method="get" class="customer-home-search">
-        <span class="customer-home-search-icon">⌕</span>
+        <span class="customer-home-search-icon"><span class="ui-icon icon-search" aria-hidden="true"></span></span>
         <input id="store-search" class="input customer-home-search-input" type="search" name="q" value="{{ shop_query }}" placeholder="Search for stores or products" />
       </form>
 
@@ -46,7 +46,10 @@
           {% csrf_token %}
           <input type="hidden" name="latitude" value="{{ customer.latitude }}" />
           <input type="hidden" name="longitude" value="{{ customer.longitude }}" />
-          <button class="button primary customer-home-location-button" type="button" data-location-trigger>Use Current Location</button>
+          <button class="button primary customer-home-location-button" type="button" data-location-trigger>
+            <span class="ui-icon icon-locate-fixed" aria-hidden="true"></span>
+            <span>Use Current Location</span>
+          </button>
         </form>
         <span class="tiny customer-home-status" data-location-status>
           {% if has_live_location %}
@@ -81,12 +84,12 @@
         <div class="customer-home-strip">
           {% for category in category_tiles %}
             <a class="customer-home-category" href="?q={{ category.label|urlencode }}">
-              <span class="customer-home-category-icon">{{ category.icon }}</span>
+              <span class="customer-home-category-icon"><span class="ui-icon ui-icon-xl icon-{{ category.icon }}" aria-hidden="true"></span></span>
               <strong>{{ category.label }}</strong>
             </a>
           {% empty %}
             <div class="customer-home-category">
-              <span class="customer-home-category-icon">S</span>
+              <span class="customer-home-category-icon"><span class="ui-icon ui-icon-xl icon-store" aria-hidden="true"></span></span>
               <strong>Stores</strong>
             </div>
           {% endfor %}
@@ -105,7 +108,7 @@
               </div>
               <div class="customer-home-card-body">
                 <div class="customer-home-card-rating">
-                  <span class="customer-home-card-rating-star" aria-hidden="true">★</span>
+                  <span class="ui-icon icon-star" aria-hidden="true"></span>
                   <span>{{ shop.display_rating|default:shop.rating }}</span>
                   <span aria-hidden="true">•</span>
                   <span>{% if shop.rating_count %}{{ shop.rating_count }} rating{{ shop.rating_count|pluralize }}{% else %}New{% endif %}</span>
@@ -115,22 +118,25 @@
                   <p>{{ shop.area }} • {{ shop.get_shop_type_display }}</p>
                 </div>
                 <div class="customer-home-card-meta">
-                  <span>{{ shop.distance_km }} km away</span>
-                  <span>{{ shop.speed_badge }}</span>
-                  <span>{{ shop.delivery_eta_label }}</span>
+                  <span><span class="ui-icon icon-map-pin" aria-hidden="true"></span><span>{{ shop.distance_km }} km away</span></span>
+                  <span><span class="ui-icon icon-truck" aria-hidden="true"></span><span>{{ shop.speed_badge }}</span></span>
+                  <span><span class="ui-icon icon-clock-3" aria-hidden="true"></span><span>{{ shop.delivery_eta_label }}</span></span>
                 </div>
               </div>
             </a>
           {% empty %}
             <div class="customer-home-empty">
-              <div class="customer-home-empty-icon" aria-hidden="true">⌖</div>
+              <div class="customer-home-empty-icon" aria-hidden="true"><span class="ui-icon icon-map-pinned"></span></div>
               <strong>No stores found nearby</strong>
               <p>Try fetching your location again, clearing the search, or moving closer to an approved store area.</p>
               <form method="post" action="{% url 'core:customer_update_location' %}" class="inline-actions customer-home-empty-actions" data-location-autosubmit data-location-scope>
                 {% csrf_token %}
                 <input type="hidden" name="latitude" value="{{ customer.latitude }}" />
                 <input type="hidden" name="longitude" value="{{ customer.longitude }}" />
-                <button class="button primary" type="button" data-location-trigger>Refresh Location</button>
+                <button class="button primary" type="button" data-location-trigger>
+                  <span class="ui-icon icon-refresh-cw" aria-hidden="true"></span>
+                  <span>Refresh Location</span>
+                </button>
               </form>
             </div>
           {% endfor %}

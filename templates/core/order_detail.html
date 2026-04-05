@@ -11,7 +11,7 @@
         </div>
         <div class="action-cluster">
           <span class="status-chip {{ status_summary.chip_class }}">{{ order.get_status_display }}</span>
-          <span class="soft-pill">ETA {{ eta_label }}</span>
+          <span class="soft-pill"><span class="ui-icon icon-clock-3" aria-hidden="true"></span><span>ETA {{ eta_label }}</span></span>
           <span class="pill">Rs. {{ order.total_amount }}</span>
         </div>
       </div>
@@ -31,7 +31,10 @@
           <strong>Need help?</strong>
           <p>{{ order.support_copy }}</p>
           <div class="inline-actions">
-            <a class="button small secondary" href="{% url 'core:support' %}">Contact Support</a>
+            <a class="button small secondary" href="{% url 'core:support' %}">
+              <span class="ui-icon icon-life-buoy" aria-hidden="true"></span>
+              <span>Contact Support</span>
+            </a>
           </div>
         </div>
       </div>
@@ -60,7 +63,10 @@
           <strong>{{ order.support_prompt }}</strong>
           <p>{{ order.support_copy }}</p>
           <div class="inline-actions">
-            <a class="button small secondary" href="{% url 'core:support' %}">Need Help?</a>
+            <a class="button small secondary" href="{% url 'core:support' %}">
+              <span class="ui-icon icon-life-buoy" aria-hidden="true"></span>
+              <span>Need Help?</span>
+            </a>
           </div>
         </div>
         <div class="compact-item content-stack top-gap-sm">
@@ -75,7 +81,10 @@
             <p class="utility-note">Payment reference: {{ payment_summary.reference }}</p>
           {% endif %}
           {% if payment_summary.link_url %}
-            <a class="button small secondary" href="{{ payment_summary.link_url }}" target="_blank" rel="noreferrer">{{ payment_summary.link_label }}</a>
+            <a class="button small secondary" href="{{ payment_summary.link_url }}" target="_blank" rel="noreferrer">
+              <span class="ui-icon icon-credit-card" aria-hidden="true"></span>
+              <span>{{ payment_summary.link_label }}</span>
+            </a>
           {% endif %}
         </div>
       </article>
@@ -108,13 +117,19 @@
               <strong>Pickup location</strong>
               <p>{{ order.shop.name }}</p>
               <p class="utility-note">{{ order.shop.address_line_1 }}{% if order.shop.address_line_2 %}, {{ order.shop.address_line_2 }}{% endif %}, {{ order.shop.area }}, {{ order.shop.district }} {{ order.shop.pincode }}</p>
-              <a class="button small secondary" href="{{ shop_map_url }}" target="_blank" rel="noreferrer">Open Pickup Pin</a>
+              <a class="button small secondary" href="{{ shop_map_url }}" target="_blank" rel="noreferrer">
+                <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+                <span>Open Pickup Pin</span>
+              </a>
             </div>
             <div class="compact-item rider-stop-card content-stack">
               <strong>Drop-off location</strong>
               <p>{{ order.customer.full_name }}</p>
               <p class="utility-note">{{ order.delivery_address }}</p>
-              <a class="button small secondary" href="{{ customer_map_url }}" target="_blank" rel="noreferrer">Open Drop-off Pin</a>
+              <a class="button small secondary" href="{{ customer_map_url }}" target="_blank" rel="noreferrer">
+                <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+                <span>Open Drop-off Pin</span>
+              </a>
             </div>
             {% if order.rider %}
               <div class="compact-item content-stack">
@@ -145,7 +160,10 @@
                 <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap rider-action-form">
                   {% csrf_token %}
                   <input type="hidden" name="status" value="out_for_delivery" />
-                  <button class="button primary" type="submit">Picked Up From Store</button>
+                  <button class="button primary" type="submit">
+                    <span class="ui-icon icon-package-open" aria-hidden="true"></span>
+                    <span>Picked Up From Store</span>
+                  </button>
                 </form>
               {% endif %}
               {% if order.status == 'out_for_delivery' %}
@@ -165,14 +183,20 @@
                     <form method="post" action="{% url 'core:rider_request_cod_online_payment' order.id %}" class="stack small-gap rider-action-form">
                       {% csrf_token %}
                       <input type="hidden" name="next" value="{% url 'core:order_detail' order.id %}" />
-                      <button class="button secondary" type="submit">Recieve Money Online</button>
+                      <button class="button secondary" type="submit">
+                        <span class="ui-icon icon-wallet" aria-hidden="true"></span>
+                        <span>Recieve Money Online</span>
+                      </button>
                     </form>
                   {% endif %}
                 {% endif %}
                 <form method="post" action="{% url 'core:rider_resend_customer_otp' order.id %}" class="inline-actions">
                   {% csrf_token %}
                   <input type="hidden" name="next" value="{% url 'core:order_detail' order.id %}" />
-                  <button class="button small secondary" type="submit">Resend OTP</button>
+                  <button class="button small secondary" type="submit">
+                    <span class="ui-icon icon-refresh-cw" aria-hidden="true"></span>
+                    <span>Resend OTP</span>
+                  </button>
                 </form>
                 {% if order.payment_method != 'cod' or order.cod_collection_mode != 'online' or order.payment_status == 'paid' %}
                   <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap rider-action-form">
@@ -184,7 +208,10 @@
                     {% if order.customer_otp_valid_until %}
                       <span class="tiny muted">Current OTP valid until {{ order.customer_otp_valid_until|date:"H:i" }}</span>
                     {% endif %}
-                    <button class="button primary" type="submit">Delivered</button>
+                    <button class="button primary" type="submit">
+                      <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
+                      <span>Delivered</span>
+                    </button>
                   </form>
                 {% else %}
                   <div class="compact-item content-stack">
@@ -202,10 +229,16 @@
                   {% endif %}
                   <div class="inline-actions">
                     {% if order.settlement_qr_image_url %}
-                      <a class="button small secondary" href="{{ order.settlement_qr_image_url }}" target="_blank" rel="noreferrer">Open QR</a>
+                      <a class="button small secondary" href="{{ order.settlement_qr_image_url }}" target="_blank" rel="noreferrer">
+                        <span class="ui-icon icon-credit-card" aria-hidden="true"></span>
+                        <span>Open QR</span>
+                      </a>
                     {% endif %}
                     {% if order.settlement_upi_url %}
-                      <a class="button small secondary" href="{{ order.settlement_upi_url }}">Pay Via UPI App</a>
+                      <a class="button small secondary" href="{{ order.settlement_upi_url }}">
+                        <span class="ui-icon icon-wallet" aria-hidden="true"></span>
+                        <span>Pay Via UPI App</span>
+                      </a>
                     {% endif %}
                   </div>
                 </div>
@@ -226,7 +259,7 @@
           <div class="stack small-gap">
             {% for note in related_notifications %}
               <div class="compact-item compact-item-notification{% if not note.is_read %} compact-item-notification-unread{% endif %}">
-                <span class="compact-glyph">{{ note.glyph }}</span>
+                <span class="compact-glyph"><span class="ui-icon icon-{{ note.icon_name }}" aria-hidden="true"></span></span>
                 <div>
                   <strong>{{ note.title }}</strong>
                   <p>{{ note.body }}</p>
@@ -250,7 +283,10 @@
                   {% if order.cod_collection_mode != 'online' and not order.cod_cash_confirmed %}
                     <form method="post" action="{% url 'core:customer_confirm_cod_cash' order.id %}" class="stack small-gap lifecycle-form">
                       {% csrf_token %}
-                      <button class="button primary" type="submit">I Paid Cash</button>
+                      <button class="button primary" type="submit">
+                        <span class="ui-icon icon-indian-rupee" aria-hidden="true"></span>
+                        <span>I Paid Cash</span>
+                      </button>
                     </form>
                   {% endif %}
                 {% endif %}
@@ -261,7 +297,10 @@
                   <strong>COD payment link</strong>
                   <p>The rider has already sent your Razorpay payment link by email. You can also open it from here.</p>
                   <div class="inline-actions">
-                    <a class="button small secondary" href="{{ order.cod_payment_link_url }}" target="_blank" rel="noreferrer">Open Payment Link</a>
+                    <a class="button small secondary" href="{{ order.cod_payment_link_url }}" target="_blank" rel="noreferrer">
+                      <span class="ui-icon icon-credit-card" aria-hidden="true"></span>
+                      <span>Open Payment Link</span>
+                    </a>
                   </div>
                 </div>
               {% endif %}
@@ -272,14 +311,20 @@
                   <label>Cancellation reason
                     <input type="text" name="cancellation_reason" placeholder="Changed my mind, wrong address, ordered by mistake" />
                   </label>
-                  <button class="button danger" type="submit">Cancel Order</button>
+                  <button class="button danger" type="submit">
+                    <span class="ui-icon icon-trash-2" aria-hidden="true"></span>
+                    <span>Cancel Order</span>
+                  </button>
                 </form>
               {% endif %}
 
               {% if order.can_be_reordered %}
                 <form method="post" action="{% url 'core:customer_reorder' order.id %}">
                   {% csrf_token %}
-                  <button class="button secondary" type="submit">Order Again</button>
+                  <button class="button secondary" type="submit">
+                    <span class="ui-icon icon-history" aria-hidden="true"></span>
+                    <span>Order Again</span>
+                  </button>
                 </form>
               {% endif %}
 

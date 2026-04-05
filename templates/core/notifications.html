@@ -9,13 +9,16 @@
           <h1 class="page-title">Notification Centre</h1>
           <p>Order updates, rider activity, approval alerts, and account messages all live here.</p>
           <div class="hero-inline-facts top-gap-sm">
-            <span class="soft-pill">{{ total_count }} total</span>
-            <span class="soft-pill">{{ unread_count }} unread</span>
+            <span class="soft-pill"><span class="ui-icon icon-bell" aria-hidden="true"></span><span>{{ total_count }} total</span></span>
+            <span class="soft-pill"><span class="ui-icon icon-bell" aria-hidden="true"></span><span>{{ unread_count }} unread</span></span>
           </div>
         </div>
         <form method="post" action="{% url 'core:notifications_mark_all_read' %}">
           {% csrf_token %}
-          <button class="button secondary" type="submit" {% if not unread_count %}disabled{% endif %}>Mark All Read</button>
+          <button class="button secondary" type="submit" {% if not unread_count %}disabled{% endif %}>
+            <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
+            <span>Mark All Read</span>
+          </button>
         </form>
       </div>
     </article>
@@ -31,15 +34,15 @@
             <article class="notification-item {{ note.accent_class }}{% if not note.is_read %} notification-item-unread{% endif %}">
               <div class="notification-shell">
                 <a class="notification-main" href="{% url 'core:notification_open' note.id %}">
-                  <div class="notification-icon" aria-hidden="true">{{ note.glyph }}</div>
+                  <div class="notification-icon" aria-hidden="true"><span class="ui-icon icon-{{ note.icon_name }}"></span></div>
                   <div class="notification-copy">
                     <div class="notification-header">
                       <strong>{{ note.title }}</strong>
-                      <span class="soft-pill">{{ note.get_notification_type_display }}</span>
+                      <span class="soft-pill"><span class="ui-icon icon-{{ note.icon_name }}" aria-hidden="true"></span><span>{{ note.get_notification_type_display }}</span></span>
                     </div>
                     <p>{{ note.body }}</p>
                     {% if note.order_id %}
-                      <span class="soft-pill">Order #{{ note.order_id }}</span>
+                      <span class="soft-pill"><span class="ui-icon icon-package" aria-hidden="true"></span><span>Order #{{ note.order_id }}</span></span>
                     {% endif %}
                   </div>
                 </a>
@@ -54,12 +57,18 @@
                 {% if not note.is_read %}
                   <form method="post" action="{% url 'core:notification_mark_read' note.id %}">
                     {% csrf_token %}
-                    <button class="button small secondary" type="submit">Mark Read</button>
+                    <button class="button small secondary" type="submit">
+                      <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
+                      <span>Mark Read</span>
+                    </button>
                   </form>
                 {% endif %}
                 <form method="post" action="{% url 'core:notification_delete' note.id %}">
                   {% csrf_token %}
-                  <button class="button small danger" type="submit">Delete</button>
+                  <button class="button small danger" type="submit">
+                    <span class="ui-icon icon-trash-2" aria-hidden="true"></span>
+                    <span>Delete</span>
+                  </button>
                 </form>
               </div>
             </article>

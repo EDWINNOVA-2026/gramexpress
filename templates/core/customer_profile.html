@@ -7,8 +7,8 @@
       <h1>{{ customer.full_name }}</h1>
       <p class="hero-lead">Keep your address, language, and live location accurate so delivery and discovery work properly.</p>
       <div class="hero-inline-facts">
-        <span class="soft-pill">{{ customer.phone }}</span>
-        <span class="soft-pill">{{ customer.email|default:"No email" }}</span>
+        <span class="soft-pill"><span class="ui-icon icon-user" aria-hidden="true"></span><span>{{ customer.phone }}</span></span>
+        <span class="soft-pill"><span class="ui-icon icon-bell" aria-hidden="true"></span><span>{{ customer.email|default:"No email" }}</span></span>
       </div>
     </article>
     <aside class="stack" data-appear>
@@ -40,8 +40,8 @@
           <strong>{{ customer.full_name }}</strong>
           <p>{{ customer.address_line_1 }}{% if customer.address_line_2 %}, {{ customer.address_line_2 }}{% endif %}, {{ customer.district }} {{ customer.pincode }}</p>
           <div class="profile-meta">
-            <span class="soft-pill">{{ customer.phone }}</span>
-            <span class="soft-pill">{{ customer.email|default:"No email" }}</span>
+            <span class="soft-pill"><span class="ui-icon icon-user" aria-hidden="true"></span><span>{{ customer.phone }}</span></span>
+            <span class="soft-pill"><span class="ui-icon icon-bell" aria-hidden="true"></span><span>{{ customer.email|default:"No email" }}</span></span>
           </div>
         </div>
       </div>
@@ -50,10 +50,16 @@
         <input type="hidden" name="action" value="update_profile" />
         {{ profile_form.as_p }}
         <div class="helper-actions">
-          <button class="button secondary" type="button" data-location-trigger>Use Current Location</button>
+          <button class="button secondary" type="button" data-location-trigger>
+            <span class="ui-icon icon-locate-fixed" aria-hidden="true"></span>
+            <span>Use Current Location</span>
+          </button>
           <span class="muted tiny" data-location-status>Refresh the customer location before checking nearby stores.</span>
         </div>
-        <button class="button primary" type="submit">Save Customer Profile</button>
+        <button class="button primary" type="submit">
+          <span class="ui-icon icon-square-pen" aria-hidden="true"></span>
+          <span>Save Customer Profile</span>
+        </button>
       </form>
     </article>
 
@@ -64,19 +70,19 @@
         <div class="compact-list">
           <a class="list-item compact-item" href="{% url 'core:customer_dashboard' %}">
             <div>
-              <strong>Back to home</strong>
+              <strong><span class="ui-icon icon-house" aria-hidden="true"></span> Back to home</strong>
               <p>Discover nearby stores and browse products.</p>
             </div>
           </a>
           <a class="list-item compact-item" href="{% url 'core:customer_cart' %}">
             <div>
-              <strong>Open cart</strong>
+              <strong><span class="ui-icon icon-shopping-cart" aria-hidden="true"></span> Open cart</strong>
               <p>Review grouped items and checkout.</p>
             </div>
           </a>
           <a class="list-item compact-item" href="{% url 'core:customer_orders' %}">
             <div>
-              <strong>View orders</strong>
+              <strong><span class="ui-icon icon-package" aria-hidden="true"></span> View orders</strong>
               <p>Track, reorder, and rate past deliveries.</p>
             </div>
           </a>

@@ -7,12 +7,12 @@
       <h1>Your Harvest Cart</h1>
       <p class="hero-lead">Grouped store checkout, cleaner payment selection, and a focused cart page instead of a sidebar section.</p>
       <div class="hero-inline-facts">
-        <span class="soft-pill">{{ cart.item_count }} item{{ cart.item_count|pluralize }}</span>
-        <span class="soft-pill">{{ cart.groups|length }} store{{ cart.groups|length|pluralize }}</span>
+        <span class="soft-pill"><span class="ui-icon icon-shopping-cart" aria-hidden="true"></span><span>{{ cart.item_count }} item{{ cart.item_count|pluralize }}</span></span>
+        <span class="soft-pill"><span class="ui-icon icon-store" aria-hidden="true"></span><span>{{ cart.groups|length }} store{{ cart.groups|length|pluralize }}</span></span>
         {% if razorpay_enabled %}
-          <span class="status-chip success">Razorpay ready</span>
+          <span class="status-chip success"><span class="ui-icon icon-credit-card" aria-hidden="true"></span><span>Razorpay ready</span></span>
         {% else %}
-          <span class="status-chip warn">COD only until Razorpay keys are configured</span>
+          <span class="status-chip warn"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>COD only until Razorpay keys are configured</span></span>
         {% endif %}
       </div>
     </article>
@@ -42,7 +42,10 @@
             <form method="post" action="{% url 'core:cart_clear' %}">
               {% csrf_token %}
               <input type="hidden" name="next" value="{% url 'core:customer_cart' %}" />
-              <button class="button small danger" type="submit">Clear Cart</button>
+              <button class="button small danger" type="submit">
+                <span class="ui-icon icon-trash-2" aria-hidden="true"></span>
+                <span>Clear Cart</span>
+              </button>
             </form>
           {% endif %}
         </div>
@@ -82,13 +85,19 @@
                           <span class="tiny muted">Quantity</span>
                           <input type="number" min="0" max="{{ item.max_quantity }}" name="quantity" value="{{ item.quantity }}" class="tiny-input" />
                         </label>
-                        <button class="button small secondary" type="submit">Update</button>
+                        <button class="button small secondary" type="submit">
+                          <span class="ui-icon icon-refresh-cw" aria-hidden="true"></span>
+                          <span>Update</span>
+                        </button>
                       </form>
                       <form method="post" action="{% url 'core:cart_update' item.product.id %}">
                         {% csrf_token %}
                         <input type="hidden" name="next" value="{% url 'core:customer_cart' %}" />
                         <input type="hidden" name="quantity" value="0" />
-                        <button class="button small danger" type="submit">Remove</button>
+                        <button class="button small danger" type="submit">
+                          <span class="ui-icon icon-trash-2" aria-hidden="true"></span>
+                          <span>Remove</span>
+                        </button>
                       </form>
                     </div>
                   </div>
@@ -101,7 +110,10 @@
             <span class="eyebrow">Start shopping</span>
             <h2 class="section-title">Your cart is empty</h2>
             <p>Add a few products from the home page to unlock checkout.</p>
-            <a class="button primary" href="{% url 'core:customer_dashboard' %}">Browse Stores</a>
+            <a class="button primary" href="{% url 'core:customer_dashboard' %}">
+              <span class="ui-icon icon-store" aria-hidden="true"></span>
+              <span>Browse Stores</span>
+            </a>
           </div>
         {% endif %}
       </article>
@@ -127,7 +139,7 @@
                     <strong>RazorPay</strong>
                     <span>Pay online now and confirm before dispatch.</span>
                   </span>
-                  <span class="soft-pill">Online</span>
+                  <span class="soft-pill"><span class="ui-icon icon-credit-card" aria-hidden="true"></span><span>Online</span></span>
                 </button>
               {% endif %}
               <button class="payment-choice-button" type="submit" name="payment_method" value="cod" {% if cart.has_blocking_issues %}disabled{% endif %}>
@@ -135,7 +147,7 @@
                   <strong>Cash/UPI on delivery</strong>
                   <span>Pay the rider at delivery using cash or UPI.</span>
                 </span>
-                <span class="soft-pill">Delivery</span>
+                <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>Delivery</span></span>
               </button>
             </div>
             {% for error in order_form.payment_method.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
@@ -163,7 +175,10 @@
         <span class="eyebrow">Delivery Address</span>
         <h2 class="section-title">{{ customer.full_name }}</h2>
         <p>{{ customer.address_line_1 }}{% if customer.address_line_2 %}, {{ customer.address_line_2 }}{% endif %}, {{ customer.district }} {{ customer.pincode }}</p>
-        <a class="button secondary" href="{% url 'core:customer_profile' %}">Edit Profile</a>
+        <a class="button secondary" href="{% url 'core:customer_profile' %}">
+          <span class="ui-icon icon-square-pen" aria-hidden="true"></span>
+          <span>Edit Profile</span>
+        </a>
       </article>
     </div>
   </section>
