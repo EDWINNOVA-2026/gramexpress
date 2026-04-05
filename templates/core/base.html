@@ -80,6 +80,41 @@
     </script>
     <style type="text/tailwindcss">
       {% include 'core/tailwind_theme.html' %}
+
+      .star-rating-field {
+        @apply border-0 p-0 m-0;
+      }
+
+      .star-rating-legend {
+        @apply text-sm font-semibold text-slate-700 mb-2;
+      }
+
+      .star-rating-hint {
+        @apply text-xs text-slate-500 mb-3;
+      }
+
+      .star-rating-group {
+        @apply inline-flex flex-row-reverse items-center gap-1;
+      }
+
+      .star-rating-input {
+        @apply sr-only;
+      }
+
+      .star-rating-label {
+        @apply cursor-pointer text-3xl leading-none text-slate-300 transition duration-200 ease-out;
+      }
+
+      .star-rating-label:hover,
+      .star-rating-label:hover ~ .star-rating-label,
+      .star-rating-input:checked ~ .star-rating-label {
+        color: #f59e0b;
+      }
+
+      .star-rating-label:focus-within,
+      .star-rating-input:focus + .star-rating-label {
+        @apply outline-none ring-2 ring-amber-300 ring-offset-2 rounded-md;
+      }
     </style>
     {% block extra_head %}{% endblock %}
     <script type="module" src="https://unpkg.com/@lottiefiles/dotlottie-wc@latest/dist/dotlottie-wc.js"></script>
@@ -816,7 +851,6 @@
             var video = panel.querySelector('[data-rider-photo-video]');
             var canvas = panel.querySelector('[data-rider-photo-canvas]');
             var preview = panel.querySelector('[data-rider-photo-preview]');
-            var fileInput = panel.querySelector('[data-rider-photo-file]');
             var openButton = panel.querySelector('[data-rider-photo-open]');
             var captureButton = panel.querySelector('[data-rider-photo-capture]');
             var retakeButton = panel.querySelector('[data-rider-photo-retake]');
@@ -825,6 +859,8 @@
             var accountType = panel.getAttribute('data-account-type') || '';
             var stream = null;
             var pendingFile = null;
+            var liveCaptureSource = 'front_selfie_live';
+            var committedPhotoUrl = (hiddenInput && hiddenInput.value) || preview.getAttribute('src') || '';
 
             if (!uploadUrl || !preview || !openButton || !uploadButton) {
               return;
@@ -861,15 +897,25 @@
             }
 
             function setPreviewSource(url) {
+              var hasUrl = !!url;
               if (!url) {
                 preview.removeAttribute('src');
                 preview.classList.remove('is-ready');
-                return;
+              } else {
+                preview.src = url;
+                preview.classList.add('is-ready');
               }
-              preview.src = url;
-              preview.classList.add('is-ready');
+
               Array.prototype.slice.call(document.querySelectorAll('[data-rider-photo-target]')).forEach(function (image) {
-                image.src = url;
+                if (!hasUrl) {
+                  image.removeAttribute('src');
+                } else {
+                  image.src = url;
+                }
+                image.hidden = !hasUrl;
+              });
+              Array.prototype.slice.call(document.querySelectorAll('[data-rider-photo-fallback]')).forEach(function (fallback) {
+                fallback.hidden = hasUrl;
               });
             }
 
@@ -878,7 +924,7 @@
               panel.classList.remove('is-camera-live');
               stopStream();
               if (!keepPreview) {
-                setPreviewSource('');
+                setPreviewSource(committedPhotoUrl);
               }
               toggleButton(captureButton, false);
               toggleButton(retakeButton, !!preview.getAttribute('src'));
@@ -887,12 +933,7 @@
 
             async function startCamera() {
               if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
-                if (fileInput) {
-                  fileInput.click();
-                  setStatus('Camera access is unavailable here, so choose or capture a photo from your device.', null);
-                } else {
-                  setStatus('Camera access is unavailable in this browser.', 'error');
-                }
+                setStatus('Front-camera access is unavailable in this browser.', 'error');
                 return;
               }
 
@@ -900,31 +941,37 @@
               try {
                 stream = await navigator.mediaDevices.getUserMedia({
                   video: {
-                    facingMode: 'user',
+                    facingMode: { ideal: 'user' },
                     width: { ideal: 960 },
                     height: { ideal: 960 }
                   },
                   audio: false
                 });
+                var videoTrack = stream.getVideoTracks()[0];
+                var trackSettings = videoTrack && videoTrack.getSettings ? videoTrack.getSettings() : {};
+                var trackLabel = videoTrack && videoTrack.label ? videoTrack.label.toLowerCase() : '';
+                if (
+                  trackSettings.facingMode === 'environment'
+                  || trackLabel.indexOf('rear') !== -1
+                  || trackLabel.indexOf('back') !== -1
+                ) {
+                  stopStream();
+                  throw new Error('Rear camera access is blocked. Use the front camera for a live selfie.');
+                }
                 video.srcObject = stream;
                 panel.classList.add('is-camera-live');
                 toggleButton(captureButton, true);
                 toggleButton(retakeButton, false);
                 toggleButton(uploadButton, false);
-                setStatus('Center your face in the frame, then capture and upload the photo.', null);
+                setStatus('Front camera is live. Center your face and capture your selfie.', null);
               } catch (error) {
                 panel.classList.remove('is-camera-live');
-                if (fileInput) {
-                  fileInput.click();
-                  setStatus('Camera permission was denied. Choose a photo from your device instead.', 'error');
-                } else {
-                  setStatus('Camera permission was denied.', 'error');
-                }
+                setStatus(error.message || 'Front-camera permission was denied.', 'error');
               }
             }
 
             function buildFileFromBlob(blob) {
-              return new File([blob], 'rider-live-photo.jpg', { type: 'image/jpeg' });
+              return new File([blob], 'rider-front-selfie.jpg', { type: 'image/jpeg' });
             }
 
             function captureFrame() {
@@ -937,7 +984,11 @@
               canvas.width = width;
               canvas.height = height;
               var context = canvas.getContext('2d');
+              context.save();
+              context.translate(width, 0);
+              context.scale(-1, 1);
               context.drawImage(video, 0, 0, width, height);
+              context.restore();
               canvas.toBlob(function (blob) {
                 if (!blob) {
                   setStatus('Could not capture the photo. Please try again.', 'error');
@@ -950,30 +1001,20 @@
                 toggleButton(uploadButton, true);
                 toggleButton(retakeButton, true);
                 toggleButton(captureButton, false);
-                setStatus('Photo captured. Upload it to save it to the rider profile.', null);
+                setStatus('Selfie captured. Save it to use the same photo across rider, shop, and customer screens.', null);
               }, 'image/jpeg', 0.82);
-            }
-
-            function updateFromFile(file) {
-              if (!file) {
-                return;
-              }
-              pendingFile = file;
-              panel.classList.remove('is-camera-live');
-              setPreviewSource(URL.createObjectURL(file));
-              toggleButton(uploadButton, true);
-              toggleButton(retakeButton, true);
-              setStatus('Photo selected. Upload it to save it to the rider profile.', null);
             }
 
             function uploadPhoto() {
               if (!pendingFile) {
-                setStatus('Capture or choose a rider photo first.', 'error');
+                setStatus('Capture a live front-camera selfie first.', 'error');
                 return;
               }
 
               var formData = new FormData();
               formData.append('photo', pendingFile);
+              formData.append('capture_source', liveCaptureSource);
+              formData.append('camera_facing', 'user');
               if (accountType) {
                 formData.append('account_type', accountType);
               }
@@ -998,12 +1039,13 @@
                 })
                 .then(function (payload) {
                   var nextUrl = payload.photo_url || (payload.rider && payload.rider.photo_url) || '';
+                  committedPhotoUrl = nextUrl;
                   if (hiddenInput) {
                     hiddenInput.value = nextUrl;
                     hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
                   }
                   setPreviewSource(nextUrl);
-                  setStatus('Rider photo saved successfully.', 'success');
+                  setStatus('Rider selfie saved. Customers and shops will now see this updated photo.', 'success');
                   resetCaptureState(true);
                 })
                 .catch(function (error) {
@@ -1016,9 +1058,7 @@
                 });
             }
 
-            if (preview.getAttribute('src')) {
-              preview.classList.add('is-ready');
-            }
+            setPreviewSource(committedPhotoUrl);
 
             openButton.addEventListener('click', function () {
               startCamera();
@@ -1034,17 +1074,6 @@
               retakeButton.addEventListener('click', function () {
                 resetCaptureState(false);
                 startCamera();
-              });
-            }
-
-            if (fileInput) {
-              fileInput.addEventListener('change', function () {
-                var file = fileInput.files && fileInput.files[0];
-                if (file) {
-                  stopStream();
-                  panel.classList.remove('is-camera-live');
-                  updateFromFile(file);
-                }
               });
             }
 

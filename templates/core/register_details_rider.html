@@ -94,12 +94,12 @@
             {{ form.photo_url }}
             <div class="rider-photo-panel-copy">
               <ul class="rider-photo-guidelines">
-                <li>Take a clear photo of your face</li>
+                <li>Take a clear live selfie with the front camera</li>
                 <li>Do not wear helmet or sunglasses</li>
                 <li>Make sure lighting is good</li>
                 <li>This photo will be shown to customers and shops</li>
               </ul>
-              <span class="field-help">Image size limit: 2MB. We compress captured photos before upload.</span>
+              <span class="field-help">Image size limit: 2MB. We compress and direction-correct the captured selfie before upload.</span>
               {% for error in form.photo_url.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
             </div>
             <div class="rider-photo-stage">
@@ -113,14 +113,13 @@
               />
             </div>
             <div class="rider-photo-actions">
-              <button class="button secondary" type="button" data-rider-photo-open>Open Camera</button>
+              <button class="button secondary" type="button" data-rider-photo-open>Open Front Camera</button>
               <button class="button secondary" type="button" data-rider-photo-capture disabled>Capture</button>
               <button class="button secondary" type="button" data-rider-photo-retake disabled>Retake</button>
-              <button class="button primary" type="button" data-rider-photo-upload disabled>Upload</button>
-              <input type="file" accept="image/jpeg,image/png,image/webp" capture="user" data-rider-photo-file hidden />
+              <button class="button primary" type="button" data-rider-photo-upload disabled>Save selfie</button>
             </div>
             <p class="field-help" data-rider-photo-status>
-              Open the camera, capture a clear face photo, then upload it before you continue to OTP verification.
+              Open the front camera, capture a live selfie, then save it before you continue to OTP verification.
             </p>
           </div>
         </section>

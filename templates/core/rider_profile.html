@@ -15,16 +15,14 @@
       <span class="eyebrow">Profile</span>
       <h2 class="section-title">Dispatch location</h2>
       <div class="profile-summary">
-        {% if rider.photo_source %}
-          <img
-            class="rider-photo-avatar rider-photo-avatar-lg"
-            src="{{ rider.photo_source }}"
-            alt="{{ rider.full_name }}"
-            data-rider-photo-target
-          />
-        {% else %}
-          <div class="avatar-badge" data-rider-photo-fallback>{{ rider.full_name|first|upper }}</div>
-        {% endif %}
+        <img
+          class="rider-photo-avatar rider-photo-avatar-lg"
+          src="{% if rider.photo_source %}{{ rider.photo_source }}{% endif %}"
+          alt="{{ rider.full_name }}"
+          data-rider-photo-target
+          {% if not rider.photo_source %}hidden{% endif %}
+        />
+        <div class="avatar-badge" data-rider-photo-fallback {% if rider.photo_source %}hidden{% endif %}>{{ rider.full_name|first|upper }}</div>
         <div class="profile-copy">
           <strong>{{ rider.full_name }}</strong>
           <p>{{ rider.phone }}{% if rider.email %} | {{ rider.email }}{% endif %}</p>
@@ -42,7 +40,7 @@
       >
         <div class="rider-photo-panel-copy">
           <strong>Update rider photo</strong>
-          <p class="subtle">This is the face customers and shops will see after order assignment.</p>
+          <p class="subtle">Use a live front-camera selfie only. This is the photo customers and shops will see after order assignment.</p>
         </div>
         <div class="rider-photo-stage rider-photo-stage-compact">
           <video class="rider-photo-video" data-rider-photo-video playsinline autoplay muted></video>
@@ -55,13 +53,12 @@
           />
         </div>
         <div class="rider-photo-actions">
-          <button class="button secondary" type="button" data-rider-photo-open>Open Camera</button>
+          <button class="button secondary" type="button" data-rider-photo-open>Open Front Camera</button>
           <button class="button secondary" type="button" data-rider-photo-capture disabled>Capture</button>
           <button class="button secondary" type="button" data-rider-photo-retake disabled>Retake</button>
-          <button class="button primary" type="button" data-rider-photo-upload disabled>Update photo</button>
-          <input type="file" accept="image/jpeg,image/png,image/webp" capture="user" data-rider-photo-file hidden />
+          <button class="button primary" type="button" data-rider-photo-upload disabled>Save selfie</button>
         </div>
-        <p class="field-help" data-rider-photo-status>Capture or retake a clear photo and upload it to refresh every assigned-order screen.</p>
+        <p class="field-help" data-rider-photo-status>Open the front camera, capture a live selfie, then save it to refresh the same rider photo across customer and shop screens.</p>
       </div>
       <p class="subtle">Switch between online and offline from the top-right account menu so the control stays available on every rider screen.</p>
 
