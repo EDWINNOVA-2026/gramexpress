@@ -158,6 +158,35 @@
           <form method="post" action="{% url 'core:customer_checkout' %}" class="stack">
             {% csrf_token %}
             <input type="hidden" name="action" value="review" />
+            <div class="checkout-cod-panel" data-delivery-slot-picker data-base-total="{{ cart_fixed_total }}" data-store-count="{{ cart.groups|length }}">
+              <strong>Choose Delivery Speed</strong>
+              <p>Pick one delivery slot for this checkout. The delivery fee updates instantly for every store order in the cart.</p>
+              <div class="stack small-gap top-gap-sm">
+                {% for option in delivery_slot_options %}
+                  <label class="compact-item{% if option.is_selected %} compact-item-warning{% endif %}">
+                    <div class="split-row">
+                      <div class="content-stack">
+                        <strong>{{ option.name }}</strong>
+                        <p>{{ option.time_label }} | {{ option.description }}</p>
+                        <span class="status-chip {{ option.chip_class }}">{{ option.tag }}</span>
+                      </div>
+                      <div class="content-stack" style="text-align:right;">
+                        <input type="radio" name="delivery_slot" value="{{ option.code }}" data-slot-fee="{{ option.fee }}" data-slot-name="{{ option.name }}" {% if option.is_selected %}checked{% endif %} />
+                        <span class="soft-pill">{% if option.fee > 0 %}+ Rs. {{ option.fee }}{% else %}Free{% endif %}</span>
+                      </div>
+                    </div>
+                  </label>
+                {% endfor %}
+              </div>
+              {% for error in order_form.delivery_slot.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+              <div class="split-row top-gap-sm">
+                <div>
+                  <strong>Updated payable</strong>
+                  <p class="utility-note" data-delivery-slot-summary>{{ selected_delivery_slot_config.name }} selected for {{ cart.groups|length }} store{{ cart.groups|length|pluralize }}.</p>
+                </div>
+                <strong data-delivery-slot-total>Rs. {{ cart_estimated_total|floatformat:2 }}</strong>
+              </div>
+            </div>
             <div class="auth-field">
               <label for="{{ order_form.customer_notes.id_for_label }}">Delivery Notes</label>
               {{ order_form.customer_notes }}
@@ -220,4 +249,43 @@
       </article>
     </div>
   </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  {{ block.super }}
+  <script>
+    (function () {
+      var picker = document.querySelector('[data-delivery-slot-picker]');
+      if (!picker) {
+        return;
+      }
+
+      var totalNode = picker.querySelector('[data-delivery-slot-total]');
+      var summaryNode = picker.querySelector('[data-delivery-slot-summary]');
+      var radios = picker.querySelectorAll('input[name="delivery_slot"]');
+      var baseTotal = Number(picker.getAttribute('data-base-total') || '0');
+      var storeCount = Number(picker.getAttribute('data-store-count') || '0');
+
+      function updatePreview() {
+        var selected = picker.querySelector('input[name="delivery_slot"]:checked');
+        if (!selected) {
+          return;
+        }
+        var fee = Number(selected.getAttribute('data-slot-fee') || '0');
+        var nextTotal = baseTotal + (fee * storeCount);
+        if (totalNode) {
+          totalNode.textContent = 'Rs. ' + nextTotal.toFixed(2);
+        }
+        if (summaryNode) {
+          summaryNode.textContent = (selected.getAttribute('data-slot-name') || selected.value) + ' selected for ' + storeCount + ' store order' + (storeCount === 1 ? '.' : 's.');
+        }
+      }
+
+      Array.prototype.forEach.call(radios, function (radio) {
+        radio.addEventListener('change', updatePreview);
+      });
+
+      updatePreview();
+    })();
+  </script>
 {% endblock %}
