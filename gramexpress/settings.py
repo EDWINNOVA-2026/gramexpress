@@ -12,9 +12,11 @@ def _build_asset_version() -> str:
     watched_files = [
         BASE_DIR / 'static/core/styles.css',
         BASE_DIR / 'templates/core/base.html',
-        BASE_DIR / 'templates/core/customer_dashboard.html',
+        BASE_DIR / 'templates/core/tailwind_theme.html',
         BASE_DIR / 'core/views.py',
+        BASE_DIR / 'core/models.py',
     ]
+    watched_files.extend((BASE_DIR / 'templates/core').glob('*.html'))
     mtimes = [int(path.stat().st_mtime) for path in watched_files if path.exists()]
     return str(max(mtimes, default=1))
 

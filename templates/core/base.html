@@ -259,18 +259,35 @@
           {% block content %}{% endblock %}
         </main>
 
+        {% if shell_active_role == 'customer' and show_customer_floating_cart and route_name != 'customer_cart' and route_name != 'customer_checkout' %}
+          <a
+            class="customer-floating-cart-button"
+            href="{% url 'core:customer_cart' %}"
+            aria-label="Open cart with {{ cart.item_count }} item{{ cart.item_count|pluralize }} totaling Rs. {{ cart_estimated_total|floatformat:2 }}"
+          >
+            <span class="customer-floating-cart-icon">
+              <span class="ui-icon icon-shopping-cart ui-icon-lg" aria-hidden="true"></span>
+              <span class="customer-floating-cart-badge">{{ cart.item_count }}</span>
+            </span>
+            <span class="customer-floating-cart-copy">
+              <strong>View Cart</strong>
+              <span>Rs. {{ cart_estimated_total|floatformat:2 }}</span>
+            </span>
+          </a>
+        {% endif %}
+
         {% if user.is_authenticated and route_name != 'login' and route_name != 'login_verify' and route_name != 'register' and route_name != 'register_details' and route_name != 'register_verify' and route_name != 'email_otp' and route_name != 'email_otp_verify' and route_name != 'customer_start' and route_name != 'shop_start' and route_name != 'rider_start' %}
           <nav class="mobile-bottom-nav{% if shell_active_role == 'shop' %} mobile-bottom-nav-shop{% endif %}" aria-label="Bottom navigation">
             {% if shell_active_role == 'shop' %}
               {% for link in shell_role_links %}
-                <a href="{{ link.url }}" class="mobile-bottom-link{% if request.path == link.url %} mobile-bottom-link-active{% endif %}"{% if request.path == link.url %} aria-current="page"{% endif %}>
+                <a href="{{ link.url }}" class="mobile-bottom-link{% if request.path == link.match_url|default:link.url %} mobile-bottom-link-active{% endif %}"{% if request.path == link.match_url|default:link.url %} aria-current="page"{% endif %}>
                   <span class="ui-icon icon-{{ link.icon }}" aria-hidden="true"></span>
                   <span>{{ link.label }}</span>
                 </a>
               {% endfor %}
             {% else %}
-              {% for link in shell_primary_links %}
-                <a href="{{ link.url }}" class="mobile-bottom-link{% if request.path == link.url %} mobile-bottom-link-active{% endif %}">
+              {% for link in shell_mobile_links %}
+                <a href="{{ link.url }}" class="mobile-bottom-link{% if request.path == link.match_url|default:link.url %} mobile-bottom-link-active{% endif %}"{% if request.path == link.match_url|default:link.url %} aria-current="page"{% endif %}>
                   <span class="ui-icon icon-{{ link.icon }}" aria-hidden="true"></span>
                   <span>{{ link.label }}</span>
                 </a>

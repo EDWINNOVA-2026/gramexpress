@@ -2278,6 +2278,10 @@ def annotate_catalog_product(product: Product) -> Product:
     product.preview_description = (product.description or product.subtitle or '').strip()
     product.catalog_price_label = f'Rs. {product.price}'
     product.mrp_label = f'Rs. {product.mrp}' if product.mrp else f'Rs. {product.price}'
+    if product.mrp and product.mrp > product.price:
+        product.discount_percent = int(((product.mrp - product.price) / product.mrp) * 100)
+    else:
+        product.discount_percent = 0
     product.visibility_label = 'Live' if product.is_visible else 'Hidden'
     product.visibility_chip = 'success' if product.is_visible else 'info'
     return product
@@ -3327,6 +3331,7 @@ def build_checkout_context(
     return {
         'customer': customer,
         'cart': cart,
+        'cart_fixed_total': estimated_subtotal + estimated_shopkeeper_commission_fee + estimated_platform_fee,
         'checkout_data': checkout_data,
         'selected_delivery_slot': selected_slot,
         'selected_delivery_slot_config': selected_slot_config,
@@ -3525,6 +3530,11 @@ def user_notifications(user):
 def customer_workspace_context(request: HttpRequest) -> dict[str, Any]:
     customer = request.role_profile
     shop_query = request.GET.get('q', '').strip()
+    checkout_data = pending_checkout_data(request) or {
+        'delivery_slot': DEFAULT_DELIVERY_SLOT,
+        'payment_method': PaymentMethod.COD,
+        'customer_notes': '',
+    }
     has_live_location = customer_has_live_location(request, customer)
     shops = discover_customer_shops(customer, query=shop_query) if has_live_location else []
     location_label = live_location_label(request, customer)
@@ -3570,7 +3580,15 @@ def customer_workspace_context(request: HttpRequest) -> dict[str, Any]:
         if len(category_map) >= 6:
             continue
 
-    cart = build_cart_context(request)
+    cart = build_cart_context(request, delivery_slot=checkout_data.get('delivery_slot'))
+    cart_fixed_total = sum(
+        (
+            group['subtotal'] + group['shopkeeper_commission_fee'] + group['platform_fee']
+            for group in cart['groups']
+        ),
+        Decimal('0.00'),
+    )
+    cart_estimated_total = cart_fixed_total + (cart['delivery_slot_fee'] * len(cart['groups']))
     orders = (
         customer.orders.select_related('shop', 'rider', 'checkout_session', 'khata_cycle')
         .prefetch_related('items__product')
@@ -3598,6 +3616,9 @@ def customer_workspace_context(request: HttpRequest) -> dict[str, Any]:
         'shops': shops,
         'orders': orders,
         'cart': cart,
+        'cart_fixed_total': cart_fixed_total,
+        'cart_estimated_total': cart_estimated_total,
+        'show_customer_floating_cart': cart['item_count'] > 0,
         'notifications': user_notifications(request.user),
         'google_maps_embed_api_key': getattr(settings, 'GOOGLE_MAPS_EMBED_API_KEY', ''),
         'delivery_radius_km': DEFAULT_DELIVERY_RADIUS_KM,
@@ -5436,8 +5457,62 @@ def order_detail_view(request: HttpRequest, order_id: int) -> HttpResponse:
 
 @login_required
 def order_tracking_view(request: HttpRequest, order_id: int) -> HttpResponse:
-    messages.info(request, 'Live tracking is unavailable in this version. Use order details and email updates instead.')
-    return redirect('core:order_detail', order_id=order_id)
+    order = get_order_for_user(request.user, order_id)
+    enrich_order_progress(order)
+    timeline = build_order_timeline(order)
+    status_summary = build_order_status_summary(order)
+    payment_summary = order.payment_summary
+    if order.rider_id:
+        route_origin_lat = order.rider.latitude
+        route_origin_lng = order.rider.longitude
+        route_url = build_google_route_url(
+            order.rider.latitude,
+            order.rider.longitude,
+            order.customer.latitude,
+            order.customer.longitude,
+        )
+        rider_location_url = order.rider.google_maps_url
+    else:
+        route_origin_lat = order.shop.latitude
+        route_origin_lng = order.shop.longitude
+        route_url = build_google_route_url(
+            order.shop.latitude,
+            order.shop.longitude,
+            order.customer.latitude,
+            order.customer.longitude,
+        )
+        rider_location_url = ''
+    maps_embed_url = build_google_embed_route_url(
+        route_origin_lat,
+        route_origin_lng,
+        order.customer.latitude,
+        order.customer.longitude,
+    )
+    return disable_html_cache(
+        render(
+            request,
+            'core/order_tracking.html',
+            {
+                'order': order,
+                'timeline': timeline,
+                'status_summary': status_summary,
+                'payment_summary': payment_summary,
+                'eta_label': build_order_eta_label(order),
+                'route_url': route_url,
+                'rider_location_url': rider_location_url,
+                'maps_embed_url': maps_embed_url,
+                'tracking_steps': [
+                    'Order Placed',
+                    'Accepted by Store',
+                    'Packed',
+                    'Rider Picked Up',
+                    'Out for Delivery',
+                    'Arriving',
+                    'Delivered',
+                ],
+            },
+        )
+    )
 
 
 def customer_start(request: HttpRequest) -> HttpResponse:
@@ -5522,18 +5597,45 @@ def customer_store_detail_view(request: HttpRequest, shop_slug: str) -> HttpResp
             raise Http404('Store not available in your delivery radius')
 
     product_query = request.GET.get('q', '').strip().lower()
+    category_filter = request.GET.get('category', '').strip()
     products = [annotate_catalog_product(product) for product in shop.products.filter(is_visible=True)]
+    category_tabs = ['All']
+    seen_categories = set()
+    for product in products:
+        category_name = (product.category or '').strip()
+        if category_name and category_name not in seen_categories:
+            seen_categories.add(category_name)
+            category_tabs.append(category_name)
+    if category_filter and category_filter.lower() != 'all':
+        products = [
+            product for product in products
+            if (product.category or '').strip().lower() == category_filter.lower()
+        ]
     if product_query:
         products = [
             product for product in products
             if product_query in f'{product.name} {product.subtitle} {product.category} {product.tag}'.lower()
         ]
+    for product in products:
+        product.customer_badges = []
+        if product.tag:
+            product.customer_badges.append(product.tag)
+        if product.stock <= 3:
+            product.customer_badges.append('Low Stock')
+        elif product.stock > 20:
+            product.customer_badges.append('Popular')
+        elif product.stock > 10:
+            product.customer_badges.append('Best Seller')
+    store_cart = build_cart_context(request)
 
     context.update(
         {
             'shop': shop,
             'products': products,
             'product_query': request.GET.get('q', '').strip(),
+            'category_tabs': category_tabs,
+            'selected_category': category_filter or 'All',
+            'store_cart_group': next((group for group in store_cart['groups'] if group['shop'].id == shop.id), None),
         }
     )
     return disable_html_cache(render(request, 'core/customer_store_detail.html', context))

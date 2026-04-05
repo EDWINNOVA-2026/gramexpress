@@ -1,8 +1,8 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
-  <section class="page-stack" id="top">
-    <article class="card checkout-hero-card" data-appear>
+  <section class="page-stack customer-checkout-shell" id="top">
+    <article class="card checkout-hero-card customer-checkout-header" data-appear>
       <div class="split-row">
         <div>
           <span class="eyebrow">Checkout</span>
@@ -17,11 +17,17 @@
       </div>
     </article>
 
-    <section class="layout-two" id="workspace">
-      <div class="stack">
-        <article class="card" data-appear>
-          <span class="eyebrow">Delivery</span>
-          <h2 class="section-title">Address and notes</h2>
+    <section class="layout-two customer-checkout-layout" id="workspace">
+      <div class="stack customer-checkout-main">
+        <article class="card customer-checkout-stores-card" data-appear>
+          <div class="split-row">
+            <div>
+              <span class="eyebrow">Cart Items By Store</span>
+              <h2 class="section-title">Review every store basket</h2>
+            </div>
+            <span class="soft-pill">{{ group_totals|length }} store{{ group_totals|length|pluralize }}</span>
+          </div>
+
           {% if cart.has_blocking_issues %}
             <div class="checkout-alert checkout-alert-error">
               <strong>Checkout is blocked right now.</strong>
@@ -32,43 +38,42 @@
               </ul>
             </div>
           {% endif %}
-          <div class="compact-item">
-            <strong>{{ customer.full_name }}</strong>
-            <p>{{ delivery_address }}</p>
-            <p class="utility-note">{{ selected_delivery_slot_config.name }} | {{ selected_delivery_slot_config.time_label }}</p>
-            {% if customer_notes %}
-              <p class="utility-note">Notes: {{ customer_notes }}</p>
-            {% endif %}
-          </div>
-        </article>
 
-        <article class="card" data-appear>
-          <span class="eyebrow">Stores</span>
-          <h2 class="section-title">Grouped checkout summary</h2>
           <div class="stack">
             {% for group in group_totals %}
-              <div class="compact-item{% if group.shop.approval_status != 'approved' or not group.shop.is_open %} compact-item-warning{% endif %}">
-                <div class="split-row">
+              <section class="customer-checkout-store-group{% if group.shop.approval_status != 'approved' or not group.shop.is_open %} customer-checkout-store-group-warning{% endif %}">
+                <div class="customer-checkout-store-head">
                   <div>
                     <strong>{{ group.shop.name }}</strong>
-                    <p>{{ group.item_count }} item{{ group.item_count|pluralize }} | {{ group.shop.area }}</p>
+                    <p class="muted">{{ group.item_count }} item{{ group.item_count|pluralize }} | {{ group.shop.area }}</p>
                   </div>
-                  <span class="pill">Rs. {{ group.total }}</span>
+                  <div class="customer-checkout-store-meta">
+                    <span class="pill">Rs. {{ group.total }}</span>
+                  </div>
                 </div>
+
                 <div class="bill-grid">
-                  <div class="bill-row"><span>Items</span><strong>Rs. {{ group.subtotal }}</strong></div>
-                  <div class="bill-row"><span>{{ selected_delivery_slot_config.name }}</span><strong>Rs. {{ group.delivery_fee }}</strong></div>
-                  <div class="bill-row"><span>Shopkeeper commission fee</span><strong>Rs. {{ group.shopkeeper_commission_fee }}</strong></div>
-                  <div class="bill-row"><span>GramExpress platform fee</span><strong>Rs. {{ group.platform_fee }}</strong></div>
+                  <div class="bill-row"><span>Items total</span><strong>Rs. {{ group.subtotal }}</strong></div>
+                  <div class="bill-row"><span>Delivery fee</span><strong>Rs. {{ group.delivery_fee }}</strong></div>
+                  <div class="bill-row"><span>Shopkeeper fee</span><strong>Rs. {{ group.shopkeeper_commission_fee }}</strong></div>
+                  <div class="bill-row"><span>Platform fee</span><strong>Rs. {{ group.platform_fee }}</strong></div>
                 </div>
-                <div class="compact-list top-gap-sm">
+
+                <div class="customer-checkout-line-items">
                   {% for item in cart.groups %}
                     {% if item.shop.id == group.shop.id %}
                       {% for line in item.items %}
-                        <div class="list-item compact-item compact-item-tight{% if line.has_blocking_issue %} compact-item-warning{% endif %}">
-                          <div>
-                            <strong>{{ line.product.name }}</strong>
-                            <p>{{ line.quantity }} x Rs. {{ line.product.price }}</p>
+                        <div class="customer-checkout-line-item{% if line.has_blocking_issue %} customer-checkout-line-item-warning{% endif %}">
+                          <div class="customer-checkout-line-main">
+                            <div class="customer-checkout-line-media" {% if line.product.image_source %}style="background-image:url('{{ line.product.image_source }}');"{% endif %}>
+                              {% if not line.product.image_source %}
+                                <span>{{ line.product.name|first|upper }}</span>
+                              {% endif %}
+                            </div>
+                            <div>
+                              <strong>{{ line.product.name }}</strong>
+                              <p>{{ line.quantity }} x Rs. {{ line.product.price }}</p>
+                            </div>
                           </div>
                           <span class="pill">Rs. {{ line.line_total }}</span>
                         </div>
@@ -76,109 +81,210 @@
                     {% endif %}
                   {% endfor %}
                 </div>
-              </div>
+              </section>
             {% endfor %}
           </div>
         </article>
+
+        <article class="card" data-appear>
+          <span class="eyebrow">Delivery Address</span>
+          <h2 class="section-title">Deliver to this address</h2>
+          <div class="compact-item">
+            <strong>{{ customer.full_name }}</strong>
+            <p>{{ delivery_address }}</p>
+            <p class="utility-note">{{ selected_delivery_slot_config.name }} | {{ selected_delivery_slot_config.time_label }}</p>
+          </div>
+        </article>
+
       </div>
 
-      <div class="stack">
-        <article class="card" data-appear>
-          <span class="eyebrow">Payment</span>
-          <h2 class="section-title">Final confirmation</h2>
-          <div class="metric-card checkout-summary-card">
-            <span class="metric-label">Estimated payable</span>
-            <strong class="metric-value">Rs. {{ estimated_total }}</strong>
-            <p>{{ payment_method_label }} | {{ selected_delivery_slot_config.name }} | {{ estimated_eta }}</p>
-          </div>
-          <div class="bill-grid top-gap-sm">
-            <div class="bill-row"><span>Items</span><strong>Rs. {{ estimated_subtotal }}</strong></div>
-            <div class="bill-row"><span>{{ selected_delivery_slot_config.name }}</span><strong>Rs. {{ estimated_delivery_fee }}</strong></div>
-            <div class="bill-row"><span>Shopkeeper commission fee</span><strong>Rs. {{ estimated_shopkeeper_commission_fee }}</strong></div>
-            <div class="bill-row"><span>GramExpress platform fee</span><strong>Rs. {{ estimated_platform_fee }}</strong></div>
-            <div class="bill-row"><span>Total</span><strong>Rs. {{ estimated_total }}</strong></div>
-          </div>
+      <div class="stack customer-checkout-sidebar">
+        <article class="card customer-checkout-panel" data-appear>
+          <section class="customer-checkout-panel-section customer-checkout-order-summary">
+            <span class="eyebrow">Order Summary</span>
+            <h2 class="section-title">Totals before you place the order</h2>
+            <div class="metric-card checkout-summary-card">
+              <span class="metric-label">Final total</span>
+              <strong class="metric-value customer-checkout-total">Rs. {{ estimated_total }}</strong>
+              <p>{{ cart.item_count }} items | {{ cart.groups|length }} stores | {{ estimated_eta }}</p>
+            </div>
+            <div class="bill-grid top-gap-sm">
+              <div class="bill-row"><span>Items Total</span><strong>Rs. {{ estimated_subtotal }}</strong></div>
+              <div class="bill-row"><span>Delivery Fee</span><strong>Rs. {{ estimated_delivery_fee }}</strong></div>
+              <div class="bill-row"><span>Shopkeeper Fee</span><strong>Rs. {{ estimated_shopkeeper_commission_fee }}</strong></div>
+              <div class="bill-row"><span>Platform Fee</span><strong>Rs. {{ estimated_platform_fee }}</strong></div>
+              <div class="bill-row"><span>Taxes</span><strong>Included</strong></div>
+              <div class="bill-row"><span>Final Total</span><strong>Rs. {{ estimated_total }}</strong></div>
+            </div>
+          </section>
 
-          {% if is_cod %}
-            <div class="checkout-cod-panel">
-              <strong>Confirm cash on delivery</strong>
-              <p>Keep the full amount ready, verify your items before payment, and share the delivery OTP only at handoff.</p>
-              <ul class="checkout-checklist">
-                <li>Pay only after receiving and checking the order.</li>
-                <li>Keep exact or near-exact cash ready for faster handoff.</li>
-                <li>Repeated delivery refusals can affect COD availability.</li>
-              </ul>
-            </div>
-          {% elif is_khatabook %}
-            <div class="checkout-cod-panel">
-              <strong>Added to KhataBook</strong>
-              <p>Your order will be placed immediately on a 7-day platform credit line instead of asking for payment now.</p>
-              <ul class="checkout-checklist">
-                <li>This full checkout total moves to your KhataBook weekly due.</li>
-                <li>Repayment stays visible in the app and is due next Monday, {{ khatabook_due_date|date:"M d" }}.</li>
-                <li>You can repay later through COD / UPI collection request or direct Razorpay UPI.</li>
-              </ul>
-            </div>
-          {% elif razorpay_enabled %}
-            <div class="checkout-cod-panel">
-              <strong>Razorpay checkout enabled</strong>
-              <p>Your environment has Razorpay keys configured, so online payment is available for this order flow.</p>
-              {% if checkout_session and checkout_session.failure_reason %}
-                <p class="utility-note">Latest payment update: {{ checkout_session.failure_reason }}</p>
-              {% endif %}
-            </div>
-          {% else %}
-            <div class="checkout-cod-panel">
-              <strong>Razorpay not configured</strong>
-              <p>Online payment stays hidden until `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` are configured. For now, use cash on delivery.</p>
-            </div>
-          {% endif %}
-
-          {% if is_cod %}
+          <section class="customer-checkout-panel-section">
+            <span class="eyebrow">Checkout Preferences</span>
+            <h2 class="section-title">Delivery and payment</h2>
             <form method="post" action="{% url 'core:customer_checkout' %}" class="stack">
               {% csrf_token %}
-              <input type="hidden" name="action" value="confirm" />
-              <button class="button primary" type="submit" {% if cart.has_blocking_issues %}disabled{% endif %}>
-                Yes, Place COD Order
-              </button>
-              <a class="button secondary" href="{% url 'core:customer_cart' %}">Back To Cart</a>
+              <input type="hidden" name="action" value="review" />
+
+              <div class="stack small-gap" data-delivery-slot-picker data-base-total="{{ cart_fixed_total }}" data-store-count="{{ cart.groups|length }}">
+                <div class="customer-checkout-subhead">
+                  <strong>Delivery speed</strong>
+                  <span class="utility-note" data-delivery-slot-total>Rs. {{ estimated_total|floatformat:2 }}</span>
+                </div>
+                {% for option in delivery_slot_options %}
+                  <label class="customer-checkout-option-card customer-checkout-option-card-compact{% if option.is_selected %} customer-checkout-option-card-active{% endif %}">
+                    <div class="customer-checkout-option-main">
+                      <div class="content-stack">
+                        <strong>{{ option.name }}</strong>
+                        <p>{{ option.time_label }}</p>
+                      </div>
+                      <div class="customer-checkout-option-side">
+                        <span class="status-chip {{ option.chip_class }}">{{ option.tag }}</span>
+                        <input type="radio" name="delivery_slot" value="{{ option.code }}" data-slot-fee="{{ option.fee }}" data-slot-name="{{ option.name }}" {% if option.is_selected %}checked{% endif %} />
+                      </div>
+                    </div>
+                  </label>
+                {% endfor %}
+                {% for error in order_form.delivery_slot.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+                <p class="utility-note" data-delivery-slot-summary>{{ selected_delivery_slot_config.name }} selected for {{ cart.groups|length }} store{{ cart.groups|length|pluralize }}.</p>
+              </div>
+
+              <label class="customer-checkout-notes-field">
+                <span>Delivery notes</span>
+                <textarea name="customer_notes" rows="2" placeholder="Gate, landmark, or handoff note">{{ customer_notes }}</textarea>
+              </label>
+
+              <div class="stack small-gap">
+                <div class="customer-checkout-subhead">
+                  <strong>Payment method</strong>
+                  {% if is_cod %}
+                    <span class="utility-note">Pay at delivery</span>
+                  {% elif is_khatabook %}
+                    <span class="utility-note">7-day credit</span>
+                  {% elif checkout_data.payment_method == 'razorpay' %}
+                    <span class="utility-note">Pay online</span>
+                  {% else %}
+                    <span class="utility-note">Choose a method</span>
+                  {% endif %}
+                </div>
+                {% if is_khatabook %}
+                  <p class="utility-note">Added to KhataBook. This order goes onto your 7-day credit cycle.</p>
+                {% elif is_cod %}
+                  <p class="utility-note">Cash on Delivery selected for this order.</p>
+                {% elif checkout_data.payment_method == 'razorpay' %}
+                  <p class="utility-note">Razorpay checkout is selected for online payment.</p>
+                {% endif %}
+                {% if razorpay_enabled %}
+                  <label class="customer-checkout-option-card customer-checkout-option-card-compact{% if checkout_data.payment_method == 'razorpay' %} customer-checkout-option-card-active{% endif %}">
+                    <div class="customer-checkout-option-main">
+                      <div class="content-stack">
+                        <strong>Razorpay</strong>
+                        <p>Online payment before dispatch</p>
+                      </div>
+                      <div class="customer-checkout-option-side">
+                        <span class="soft-pill">Online</span>
+                        <input type="radio" name="payment_method" value="razorpay" {% if checkout_data.payment_method == 'razorpay' %}checked{% endif %} />
+                      </div>
+                    </div>
+                  </label>
+                {% endif %}
+                <label class="customer-checkout-option-card customer-checkout-option-card-compact{% if checkout_data.payment_method == 'khata' %} customer-checkout-option-card-active{% endif %}">
+                  <div class="customer-checkout-option-main">
+                    <div class="content-stack">
+                      <strong>KhataBook</strong>
+                      <p>Pay on your 7-day cycle</p>
+                    </div>
+                    <div class="customer-checkout-option-side">
+                      <span class="soft-pill">Credit</span>
+                      <input type="radio" name="payment_method" value="khata" {% if checkout_data.payment_method == 'khata' %}checked{% endif %} />
+                    </div>
+                  </div>
+                </label>
+                <label class="customer-checkout-option-card customer-checkout-option-card-compact{% if checkout_data.payment_method == 'cod' %} customer-checkout-option-card-active{% endif %}">
+                  <div class="customer-checkout-option-main">
+                    <div class="content-stack">
+                      <strong>Cash on Delivery</strong>
+                      <p>Pay the rider at handoff</p>
+                    </div>
+                    <div class="customer-checkout-option-side">
+                      <span class="soft-pill">Delivery</span>
+                      <input type="radio" name="payment_method" value="cod" {% if checkout_data.payment_method == 'cod' %}checked{% endif %} />
+                    </div>
+                  </div>
+                </label>
+                <div class="payment-choice-button payment-choice-button-muted">
+                  <span class="payment-choice-copy">
+                    <strong>UPI on Delivery</strong>
+                    <span>Coming soon</span>
+                  </span>
+                  <span class="soft-pill">Soon</span>
+                </div>
+              </div>
+              {% for error in order_form.payment_method.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+              <button class="button secondary" type="submit">Update Preferences</button>
             </form>
-          {% elif is_khatabook %}
-            <form method="post" action="{% url 'core:customer_checkout' %}" class="stack">
-              {% csrf_token %}
-              <input type="hidden" name="action" value="confirm" />
-              <button class="button primary" type="submit" {% if cart.has_blocking_issues %}disabled{% endif %}>
-                Yes, Add This To KhataBook
-              </button>
-              <a class="button secondary" href="{% url 'core:customer_cart' %}">Back To Cart</a>
-            </form>
-          {% elif razorpay_checkout %}
-            <div class="stack">
-              <button class="button primary" type="button" id="razorpay-pay-button" {% if cart.has_blocking_issues %}disabled{% endif %}>
-                Pay Rs. {{ estimated_total }} With Razorpay
-              </button>
-              <p class="utility-note">You will stay on the same checkout flow and return here after the payment is verified.</p>
-              <a class="button secondary" href="{% url 'core:customer_cart' %}">Back To Cart</a>
+
+            <div class="customer-checkout-submit-block">
+            <span class="eyebrow">Place Order</span>
+            <h2 class="section-title">Confirm and continue</h2>
+
+            {% if is_cod %}
+              <form method="post" action="{% url 'core:customer_checkout' %}" class="stack">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="confirm" />
+                <button class="button primary customer-checkout-place-button" type="submit" {% if cart.has_blocking_issues %}disabled{% endif %}>
+                  Place Order
+                </button>
+                <a class="button secondary" href="{% url 'core:customer_cart' %}">Back To Cart</a>
+              </form>
+            {% elif is_khatabook %}
+              <form method="post" action="{% url 'core:customer_checkout' %}" class="stack">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="confirm" />
+                <button class="button primary customer-checkout-place-button" type="submit" {% if cart.has_blocking_issues %}disabled{% endif %}>
+                  Place Order
+                </button>
+                <a class="button secondary" href="{% url 'core:customer_cart' %}">Back To Cart</a>
+              </form>
+            {% elif razorpay_checkout %}
+              <div class="stack">
+                <button class="button primary customer-checkout-place-button" type="button" id="razorpay-pay-button" {% if cart.has_blocking_issues %}disabled{% endif %}>
+                  Place Order
+                </button>
+                <p class="utility-note">You will stay on the same checkout flow and return here after the payment is verified.</p>
+                <a class="button secondary" href="{% url 'core:customer_cart' %}">Back To Cart</a>
+              </div>
+              <form method="post" action="{% url 'core:customer_razorpay_complete' %}" id="razorpay-success-form" hidden>
+                {% csrf_token %}
+                <input type="hidden" name="checkout_session_id" value="{{ checkout_session.id }}" />
+                <input type="hidden" name="razorpay_payment_id" id="razorpay_payment_id" />
+                <input type="hidden" name="razorpay_order_id" id="razorpay_order_id" />
+                <input type="hidden" name="razorpay_signature" id="razorpay_signature" />
+              </form>
+              <form method="post" action="{% url 'core:customer_razorpay_failed' %}" id="razorpay-failure-form" hidden>
+                {% csrf_token %}
+                <input type="hidden" name="checkout_session_id" value="{{ checkout_session.id }}" />
+                <input type="hidden" name="error_description" id="razorpay_error_description" />
+                <input type="hidden" name="error_reason" id="razorpay_error_reason" />
+              </form>
+            {% else %}
+              <div class="stack">
+                <button class="button primary customer-checkout-place-button" type="button" disabled>Place Order</button>
+                <a class="button secondary" href="{% url 'core:customer_cart' %}">Back To Cart</a>
+              </div>
+            {% endif %}
+
+            {% if cart.has_blocking_issues %}
+              <div class="checkout-alert checkout-alert-error">
+                <strong>Checkout is blocked until these issues are fixed.</strong>
+                <ul class="checkout-checklist">
+                  {% for issue in cart.validation_errors %}
+                    <li>{{ issue }}</li>
+                  {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
             </div>
-            <form method="post" action="{% url 'core:customer_razorpay_complete' %}" id="razorpay-success-form" hidden>
-              {% csrf_token %}
-              <input type="hidden" name="checkout_session_id" value="{{ checkout_session.id }}" />
-              <input type="hidden" name="razorpay_payment_id" id="razorpay_payment_id" />
-              <input type="hidden" name="razorpay_order_id" id="razorpay_order_id" />
-              <input type="hidden" name="razorpay_signature" id="razorpay_signature" />
-            </form>
-            <form method="post" action="{% url 'core:customer_razorpay_failed' %}" id="razorpay-failure-form" hidden>
-              {% csrf_token %}
-              <input type="hidden" name="checkout_session_id" value="{{ checkout_session.id }}" />
-              <input type="hidden" name="error_description" id="razorpay_error_description" />
-              <input type="hidden" name="error_reason" id="razorpay_error_reason" />
-            </form>
-          {% else %}
-            <div class="stack">
-              <button class="button primary" type="button" disabled>Razorpay Setup Required</button>
-              <a class="button secondary" href="{% url 'core:customer_cart' %}">Back To Cart</a>
-            </div>
-          {% endif %}
+          </section>
         </article>
       </div>
     </section>
@@ -225,4 +331,43 @@
       })();
     </script>
   {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+  {{ block.super }}
+  <script>
+    (function () {
+      var picker = document.querySelector('[data-delivery-slot-picker]');
+      if (!picker) {
+        return;
+      }
+
+      var totalNode = picker.querySelector('[data-delivery-slot-total]');
+      var summaryNode = picker.querySelector('[data-delivery-slot-summary]');
+      var radios = picker.querySelectorAll('input[name="delivery_slot"]');
+      var baseTotal = Number(picker.getAttribute('data-base-total') || '0');
+      var storeCount = Number(picker.getAttribute('data-store-count') || '0');
+
+      function updatePreview() {
+        var selected = picker.querySelector('input[name="delivery_slot"]:checked');
+        if (!selected) {
+          return;
+        }
+        var fee = Number(selected.getAttribute('data-slot-fee') || '0');
+        var nextTotal = baseTotal + (fee * storeCount);
+        if (totalNode) {
+          totalNode.textContent = 'Rs. ' + nextTotal.toFixed(2);
+        }
+        if (summaryNode) {
+          summaryNode.textContent = (selected.getAttribute('data-slot-name') || selected.value) + ' selected for ' + storeCount + ' store order' + (storeCount === 1 ? '.' : 's.');
+        }
+      }
+
+      Array.prototype.forEach.call(radios, function (radio) {
+        radio.addEventListener('change', updatePreview);
+      });
+
+      updatePreview();
+    })();
+  </script>
 {% endblock %}

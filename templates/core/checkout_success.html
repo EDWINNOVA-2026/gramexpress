@@ -1,40 +1,45 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
-  <section class="page-stack" id="top">
+  <section class="page-stack customer-checkout-success-shell" id="top">
     <article class="card success-hero-card" data-appear>
-      <div class="success-badge">Success</div>
-      <h1 class="page-title">Order placed</h1>
-      <p>Your checkout is complete. Delivery teams and stores have already received the order instructions, and status updates will arrive by email.</p>
-      <div class="hero-inline-facts">
-        <span class="soft-pill">ETA {{ estimated_eta }}</span>
-        <span class="soft-pill">{{ delivery_slot_config.name }}</span>
-        <span class="soft-pill">Rs. {{ estimated_total }}</span>
-        <span class="soft-pill">{{ payment_method_label }}</span>
-        {% if payment_method == 'khata' %}
-          <span class="soft-pill">Added to KhataBook</span>
-        {% endif %}
+      <div class="split-row">
+        <div class="stack small-gap">
+          <div class="success-badge">Success</div>
+          <h1 class="page-title">Order placed and confirmed</h1>
+          <p>Your checkout is complete. The stores have the order, the delivery workflow is live, and you can track each step from here.</p>
+        </div>
+        <div class="hero-inline-facts">
+          <span class="soft-pill">ETA {{ estimated_eta }}</span>
+          <span class="soft-pill">{{ delivery_slot_config.name }}</span>
+          <span class="soft-pill">Rs. {{ estimated_total }}</span>
+          <span class="soft-pill">{{ payment_method_label }}</span>
+          {% if payment_method == 'khata' %}
+            <span class="soft-pill">Added to KhataBook</span>
+          {% endif %}
+        </div>
       </div>
     </article>
 
-    <section class="layout-two" id="workspace">
+    <section class="layout-two customer-checkout-success-layout" id="workspace">
       <article class="card" data-appear>
-        <span class="eyebrow">Order Summary</span>
-        <h2 class="section-title">Confirmed stores</h2>
+        <span class="eyebrow">Store Details</span>
+        <h2 class="section-title">Confirmed store orders</h2>
         <div class="stack">
           {% for order in orders %}
-            <div class="compact-item">
+            <div class="compact-item customer-success-order-card">
               <div class="split-row">
                 <div>
-                  <strong>Order #{{ order.id }}</strong>
+                  <strong>{{ order.display_id }}</strong>
                   <p>{{ order.shop.name }} | {{ order.get_status_display }} | {{ order.get_delivery_slot_display }}</p>
+                  <p class="utility-note">{{ order.shop.area }} | {{ order.shop.district }}</p>
                 </div>
                 <span class="pill">Rs. {{ order.total_amount }}</span>
               </div>
               <p class="utility-note">Deadline {{ order.delivery_deadline|date:"M d, H:i" }}</p>
               <div class="inline-actions">
-                <a class="button small primary" href="{% url 'core:order_detail' order.id %}">Details</a>
-                <a class="button small secondary" href="{% url 'core:customer_orders' %}">All Orders</a>
+                <a class="button small primary" href="{% url 'core:order_tracking' order.id %}">Track Order</a>
+                <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Details</a>
               </div>
             </div>
           {% endfor %}
@@ -42,7 +47,7 @@
       </article>
 
       <article class="card" data-appear>
-        <span class="eyebrow">Payment</span>
+        <span class="eyebrow">Rider Assigned</span>
         <h2 class="section-title">What happens next</h2>
         {% if payment_method == 'cod' %}
           <div class="checkout-cod-panel">
@@ -70,10 +75,37 @@
             {% endif %}
           </div>
         {% endif %}
+
+        {% if primary_order and primary_order.rider %}
+          <div class="rider-visibility-card customer-success-rider-card">
+            <div class="rider-visibility-summary">
+              {% if primary_order.rider.photo_source %}
+                <img class="rider-photo-avatar" src="{{ primary_order.rider.photo_source }}" alt="{{ primary_order.rider.full_name }}" />
+              {% else %}
+                <div class="rider-avatar">{{ primary_order.rider.full_name|first|upper }}</div>
+              {% endif %}
+              <div>
+                <strong>{{ primary_order.rider.full_name }}</strong>
+                <p>{{ primary_order.rider.get_vehicle_type_display }} rider{% if primary_order.rider.phone %} | {{ primary_order.rider.phone }}{% endif %}</p>
+              </div>
+            </div>
+            <div class="rider-visibility-actions">
+              <a class="button small secondary" href="tel:{{ primary_order.rider.phone }}">Call Rider</a>
+              <a class="button small secondary" href="{% url 'core:order_tracking' primary_order.id %}">Track Order</a>
+            </div>
+          </div>
+        {% else %}
+          <div class="compact-item">
+            <strong>Rider assignment is in progress</strong>
+            <p>We’ll show the rider photo, contact button, and live tracking card as soon as a rider is assigned.</p>
+          </div>
+        {% endif %}
+
         <div class="stack small-gap">
-          <a class="button primary" href="{% if payment_method == 'khata' %}{% url 'core:customer_khatabook' %}{% elif primary_order %}{% url 'core:order_detail' primary_order.id %}{% else %}{% url 'core:customer_dashboard' %}{% endif %}">
-            {% if payment_method == 'khata' %}Open KhataBook{% else %}Open Order Details{% endif %}
+          <a class="button primary" href="{% if payment_method == 'khata' %}{% url 'core:customer_khatabook' %}{% elif primary_order %}{% url 'core:order_tracking' primary_order.id %}{% else %}{% url 'core:customer_dashboard' %}{% endif %}">
+            {% if payment_method == 'khata' %}Open KhataBook{% else %}Track Order{% endif %}
           </a>
+          <a class="button secondary" href="{% url 'core:customer_orders' %}">Open All Orders</a>
           <a class="button secondary" href="{% url 'core:customer_dashboard' %}">Browse Stores</a>
         </div>
       </article>

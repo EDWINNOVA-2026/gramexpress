@@ -1,23 +1,31 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
-  <section class="page-stack" id="top">
+  <section class="page-stack customer-tracking-shell" id="top">
     <article class="card tracking-hero-card" data-appear>
       <div class="split-row">
         <div>
           <span class="eyebrow">Live Tracking</span>
-          <h1 class="page-title">Order #{{ order.id }}</h1>
+          <h1 class="page-title">{{ order.display_id }}</h1>
           <p>{{ order.shop.name }} to {{ order.customer.full_name }}</p>
         </div>
         <div class="hero-inline-facts">
           <span class="soft-pill">{{ eta_label }}</span>
+          <span class="soft-pill">{{ order.get_delivery_slot_display }}</span>
           <span class="status-chip {{ status_summary.chip_class }}">{{ order.get_status_display }}</span>
         </div>
       </div>
     </article>
 
-    <section class="layout-two" id="workspace">
+    <section class="layout-two customer-tracking-layout" id="workspace">
       <article class="card tracking-map-card" data-appear>
+        <div class="split-row">
+          <div>
+            <span class="eyebrow">Live Map</span>
+            <h2 class="section-title">Route from pickup to drop</h2>
+          </div>
+          <span class="soft-pill">{{ eta_label }}</span>
+        </div>
         {% if maps_embed_url %}
           <iframe
             class="tracking-map-embed tracking-map-embed-tall"
@@ -42,13 +50,45 @@
         {% endif %}
         <div class="inline-actions">
           <a class="button small primary" href="{{ route_url }}" target="_blank" rel="noreferrer">Open Route In Maps</a>
-          {% if order.rider %}
-            <a class="button small secondary" href="{{ order.rider.google_maps_url }}" target="_blank" rel="noreferrer">Rider Location</a>
+          {% if order.rider and rider_location_url %}
+            <a class="button small secondary" href="{{ rider_location_url }}" target="_blank" rel="noreferrer">Rider Location</a>
           {% endif %}
         </div>
       </article>
 
-      <div class="stack">
+      <div class="stack customer-tracking-sidebar">
+        <article class="card" data-appear>
+          <span class="eyebrow">Delivery Partner Card</span>
+          <h2 class="section-title">{% if order.rider %}Rider assigned{% else %}Rider assignment pending{% endif %}</h2>
+          {% if order.rider %}
+            <div class="rider-visibility-card">
+              <div class="rider-visibility-summary">
+                {% if order.rider.photo_source %}
+                  <img class="rider-photo-avatar" src="{{ order.rider.photo_source }}" alt="{{ order.rider.full_name }}" />
+                {% else %}
+                  <div class="rider-avatar">{{ order.rider.full_name|first|upper }}</div>
+                {% endif %}
+                <div>
+                  <strong>{{ order.rider.full_name }}</strong>
+                  <p>{{ order.rider.get_vehicle_type_display }} rider</p>
+                  <span class="soft-pill">{{ payment_summary.label }}</span>
+                </div>
+              </div>
+              <div class="rider-visibility-actions">
+                <a class="button small secondary" href="tel:{{ order.rider.phone }}">Call Rider</a>
+                {% if rider_location_url %}
+                  <a class="button small secondary" href="{{ rider_location_url }}" target="_blank" rel="noreferrer">Live Location</a>
+                {% endif %}
+              </div>
+            </div>
+          {% else %}
+            <div class="compact-item">
+              <strong>We are assigning a rider</strong>
+              <p>The map still shows the store-to-home route. Rider details will appear here as soon as dispatch starts.</p>
+            </div>
+          {% endif %}
+        </article>
+
         <article class="card" data-appear>
           <span class="eyebrow">ETA</span>
           <h2 class="section-title">{{ status_summary.title }}</h2>
@@ -67,22 +107,75 @@
           </div>
         </article>
 
-        <article class="card" data-appear>
-          <span class="eyebrow">Progress</span>
-          <h2 class="section-title">Current delivery status</h2>
-          <div class="timeline-list">
-            {% for item in timeline %}
-              <div class="timeline-item{% if item.current %} timeline-item-current{% endif %}{% if item.completed %} timeline-item-complete{% endif %}">
-                <div class="timeline-marker"></div>
-                <div class="timeline-copy">
-                  <strong>{{ item.label }}</strong>
-                  <p>{{ item.caption }}</p>
-                </div>
-              </div>
-            {% endfor %}
-          </div>
-        </article>
+        {% if order.status == 'out_for_delivery' and order.customer_otp %}
+          <article class="card" data-appear>
+            <span class="eyebrow">OTP Delivery Handoff</span>
+            <h2 class="section-title">Share this OTP only at delivery</h2>
+            <p class="subtle">This confirms the final handoff. Tell the rider the code only after you receive the order.</p>
+            <div class="otp-display-row" aria-label="Delivery handoff OTP">
+              {% for digit in order.customer_otp %}
+                <span class="otp-display-box">{{ digit }}</span>
+              {% endfor %}
+            </div>
+            {% if order.customer_otp_valid_until %}
+              <p class="utility-note">Current OTP valid until {{ order.customer_otp_valid_until|date:"H:i" }}.</p>
+            {% endif %}
+          </article>
+        {% endif %}
       </div>
     </section>
+
+    <article class="card" data-appear>
+      <div class="split-row">
+        <div>
+          <span class="eyebrow">Tracking Steps</span>
+          <h2 class="section-title">See every delivery step at a glance</h2>
+        </div>
+        <span class="soft-pill">{{ order.get_status_display }}</span>
+      </div>
+      <div class="timeline-list">
+        {% for item in timeline %}
+          <div class="timeline-item{% if item.current %} timeline-item-current{% endif %}{% if item.completed %} timeline-item-complete{% endif %}">
+            <div class="timeline-marker"></div>
+            <div class="timeline-copy">
+              <strong>{{ item.label }}</strong>
+              <p>{{ item.caption }}</p>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </article>
+
+    <article class="card" data-appear>
+      <div class="split-row">
+        <div>
+          <span class="eyebrow">Order Snapshot</span>
+          <h2 class="section-title">Store, payment, and delivery details</h2>
+        </div>
+        <span class="pill">Rs. {{ order.total_amount }}</span>
+      </div>
+      <div class="summary-grid customer-tracking-summary-grid">
+        <div class="compact-item">
+          <strong>Pickup shop</strong>
+          <p>{{ order.shop.name }}</p>
+          <p class="utility-note">{{ order.shop.address_line_1 }}, {{ order.shop.area }}, {{ order.shop.district }}</p>
+        </div>
+        <div class="compact-item">
+          <strong>Drop customer location</strong>
+          <p>{{ order.customer.full_name }}</p>
+          <p class="utility-note">{{ order.delivery_address }}</p>
+        </div>
+        <div class="compact-item">
+          <strong>Payment</strong>
+          <p>{{ payment_summary.label }}</p>
+          <p class="utility-note">{{ payment_summary.detail }}</p>
+        </div>
+        <div class="compact-item">
+          <strong>Order total</strong>
+          <p>Rs. {{ order.total_amount }}</p>
+          <p class="utility-note">{{ order.get_delivery_slot_display }} | {{ eta_label }}</p>
+        </div>
+      </div>
+    </article>
   </section>
 {% endblock %}

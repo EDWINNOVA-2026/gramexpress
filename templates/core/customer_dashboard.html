@@ -3,19 +3,26 @@
 {% block content %}
   <section class="customer-home-shell" id="top">
     <section class="customer-home-hero card" data-appear>
-      <div class="customer-home-badges">
-        <span class="customer-home-badge">
-          <span class="customer-home-badge-icon"><span class="ui-icon icon-shopping-cart" aria-hidden="true"></span></span>
-          <span>Cart {{ cart.item_count }}</span>
-        </span>
-        <span class="customer-home-badge">
-          <span class="customer-home-badge-icon"><span class="ui-icon icon-store" aria-hidden="true"></span></span>
-          <span>Stores {{ shops|length }}</span>
-        </span>
-        <span class="customer-home-badge">
-          <span class="customer-home-badge-icon">K</span>
-          <span>KhataBook Rs. {{ khatabook_summary.outstanding_amount }}</span>
-        </span>
+      <div class="customer-home-hero-head">
+        <div>
+          <span class="eyebrow">Home / Nearby Stores</span>
+          <h1 class="page-title">Groceries and local stores around you</h1>
+          <p class="hero-lead">Search nearby shops, compare speed, and open the right store in one clean customer dashboard.</p>
+        </div>
+        <div class="customer-home-badges">
+          <span class="customer-home-badge">
+            <span class="customer-home-badge-icon"><span class="ui-icon icon-shopping-cart" aria-hidden="true"></span></span>
+            <span>Cart {{ cart.item_count }}</span>
+          </span>
+          <span class="customer-home-badge">
+            <span class="customer-home-badge-icon"><span class="ui-icon icon-store" aria-hidden="true"></span></span>
+            <span>Stores {{ shops|length }}</span>
+          </span>
+          <span class="customer-home-badge">
+            <span class="customer-home-badge-icon">K</span>
+            <span>KhataBook Rs. {{ khatabook_summary.outstanding_amount }}</span>
+          </span>
+        </div>
       </div>
 
       <form method="get" class="customer-home-search w-full relative">
@@ -28,6 +35,16 @@
         <a class="customer-home-filter{% if shop_query == 'top rated' %} customer-home-filter-active{% endif %}" href="?q=top rated">Top Rated</a>
         <a class="customer-home-filter{% if shop_query == 'fast delivery' %} customer-home-filter-active{% endif %}" href="?q=fast delivery">Fast Delivery</a>
         <a class="customer-home-filter{% if shop_query == 'groceries' or shop_query == 'kirana' %} customer-home-filter-active{% endif %}" href="?q=groceries">Groceries</a>
+        <a class="customer-home-filter{% if shop_query == 'vegetables' %} customer-home-filter-active{% endif %}" href="?q=vegetables">Vegetables</a>
+        <a class="customer-home-filter{% if shop_query == 'dairy' %} customer-home-filter-active{% endif %}" href="?q=dairy">Dairy</a>
+        <a class="customer-home-filter{% if shop_query == 'bakery' %} customer-home-filter-active{% endif %}" href="?q=bakery">Bakery</a>
+      </div>
+
+      <div class="customer-home-header-nav">
+        <a class="button secondary" href="{% url 'core:customer_dashboard' %}">Home</a>
+        <a class="button secondary" href="{% url 'core:customer_cart' %}">Cart</a>
+        <a class="button secondary" href="{% url 'core:customer_khatabook' %}">KhataBook</a>
+        <a class="button secondary" href="{% url 'core:customer_profile' %}">Profile</a>
       </div>
     </section>
 
@@ -149,23 +166,38 @@
                 {% else %}
                   <div class="store-card-placeholder">{{ shop.name|first|upper }}</div>
                 {% endif %}
-                <span class="customer-home-card-offer">Fresh delivery in your area.</span>
+                <div class="customer-home-card-badges">
+                  <span class="customer-home-card-offer">Fresh</span>
+                  {% if shop.distance_km <= 6 %}
+                    <span class="customer-home-card-offer customer-home-card-offer-muted">Fast Delivery</span>
+                  {% endif %}
+                  {% if shop.display_rating|default:shop.rating >= 4.5 %}
+                    <span class="customer-home-card-offer customer-home-card-offer-warm">Top Rated</span>
+                  {% endif %}
+                </div>
               </div>
               <div class="customer-home-card-body">
-                <div class="customer-home-card-rating">
-                  <span class="ui-icon icon-star" aria-hidden="true"></span>
-                  <span>{{ shop.display_rating|default:shop.rating }}</span>
-                  <span aria-hidden="true">•</span>
-                  <span>{% if shop.rating_count %}{{ shop.rating_count }} rating{{ shop.rating_count|pluralize }}{% else %}New{% endif %}</span>
+                <div class="customer-home-card-main">
+                  <div class="customer-home-card-rating">
+                    <span class="ui-icon icon-star" aria-hidden="true"></span>
+                    <span>{{ shop.display_rating|default:shop.rating }}</span>
+                    <span aria-hidden="true">•</span>
+                    <span>{% if shop.rating_count %}{{ shop.rating_count }} rating{{ shop.rating_count|pluralize }}{% else %}New{% endif %}</span>
+                  </div>
+                  <div class="customer-home-card-copy">
+                    <strong>{{ shop.name }}</strong>
+                    <p>{{ shop.get_shop_type_display }} • {{ shop.area }}</p>
+                  </div>
+                  <div class="customer-home-card-meta">
+                    <span><span class="ui-icon icon-map-pin" aria-hidden="true"></span><span>{{ shop.distance_km }} km away</span></span>
+                    <span><span class="ui-icon icon-clock-3" aria-hidden="true"></span><span>{{ shop.delivery_eta_label }}</span></span>
+                    <span><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>From Rs. 10</span></span>
+                    <span><span class="ui-icon icon-truck" aria-hidden="true"></span><span>{{ shop.speed_badge }}</span></span>
+                  </div>
                 </div>
-                <div class="customer-home-card-copy">
-                  <strong>{{ shop.name }}</strong>
-                  <p>{{ shop.area }} • {{ shop.get_shop_type_display }}</p>
-                </div>
-                <div class="customer-home-card-meta">
-                  <span><span class="ui-icon icon-map-pin" aria-hidden="true"></span><span>{{ shop.distance_km }} km away</span></span>
-                  <span><span class="ui-icon icon-truck" aria-hidden="true"></span><span>{{ shop.speed_badge }}</span></span>
-                  <span><span class="ui-icon icon-clock-3" aria-hidden="true"></span><span>{{ shop.delivery_eta_label }}</span></span>
+                <div class="customer-home-card-action">
+                  <span class="status-chip success">Open now</span>
+                  <span class="button small primary customer-home-card-button">Open Store</span>
                 </div>
               </div>
             </a>

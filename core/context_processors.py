@@ -4,11 +4,12 @@ from django.urls import reverse
 from .models import RoleType
 
 
-def nav_link(label: str, url: str, icon: str) -> dict[str, str]:
+def nav_link(label: str, url: str, icon: str, *, match_url: str | None = None) -> dict[str, str]:
     return {
         'label': label,
         'url': url,
         'icon': icon,
+        'match_url': match_url or url,
     }
 
 
@@ -20,6 +21,7 @@ def shell_navigation(request):
     unread_notification_count = 0
     role_links = []
     primary_links = []
+    mobile_links = []
     menu_links = []
     user_label = ''
     user_initial = 'G'
@@ -54,6 +56,13 @@ def shell_navigation(request):
                 nav_link('Profile', reverse('core:customer_profile'), 'user'),
             ]
             primary_links = role_links[:3]
+            mobile_links = [
+                nav_link('Home', reverse('core:customer_dashboard'), 'house'),
+                nav_link('Search', f"{reverse('core:customer_dashboard')}#store-search", 'search', match_url=reverse('core:customer_dashboard')),
+                nav_link('Orders', reverse('core:customer_orders'), 'package'),
+                nav_link('KhataBook', reverse('core:customer_khatabook'), 'wallet'),
+                nav_link('Profile', reverse('core:customer_profile'), 'user'),
+            ]
             menu_links = [
                 nav_link('KhataBook', reverse('core:customer_khatabook'), 'wallet'),
                 nav_link('Edit Profile', reverse('core:customer_profile'), 'square-pen'),
@@ -126,6 +135,7 @@ def shell_navigation(request):
         'shell_unread_notification_count': unread_notification_count,
         'shell_role_links': role_links,
         'shell_primary_links': primary_links or role_links[:3],
+        'shell_mobile_links': mobile_links or role_links,
         'shell_menu_links': menu_links,
         'shell_user_label': user_label,
         'shell_user_initial': user_initial,

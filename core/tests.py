@@ -510,7 +510,8 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, 'Choose Delivery Speed')
         self.assertContains(response, 'Priority Delivery')
         self.assertContains(response, 'Eco Delivery')
-        self.assertContains(response, 'Budget Delivery')
+        self.assertContains(response, 'Saver Delivery')
+        self.assertContains(response, 'Next Day')
 
     def test_customer_cart_uses_admin_delivery_slot_fee_overrides(self):
         DeliverySlotSetting.objects.update_or_create(
@@ -893,16 +894,68 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, 'Rider is nearby')
         self.assertContains(response, 'Rider')
 
-    def test_customer_order_detail_uses_email_updates_and_tracking_route_redirects(self):
+    def test_customer_order_detail_and_tracking_page_render_customer_delivery_status(self):
         self.client.force_login(self.customer_user)
         detail_response = self.client.get(reverse('core:order_detail', args=[self.demo_order.id]))
-        tracking_response = self.client.get(reverse('core:order_tracking', args=[self.demo_order.id]), follow=True)
+        tracking_response = self.client.get(reverse('core:order_tracking', args=[self.demo_order.id]))
         self.assertEqual(detail_response.status_code, 200)
         self.assertEqual(tracking_response.status_code, 200)
         self.assertContains(detail_response, self.demo_order.display_id)
         self.assertContains(detail_response, 'Email updates')
         self.assertContains(detail_response, 'Rider picked up your order')
-        self.assertContains(tracking_response, 'Use order details and email updates instead.')
+        self.assertContains(tracking_response, 'Live Tracking')
+        self.assertContains(tracking_response, 'Route from pickup to drop')
+
+    def test_customer_store_detail_page_shows_category_tabs_and_floating_cart(self):
+        extra_product = Product.objects.create(
+            shop=self.shop,
+            name='Farm Milk',
+            subtitle='Fresh milk',
+            description='Fresh farm milk',
+            category='Dairy',
+            unit='L',
+            mrp=Decimal('34.00'),
+            price=Decimal('30.00'),
+            stock=12,
+            is_visible=True,
+        )
+        self.client.force_login(self.customer_user)
+        self.client.post(
+            reverse('core:customer_update_location'),
+            {'latitude': '12.920000', 'longitude': '76.650000'},
+        )
+        self.client.post(reverse('core:cart_add', args=[extra_product.id]), {'quantity': '1'})
+
+        response = self.client.get(reverse('core:customer_store_detail', args=[self.shop.slug]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Category Tabs')
+        self.assertContains(response, 'Dairy')
+        self.assertContains(response, 'View Cart')
+
+    def test_customer_dashboard_shows_global_floating_cart_when_items_exist(self):
+        self.client.force_login(self.customer_user)
+        self.client.post(
+            reverse('core:customer_update_location'),
+            {'latitude': '12.920000', 'longitude': '76.650000'},
+        )
+        self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '2'})
+
+        response = self.client.get(reverse('core:customer_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'View Cart')
+        self.assertTrue(response.context['show_customer_floating_cart'])
+        self.assertContains(response, f"Rs. {response.context['cart_estimated_total']:.2f}")
+
+    def test_customer_mobile_navigation_uses_search_instead_of_cart(self):
+        self.client.force_login(self.customer_user)
+
+        response = self.client.get(reverse('core:customer_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        mobile_labels = [link['label'] for link in response.context['shell_mobile_links']]
+        self.assertEqual(mobile_labels, ['Home', 'Search', 'Orders', 'KhataBook', 'Profile'])
 
     @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
     def test_rider_can_accept_available_order_and_email_customer(self):
@@ -1849,7 +1902,7 @@ class CoreFlowTests(TestCase):
         response = self.client.get(reverse('core:customer_khatabook'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Your weekly credit line')
+        self.assertContains(response, 'Track your weekly credit clearly')
         self.assertContains(response, khata_order.display_id)
         self.assertContains(response, 'Request COD / UPI Collection')
 

@@ -52,8 +52,8 @@ class PaymentStatus(models.TextChoices):
 class DeliverySlot(models.TextChoices):
     PRIORITY = 'PRIORITY', 'Priority Delivery'
     ECO = 'ECO', 'Eco Delivery'
-    COST_SAVER = 'COST_SAVER', 'Cost Saver'
-    BUDGET = 'BUDGET', 'Budget Delivery'
+    COST_SAVER = 'COST_SAVER', 'Saver Delivery'
+    BUDGET = 'BUDGET', 'Next Day'
 
 
 class CodCollectionMode(models.TextChoices):
@@ -125,7 +125,7 @@ DELIVERY_SLOT_RULES = {
         'tag': 'Recommended',
     },
     DeliverySlot.COST_SAVER: {
-        'name': 'Cost Saver',
+        'name': 'Saver Delivery',
         'time_label': '4-8 hours',
         'description': 'Delivered during low traffic routes.',
         'delivery_fee': Decimal('5.00'),
@@ -135,14 +135,14 @@ DELIVERY_SLOT_RULES = {
         'tag': 'Save Money',
     },
     DeliverySlot.BUDGET: {
-        'name': 'Budget Delivery',
-        'time_label': '8-12 hours',
-        'description': 'Lowest cost delivery with flexible timing.',
+        'name': 'Next Day',
+        'time_label': 'Next day delivery',
+        'description': 'Free delivery on the next available day.',
         'delivery_fee': Decimal('0.00'),
         'color': 'gray',
         'priority_level': 4,
-        'time_limit': timedelta(hours=12),
-        'tag': 'Lowest Cost',
+        'time_limit': timedelta(days=1),
+        'tag': 'Free',
     },
 }
 
@@ -169,6 +169,25 @@ def get_delivery_slot_setting_overrides() -> dict[str, dict[str, object]]:
         }
     except (OperationalError, ProgrammingError):
         return {}
+    legacy_aliases = {
+        DeliverySlot.COST_SAVER: {
+            'name': ('Cost Saver', 'Saver Delivery'),
+        },
+        DeliverySlot.BUDGET: {
+            'name': ('Budget Delivery', 'Next Day'),
+            'time_label': ('8-12 hours', 'Next day delivery'),
+            'description': ('Lowest cost delivery with flexible timing.', 'Free delivery on the next available day.'),
+            'tag': ('Lowest Cost', 'Free'),
+        },
+    }
+    for code, replacements in legacy_aliases.items():
+        slot = settings_map.get(code)
+        if not slot:
+            continue
+        for field_name, values in replacements.items():
+            old_value, new_value = values
+            if slot.get(field_name) == old_value:
+                slot[field_name] = new_value
     return settings_map
 
 

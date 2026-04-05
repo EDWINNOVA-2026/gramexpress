@@ -1,338 +1,359 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
-  <section class="dashboard-top" id="top">
-    <article class="hero-card glass-card hero-card-customer" data-appear>
-      <span class="eyebrow">Orders</span>
-      <h1>Manage and review orders</h1>
-      <p class="hero-lead">Check order status, open delivery details, reorder past baskets, and rely on email updates instead of live tracking.</p>
-      <div class="hero-inline-facts">
-        <span class="soft-pill"><span class="ui-icon icon-truck" aria-hidden="true"></span><span>{{ active_order_count }} active</span></span>
-        <span class="soft-pill"><span class="ui-icon icon-badge-check" aria-hidden="true"></span><span>{{ delivered_order_count }} delivered</span></span>
-        <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>KhataBook Rs. {{ khatabook_summary.outstanding_amount }}</span></span>
-      </div>
-    </article>
-    <aside class="stack" data-appear>
-      <article class="metric-card">
-        <span class="metric-label">Latest status</span>
-        <strong class="metric-value">{% if orders %}{{ orders.0.get_status_display }}{% else %}No orders yet{% endif %}</strong>
-        <p>{% if orders %}{{ orders.0.shop.name }} is your most recent order.{% else %}Place your first order from the home page to start receiving order updates here.{% endif %}</p>
+  <section class="page-stack customer-orders-shell" id="top">
+    <section class="layout-two customer-orders-layout" data-appear>
+      <article class="card checkout-hero-card">
+        <div class="split-row">
+          <div>
+            <span class="eyebrow">Orders</span>
+            <h1 class="page-title">Manage and review orders</h1>
+            <p class="hero-lead">Track active deliveries, open detailed handoff updates, reorder past baskets, and keep KhataBook dues in view from one cleaner workspace.</p>
+          </div>
+          <div class="hero-inline-facts">
+            <span class="soft-pill"><span class="ui-icon icon-truck" aria-hidden="true"></span><span>{{ active_order_count }} active</span></span>
+            <span class="soft-pill"><span class="ui-icon icon-badge-check" aria-hidden="true"></span><span>{{ delivered_order_count }} delivered</span></span>
+            <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>KhataBook Rs. {{ khatabook_summary.outstanding_amount }}</span></span>
+          </div>
+        </div>
       </article>
-      <article class="card quick-card">
-        <span class="eyebrow">Order Actions</span>
-        <h2 class="section-title">Details, reorder, and rate</h2>
-        <p>Use this page for the full post-checkout journey instead of mixing it with storefront browsing.</p>
-      </article>
-    </aside>
-  </section>
 
-  {% if active_orders %}
-    <section class="card section-stack" data-appear>
-      <div class="split-row">
-        <div class="content-stack">
-          <span class="eyebrow">Current Order</span>
-          <h2 class="section-title">{{ active_orders.0.display_id }} is in progress</h2>
-          <p class="subtle">{{ active_orders.0.flow_detail }}</p>
-        </div>
-        <div class="action-cluster">
-          <span class="status-chip info">{{ active_orders.0.get_status_display }}</span>
-          <span class="soft-pill">{{ active_orders.0.delivery_slot_name }}</span>
-          <span class="pill">Rs. {{ active_orders.0.total_amount }}</span>
-          <a class="button small secondary" href="{% url 'core:order_detail' active_orders.0.id %}">
-            <span class="ui-icon icon-package" aria-hidden="true"></span>
-            <span>Open Current Order</span>
-          </a>
-        </div>
+      <div class="stack">
+        <article class="metric-card" data-appear>
+          <span class="metric-label">Latest status</span>
+          <strong class="metric-value">{% if orders %}{{ orders.0.get_status_display }}{% else %}No orders yet{% endif %}</strong>
+          <p>{% if orders %}{{ orders.0.shop.name }} is your most recent order.{% else %}Place your first order from the home page to start receiving order updates here.{% endif %}</p>
+        </article>
+        <article class="card quick-card" data-appear>
+          <span class="eyebrow">Order Actions</span>
+          <h2 class="section-title">Details, reorder, and rate</h2>
+          <p>Use this page for the full post-checkout journey instead of mixing it with storefront browsing.</p>
+        </article>
       </div>
+    </section>
 
-      <div class="summary-grid">
-        <div class="focus-card content-stack">
-          <strong>Latest update</strong>
-          <p>{{ active_orders.0.latest_rider_update }}</p>
-          <span class="tiny muted">Updated {{ active_orders.0.last_update_label }}{% if active_orders.0.last_update_timestamp_label %} • {{ active_orders.0.last_update_timestamp_label }}{% endif %}</span>
-        </div>
-        <div class="focus-card content-stack">
-          <strong>What happens next</strong>
-          <p>{{ active_orders.0.flow_headline }}</p>
-          <div class="inline-actions">
-            <a class="button small secondary" href="{% url 'core:support' %}">
-              <span class="ui-icon icon-life-buoy" aria-hidden="true"></span>
-              <span>Need Help?</span>
+    {% if active_orders %}
+      <section class="card customer-order-highlight" data-appear>
+        <div class="split-row">
+          <div class="content-stack">
+            <span class="eyebrow">Current Order</span>
+            <h2 class="section-title">{{ active_orders.0.display_id }} is in progress</h2>
+            <p class="subtle">{{ active_orders.0.flow_detail }}</p>
+          </div>
+          <div class="action-cluster">
+            <span class="status-chip info">{{ active_orders.0.get_status_display }}</span>
+            <span class="soft-pill">{{ active_orders.0.delivery_slot_name }}</span>
+            <span class="pill">Rs. {{ active_orders.0.total_amount }}</span>
+            <a class="button small primary" href="{% url 'core:order_tracking' active_orders.0.id %}">
+              <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+              <span>Track Order</span>
             </a>
           </div>
         </div>
-      </div>
-    </section>
-  {% endif %}
 
-  <section class="card section-stack" data-appear>
-    <span class="eyebrow">Active Orders</span>
-    <h2 class="section-title">Review line items and watch status changes</h2>
-
-    <div class="stack">
-      {% for order in active_orders %}
-        <div class="nested-panel order-card roomy-card">
-          <div class="split-row">
-            <div class="content-stack">
-              <strong>{{ order.display_id }}</strong>
-              <p>{{ order.shop.name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
-              <p class="utility-note">{{ order.tracking_label }}</p>
-              <p class="utility-note">{{ order.delivery_slot_name }} | {{ order.time_remaining_label }} left | Deadline {{ order.deadline_label }}</p>
-              <p class="utility-note">{{ order.payment_summary.label }} | {{ order.payment_summary.status_label }}</p>
-              {% if order.payment_method == 'khata' and order.credit_due_date %}
-                <p class="utility-note">KhataBook due on {{ order.credit_due_date|date:"M d, Y" }}</p>
-              {% endif %}
-              {% if order.status == 'out_for_delivery' %}
-                <p class="utility-note">Delivery OTP for handoff: <code>{{ order.customer_otp }}</code></p>
-                {% if order.customer_otp_valid_until %}
-                  <p class="utility-note">OTP valid until {{ order.customer_otp_valid_until|date:"H:i" }}</p>
-                {% endif %}
-              {% endif %}
-            </div>
-            <div class="action-cluster">
-              <span class="pill">Rs. {{ order.total_amount }}</span>
-              <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">
-                <span class="ui-icon icon-package" aria-hidden="true"></span>
-                <span>Order Detail</span>
+        <div class="summary-grid">
+          <div class="focus-card content-stack">
+            <strong>Latest update</strong>
+            <p>{{ active_orders.0.latest_rider_update }}</p>
+            <span class="tiny muted">Updated {{ active_orders.0.last_update_label }}{% if active_orders.0.last_update_timestamp_label %} • {{ active_orders.0.last_update_timestamp_label }}{% endif %}</span>
+          </div>
+          <div class="focus-card content-stack">
+            <strong>What happens next</strong>
+            <p>{{ active_orders.0.flow_headline }}</p>
+            <div class="inline-actions">
+              <a class="button small secondary" href="{% url 'core:support' %}">
+                <span class="ui-icon icon-life-buoy" aria-hidden="true"></span>
+                <span>Need Help?</span>
               </a>
-              {% if order.can_be_reordered %}
-                <form method="post" action="{% url 'core:customer_reorder' order.id %}">
-                  {% csrf_token %}
-                  <button class="button small secondary" type="submit">
-                    <span class="ui-icon icon-history" aria-hidden="true"></span>
-                    <span>Order Again</span>
-                  </button>
-                </form>
-              {% endif %}
-              {% if order.payment_method == 'khata' and order.payment_status != 'paid' %}
-                <a class="button small secondary" href="{% url 'core:customer_khatabook' %}">
-                  <span class="ui-icon icon-wallet" aria-hidden="true"></span>
-                  <span>Open KhataBook</span>
-                </a>
-              {% endif %}
-              {% if order.payment_method == 'cod' %}
-                {% if order.status == 'out_for_delivery' or order.status == 'delivered' %}
-                  {% if order.cod_collection_mode != 'online' and not order.cod_cash_confirmed %}
-                    <form method="post" action="{% url 'core:customer_confirm_cod_cash' order.id %}">
-                      {% csrf_token %}
-                      <button class="button small primary" type="submit">
-                        <span class="ui-icon icon-indian-rupee" aria-hidden="true"></span>
-                        <span>I Paid Cash</span>
-                      </button>
-                    </form>
+            </div>
+          </div>
+        </div>
+      </section>
+    {% endif %}
+
+    <section class="card section-stack" data-appear>
+      <div class="split-row customer-order-section-head">
+        <div>
+          <span class="eyebrow">Active Orders</span>
+          <h2 class="section-title">Review line items and watch status changes</h2>
+        </div>
+        <span class="soft-pill">{{ active_orders|length }} order{{ active_orders|length|pluralize }}</span>
+      </div>
+
+      <div class="stack">
+        {% for order in active_orders %}
+          <div class="nested-panel order-card roomy-card customer-order-card">
+            <div class="split-row">
+              <div class="content-stack">
+                <strong>{{ order.display_id }}</strong>
+                <p>{{ order.shop.name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
+                <p class="utility-note">{{ order.tracking_label }}</p>
+                <p class="utility-note">{{ order.delivery_slot_name }} | {{ order.time_remaining_label }} left | Deadline {{ order.deadline_label }}</p>
+                <p class="utility-note">{{ order.payment_summary.label }} | {{ order.payment_summary.status_label }}</p>
+                {% if order.payment_method == 'khata' and order.credit_due_date %}
+                  <p class="utility-note">KhataBook due on {{ order.credit_due_date|date:"M d, Y" }}</p>
+                {% endif %}
+                {% if order.status == 'out_for_delivery' %}
+                  <p class="utility-note">Delivery OTP for handoff: <code>{{ order.customer_otp }}</code></p>
+                  {% if order.customer_otp_valid_until %}
+                    <p class="utility-note">OTP valid until {{ order.customer_otp_valid_until|date:"H:i" }}</p>
                   {% endif %}
                 {% endif %}
-              {% endif %}
-              {% if order.cod_online_link_ready and order.payment_status != 'paid' %}
-                <a class="button small secondary" href="{{ order.cod_payment_link_url }}" target="_blank" rel="noreferrer">
-                  <span class="ui-icon icon-credit-card" aria-hidden="true"></span>
-                  <span>Open Payment Link</span>
-                </a>
-              {% endif %}
-            </div>
-          </div>
-
-          <div class="flow-strip" aria-label="Order flow">
-            {% for step in order.flow_steps %}
-              <span class="flow-step{% if step.completed %} flow-step-complete{% endif %}{% if step.current %} flow-step-current{% endif %}">{{ step.label }}</span>
-            {% endfor %}
-          </div>
-
-          <div class="summary-grid">
-          <div class="compact-item content-stack">
-            <strong>{{ order.flow_headline }}</strong>
-            <p>{{ order.flow_detail }}</p>
-            <span class="tiny muted">Last update {{ order.last_update_label }}{% if order.last_update_timestamp_label %} • {{ order.last_update_timestamp_label }}{% endif %}</span>
-            <p class="utility-note">{{ order.latest_rider_update }}</p>
-          </div>
-
-          <div class="compact-item content-stack">
-              <strong>{{ order.support_prompt }}</strong>
-              <p>{{ order.support_copy }}</p>
-              {% if order.payment_summary.reference %}
-                <p class="utility-note">Payment reference: {{ order.payment_summary.reference }}</p>
-              {% endif %}
-              <div class="inline-actions">
-                <a class="button small secondary" href="{% url 'core:support' %}">
-                  <span class="ui-icon icon-life-buoy" aria-hidden="true"></span>
-                  <span>Need Help?</span>
-                </a>
               </div>
-            </div>
-          </div>
-
-          {% if order.rider %}
-            <div class="rider-visibility-card">
-              <div class="rider-visibility-summary">
-                {% if order.rider.photo_source %}
-                  <img class="rider-photo-avatar" src="{{ order.rider.photo_source }}" alt="{{ order.rider.full_name }}" />
-                {% else %}
-                  <div class="rider-avatar">{{ order.rider.full_name|first|upper }}</div>
-                {% endif %}
-                <div>
-                  <strong>{{ order.rider.full_name }}</strong>
-                  <p>{{ order.rider.get_vehicle_type_display }} rider assigned to this order.</p>
-                  <span class="soft-pill">
-                    {% if order.status == 'out_for_delivery' %}OTP handoff active{% else %}Pickup in progress{% endif %}
-                  </span>
-                </div>
-              </div>
-              <div class="rider-visibility-actions">
-                <a class="button small secondary" href="tel:{{ order.rider.phone }}">
-                  <span class="ui-icon icon-phone" aria-hidden="true"></span>
-                  <span>Call Rider</span>
-                </a>
-                <a class="button small secondary" href="{{ order.rider_route_url|default:order.customer.google_maps_url }}" target="_blank" rel="noreferrer">
+              <div class="action-cluster">
+                <span class="pill">Rs. {{ order.total_amount }}</span>
+                <a class="button small primary" href="{% url 'core:order_tracking' order.id %}">
                   <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
-                  <span>Open Route</span>
+                  <span>Track Order</span>
                 </a>
+                <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">
+                  <span class="ui-icon icon-package" aria-hidden="true"></span>
+                  <span>Order Detail</span>
+                </a>
+                {% if order.can_be_reordered %}
+                  <form method="post" action="{% url 'core:customer_reorder' order.id %}">
+                    {% csrf_token %}
+                    <button class="button small secondary" type="submit">
+                      <span class="ui-icon icon-history" aria-hidden="true"></span>
+                      <span>Order Again</span>
+                    </button>
+                  </form>
+                {% endif %}
+                {% if order.payment_method == 'khata' and order.payment_status != 'paid' %}
+                  <a class="button small secondary" href="{% url 'core:customer_khatabook' %}">
+                    <span class="ui-icon icon-wallet" aria-hidden="true"></span>
+                    <span>Open KhataBook</span>
+                  </a>
+                {% endif %}
+                {% if order.payment_method == 'cod' %}
+                  {% if order.status == 'out_for_delivery' or order.status == 'delivered' %}
+                    {% if order.cod_collection_mode != 'online' and not order.cod_cash_confirmed %}
+                      <form method="post" action="{% url 'core:customer_confirm_cod_cash' order.id %}">
+                        {% csrf_token %}
+                        <button class="button small primary" type="submit">
+                          <span class="ui-icon icon-indian-rupee" aria-hidden="true"></span>
+                          <span>I Paid Cash</span>
+                        </button>
+                      </form>
+                    {% endif %}
+                  {% endif %}
+                {% endif %}
+                {% if order.cod_online_link_ready and order.payment_status != 'paid' %}
+                  <a class="button small secondary" href="{{ order.cod_payment_link_url }}" target="_blank" rel="noreferrer">
+                    <span class="ui-icon icon-credit-card" aria-hidden="true"></span>
+                    <span>Open Payment Link</span>
+                  </a>
+                {% endif %}
               </div>
             </div>
-          {% endif %}
 
-          <div class="compact-list line-list">
-            {% for item in order.items.all %}
-              <div class="list-item compact-item">
-                <div>
-                  <strong>{{ item.product.name }}</strong>
-                  <p>{{ item.quantity }} x Rs. {{ item.unit_price }}</p>
-                </div>
-                <span class="muted">Rs. {{ item.line_total }}</span>
+            <div class="flow-strip" aria-label="Order flow">
+              {% for step in order.flow_steps %}
+                <span class="flow-step{% if step.completed %} flow-step-complete{% endif %}{% if step.current %} flow-step-current{% endif %}">{{ step.label }}</span>
+              {% endfor %}
+            </div>
+
+            <div class="summary-grid">
+              <div class="compact-item content-stack">
+                <strong>{{ order.flow_headline }}</strong>
+                <p>{{ order.flow_detail }}</p>
+                <span class="tiny muted">Last update {{ order.last_update_label }}{% if order.last_update_timestamp_label %} • {{ order.last_update_timestamp_label }}{% endif %}</span>
+                <p class="utility-note">{{ order.latest_rider_update }}</p>
               </div>
-            {% endfor %}
-          </div>
 
-          {% if order.can_be_rated_by_customer %}
-            <form method="post" action="{% url 'core:customer_rate_order' order.id %}" class="stack small-gap">
-              {% csrf_token %}
-              <input type="hidden" name="next" value="{% url 'core:customer_orders' %}" />
-              <fieldset class="star-rating-field">
-                <legend class="star-rating-legend">Rate your driver</legend>
-                <p class="star-rating-hint">Tap a star to choose your rating.</p>
-                <div class="star-rating-group" aria-label="Rate your driver">
-                  <input class="star-rating-input" id="active-order-{{ order.id }}-rating-5" type="radio" name="customer_rating" value="5" required />
-                  <label class="star-rating-label" for="active-order-{{ order.id }}-rating-5" title="5 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">5 stars</span></label>
-                  <input class="star-rating-input" id="active-order-{{ order.id }}-rating-4" type="radio" name="customer_rating" value="4" />
-                  <label class="star-rating-label" for="active-order-{{ order.id }}-rating-4" title="4 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">4 stars</span></label>
-                  <input class="star-rating-input" id="active-order-{{ order.id }}-rating-3" type="radio" name="customer_rating" value="3" />
-                  <label class="star-rating-label" for="active-order-{{ order.id }}-rating-3" title="3 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">3 stars</span></label>
-                  <input class="star-rating-input" id="active-order-{{ order.id }}-rating-2" type="radio" name="customer_rating" value="2" />
-                  <label class="star-rating-label" for="active-order-{{ order.id }}-rating-2" title="2 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">2 stars</span></label>
-                  <input class="star-rating-input" id="active-order-{{ order.id }}-rating-1" type="radio" name="customer_rating" value="1" />
-                  <label class="star-rating-label" for="active-order-{{ order.id }}-rating-1" title="1 star"><span aria-hidden="true">&#9733;</span><span class="sr-only">1 star</span></label>
+              <div class="compact-item content-stack">
+                <strong>{{ order.support_prompt }}</strong>
+                <p>{{ order.support_copy }}</p>
+                {% if order.payment_summary.reference %}
+                  <p class="utility-note">Payment reference: {{ order.payment_summary.reference }}</p>
+                {% endif %}
+                <div class="inline-actions">
+                  <a class="button small secondary" href="{% url 'core:support' %}">
+                    <span class="ui-icon icon-life-buoy" aria-hidden="true"></span>
+                    <span>Need Help?</span>
+                  </a>
                 </div>
-              </fieldset>
-              <label>Delivery description
-                <textarea name="customer_review" rows="2" placeholder="Share how the driver handled your delivery and handoff."></textarea>
-              </label>
-              <button class="button small primary" type="submit">
-                <span class="ui-icon icon-star" aria-hidden="true"></span>
-                <span>Save Driver Feedback</span>
-              </button>
-            </form>
-          {% elif order.customer_rating %}
-            <p class="muted">You rated the driver {{ order.customer_rating }}/5. {{ order.customer_review }}</p>
-          {% endif %}
-        </div>
-      {% empty %}
-        <div class="nested-panel">
-          <strong>No active orders right now</strong>
-          <p>Your in-progress deliveries will appear here as soon as you place an order.</p>
-        </div>
-      {% endfor %}
-    </div>
-  </section>
-
-  <section class="card section-stack" data-appear id="history">
-    <span class="eyebrow">Previous Orders</span>
-    <h2 class="section-title">Delivered and cancelled history</h2>
-
-    <div class="stack">
-      {% for order in previous_orders %}
-        <div class="nested-panel order-card roomy-card">
-          <div class="split-row">
-            <div class="content-stack">
-              <strong>{{ order.display_id }}</strong>
-              <p>{{ order.shop.name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
-              <p class="utility-note">{{ order.payment_summary.label }} | {{ order.payment_summary.status_label }}</p>
-              <p class="utility-note">{{ order.delivery_slot_name }} | Deadline {{ order.deadline_label }}</p>
-              {% if order.payment_method == 'khata' and order.credit_due_date %}
-                <p class="utility-note">KhataBook due on {{ order.credit_due_date|date:"M d, Y" }}</p>
-              {% endif %}
+              </div>
             </div>
-            <div class="action-cluster">
-              <span class="pill">Rs. {{ order.total_amount }}</span>
-              <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">
-                <span class="ui-icon icon-package" aria-hidden="true"></span>
-                <span>Order Detail</span>
-              </a>
-              {% if order.payment_method == 'khata' and order.payment_status != 'paid' %}
-                <a class="button small secondary" href="{% url 'core:customer_khatabook' %}">
-                  <span class="ui-icon icon-wallet" aria-hidden="true"></span>
-                  <span>Open KhataBook</span>
+
+            {% if order.rider %}
+              <div class="rider-visibility-card">
+                <div class="rider-visibility-summary">
+                  {% if order.rider.photo_source %}
+                    <img class="rider-photo-avatar" src="{{ order.rider.photo_source }}" alt="{{ order.rider.full_name }}" />
+                  {% else %}
+                    <div class="rider-avatar">{{ order.rider.full_name|first|upper }}</div>
+                  {% endif %}
+                  <div>
+                    <strong>{{ order.rider.full_name }}</strong>
+                    <p>{{ order.rider.get_vehicle_type_display }} rider assigned to this order.</p>
+                    <span class="soft-pill">
+                      {% if order.status == 'out_for_delivery' %}OTP handoff active{% else %}Pickup in progress{% endif %}
+                    </span>
+                  </div>
+                </div>
+                <div class="rider-visibility-actions">
+                  <a class="button small secondary" href="tel:{{ order.rider.phone }}">
+                    <span class="ui-icon icon-phone" aria-hidden="true"></span>
+                    <span>Call Rider</span>
+                  </a>
+                  <a class="button small secondary" href="{{ order.rider_route_url|default:order.customer.google_maps_url }}" target="_blank" rel="noreferrer">
+                    <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+                    <span>Open Route</span>
+                  </a>
+                </div>
+              </div>
+            {% endif %}
+
+            <div class="compact-list line-list">
+              {% for item in order.items.all %}
+                <div class="list-item compact-item">
+                  <div>
+                    <strong>{{ item.product.name }}</strong>
+                    <p>{{ item.quantity }} x Rs. {{ item.unit_price }}</p>
+                  </div>
+                  <span class="muted">Rs. {{ item.line_total }}</span>
+                </div>
+              {% endfor %}
+            </div>
+
+            {% if order.can_be_rated_by_customer %}
+              <form method="post" action="{% url 'core:customer_rate_order' order.id %}" class="stack small-gap">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'core:customer_orders' %}" />
+                <fieldset class="star-rating-field">
+                  <legend class="star-rating-legend">Rate your driver</legend>
+                  <p class="star-rating-hint">Tap a star to choose your rating.</p>
+                  <div class="star-rating-group" aria-label="Rate your driver">
+                    <input class="star-rating-input" id="active-order-{{ order.id }}-rating-5" type="radio" name="customer_rating" value="5" required />
+                    <label class="star-rating-label" for="active-order-{{ order.id }}-rating-5" title="5 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">5 stars</span></label>
+                    <input class="star-rating-input" id="active-order-{{ order.id }}-rating-4" type="radio" name="customer_rating" value="4" />
+                    <label class="star-rating-label" for="active-order-{{ order.id }}-rating-4" title="4 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">4 stars</span></label>
+                    <input class="star-rating-input" id="active-order-{{ order.id }}-rating-3" type="radio" name="customer_rating" value="3" />
+                    <label class="star-rating-label" for="active-order-{{ order.id }}-rating-3" title="3 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">3 stars</span></label>
+                    <input class="star-rating-input" id="active-order-{{ order.id }}-rating-2" type="radio" name="customer_rating" value="2" />
+                    <label class="star-rating-label" for="active-order-{{ order.id }}-rating-2" title="2 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">2 stars</span></label>
+                    <input class="star-rating-input" id="active-order-{{ order.id }}-rating-1" type="radio" name="customer_rating" value="1" />
+                    <label class="star-rating-label" for="active-order-{{ order.id }}-rating-1" title="1 star"><span aria-hidden="true">&#9733;</span><span class="sr-only">1 star</span></label>
+                  </div>
+                </fieldset>
+                <label>Delivery description
+                  <textarea name="customer_review" rows="2" placeholder="Share how the driver handled your delivery and handoff."></textarea>
+                </label>
+                <button class="button small primary" type="submit">
+                  <span class="ui-icon icon-star" aria-hidden="true"></span>
+                  <span>Save Driver Feedback</span>
+                </button>
+              </form>
+            {% elif order.customer_rating %}
+              <p class="muted">You rated the driver {{ order.customer_rating }}/5. {{ order.customer_review }}</p>
+            {% endif %}
+          </div>
+        {% empty %}
+          <div class="nested-panel">
+            <strong>No active orders right now</strong>
+            <p>Your in-progress deliveries will appear here as soon as you place an order.</p>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="card section-stack" data-appear id="history">
+      <div class="split-row customer-order-section-head">
+        <div>
+          <span class="eyebrow">Previous Orders</span>
+          <h2 class="section-title">Delivered and cancelled history</h2>
+        </div>
+        <span class="soft-pill">{{ previous_orders|length }} order{{ previous_orders|length|pluralize }}</span>
+      </div>
+
+      <div class="stack">
+        {% for order in previous_orders %}
+          <div class="nested-panel order-card roomy-card customer-order-card">
+            <div class="split-row">
+              <div class="content-stack">
+                <strong>{{ order.display_id }}</strong>
+                <p>{{ order.shop.name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
+                <p class="utility-note">{{ order.payment_summary.label }} | {{ order.payment_summary.status_label }}</p>
+                <p class="utility-note">{{ order.delivery_slot_name }} | Deadline {{ order.deadline_label }}</p>
+                {% if order.payment_method == 'khata' and order.credit_due_date %}
+                  <p class="utility-note">KhataBook due on {{ order.credit_due_date|date:"M d, Y" }}</p>
+                {% endif %}
+              </div>
+              <div class="action-cluster">
+                <span class="pill">Rs. {{ order.total_amount }}</span>
+                <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">
+                  <span class="ui-icon icon-package" aria-hidden="true"></span>
+                  <span>Order Detail</span>
                 </a>
-              {% endif %}
-              {% if order.can_be_reordered %}
-                <form method="post" action="{% url 'core:customer_reorder' order.id %}">
-                  {% csrf_token %}
-                  <button class="button small primary" type="submit">
-                    <span class="ui-icon icon-history" aria-hidden="true"></span>
-                    <span>Order Again</span>
-                  </button>
-                </form>
-              {% endif %}
+                {% if order.payment_method == 'khata' and order.payment_status != 'paid' %}
+                  <a class="button small secondary" href="{% url 'core:customer_khatabook' %}">
+                    <span class="ui-icon icon-wallet" aria-hidden="true"></span>
+                    <span>Open KhataBook</span>
+                  </a>
+                {% endif %}
+                {% if order.can_be_reordered %}
+                  <form method="post" action="{% url 'core:customer_reorder' order.id %}">
+                    {% csrf_token %}
+                    <button class="button small primary" type="submit">
+                      <span class="ui-icon icon-history" aria-hidden="true"></span>
+                      <span>Order Again</span>
+                    </button>
+                  </form>
+                {% endif %}
+              </div>
             </div>
-          </div>
-          <div class="flow-strip" aria-label="Order flow">
-            {% for step in order.flow_steps %}
-              <span class="flow-step{% if step.completed %} flow-step-complete{% endif %}{% if step.current %} flow-step-current{% endif %}">{{ step.label }}</span>
-            {% endfor %}
-          </div>
-          <p class="utility-note">Last update {{ order.last_update_label }}{% if order.last_update_timestamp_label %} • {{ order.last_update_timestamp_label }}{% endif %}</p>
-          {% if order.can_be_rated_by_customer %}
-            <form method="post" action="{% url 'core:customer_rate_order' order.id %}" class="stack small-gap top-gap-sm">
-              {% csrf_token %}
-              <input type="hidden" name="next" value="{% url 'core:customer_orders' %}" />
-              <fieldset class="star-rating-field">
-                <legend class="star-rating-legend">Rate your driver</legend>
-                <p class="star-rating-hint">Tap a star to choose your rating.</p>
-                <div class="star-rating-group" aria-label="Rate your driver">
-                  <input class="star-rating-input" id="history-order-{{ order.id }}-rating-5" type="radio" name="customer_rating" value="5" required />
-                  <label class="star-rating-label" for="history-order-{{ order.id }}-rating-5" title="5 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">5 stars</span></label>
-                  <input class="star-rating-input" id="history-order-{{ order.id }}-rating-4" type="radio" name="customer_rating" value="4" />
-                  <label class="star-rating-label" for="history-order-{{ order.id }}-rating-4" title="4 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">4 stars</span></label>
-                  <input class="star-rating-input" id="history-order-{{ order.id }}-rating-3" type="radio" name="customer_rating" value="3" />
-                  <label class="star-rating-label" for="history-order-{{ order.id }}-rating-3" title="3 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">3 stars</span></label>
-                  <input class="star-rating-input" id="history-order-{{ order.id }}-rating-2" type="radio" name="customer_rating" value="2" />
-                  <label class="star-rating-label" for="history-order-{{ order.id }}-rating-2" title="2 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">2 stars</span></label>
-                  <input class="star-rating-input" id="history-order-{{ order.id }}-rating-1" type="radio" name="customer_rating" value="1" />
-                  <label class="star-rating-label" for="history-order-{{ order.id }}-rating-1" title="1 star"><span aria-hidden="true">&#9733;</span><span class="sr-only">1 star</span></label>
-                </div>
-              </fieldset>
-              <label>Delivery description
-                <textarea name="customer_review" rows="2" placeholder="Share how the driver handled your delivery and handoff."></textarea>
-              </label>
-              <button class="button small primary" type="submit">
-                <span class="ui-icon icon-star" aria-hidden="true"></span>
-                <span>Save Driver Feedback</span>
-              </button>
-            </form>
-          {% elif order.customer_rating %}
-            <div class="compact-item content-stack top-gap-sm">
-              <strong>Driver feedback</strong>
-              <p>You rated the driver {{ order.customer_rating }}/5.</p>
-              {% if order.customer_review %}
-                <span class="tiny muted">{{ order.customer_review }}</span>
-              {% endif %}
+            <div class="flow-strip" aria-label="Order flow">
+              {% for step in order.flow_steps %}
+                <span class="flow-step{% if step.completed %} flow-step-complete{% endif %}{% if step.current %} flow-step-current{% endif %}">{{ step.label }}</span>
+              {% endfor %}
             </div>
-          {% endif %}
-        </div>
-      {% empty %}
-        <div class="nested-panel">
-          <strong>No previous orders yet</strong>
-          <p>Your delivered and cancelled orders will be grouped here for quick reordering.</p>
-        </div>
-      {% endfor %}
-    </div>
+            <p class="utility-note">Last update {{ order.last_update_label }}{% if order.last_update_timestamp_label %} • {{ order.last_update_timestamp_label }}{% endif %}</p>
+            {% if order.can_be_rated_by_customer %}
+              <form method="post" action="{% url 'core:customer_rate_order' order.id %}" class="stack small-gap top-gap-sm">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'core:customer_orders' %}" />
+                <fieldset class="star-rating-field">
+                  <legend class="star-rating-legend">Rate your driver</legend>
+                  <p class="star-rating-hint">Tap a star to choose your rating.</p>
+                  <div class="star-rating-group" aria-label="Rate your driver">
+                    <input class="star-rating-input" id="history-order-{{ order.id }}-rating-5" type="radio" name="customer_rating" value="5" required />
+                    <label class="star-rating-label" for="history-order-{{ order.id }}-rating-5" title="5 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">5 stars</span></label>
+                    <input class="star-rating-input" id="history-order-{{ order.id }}-rating-4" type="radio" name="customer_rating" value="4" />
+                    <label class="star-rating-label" for="history-order-{{ order.id }}-rating-4" title="4 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">4 stars</span></label>
+                    <input class="star-rating-input" id="history-order-{{ order.id }}-rating-3" type="radio" name="customer_rating" value="3" />
+                    <label class="star-rating-label" for="history-order-{{ order.id }}-rating-3" title="3 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">3 stars</span></label>
+                    <input class="star-rating-input" id="history-order-{{ order.id }}-rating-2" type="radio" name="customer_rating" value="2" />
+                    <label class="star-rating-label" for="history-order-{{ order.id }}-rating-2" title="2 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">2 stars</span></label>
+                    <input class="star-rating-input" id="history-order-{{ order.id }}-rating-1" type="radio" name="customer_rating" value="1" />
+                    <label class="star-rating-label" for="history-order-{{ order.id }}-rating-1" title="1 star"><span aria-hidden="true">&#9733;</span><span class="sr-only">1 star</span></label>
+                  </div>
+                </fieldset>
+                <label>Delivery description
+                  <textarea name="customer_review" rows="2" placeholder="Share how the driver handled your delivery and handoff."></textarea>
+                </label>
+                <button class="button small primary" type="submit">
+                  <span class="ui-icon icon-star" aria-hidden="true"></span>
+                  <span>Save Driver Feedback</span>
+                </button>
+              </form>
+            {% elif order.customer_rating %}
+              <div class="compact-item content-stack top-gap-sm">
+                <strong>Driver feedback</strong>
+                <p>You rated the driver {{ order.customer_rating }}/5.</p>
+                {% if order.customer_review %}
+                  <span class="tiny muted">{{ order.customer_review }}</span>
+                {% endif %}
+              </div>
+            {% endif %}
+          </div>
+        {% empty %}
+          <div class="nested-panel">
+            <strong>No previous orders yet</strong>
+            <p>Your delivered and cancelled orders will be grouped here for quick reordering.</p>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
   </section>
 {% endblock %}

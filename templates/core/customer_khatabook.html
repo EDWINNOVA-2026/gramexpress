@@ -1,13 +1,13 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
-  <section class="page-stack" id="top">
+  <section class="page-stack customer-khatabook-shell" id="top">
     <article class="card success-hero-card" data-appear>
       <div class="split-row">
         <div>
           <span class="eyebrow">KhataBook</span>
-          <h1 class="page-title">Your weekly credit line</h1>
-          <p>Order now, keep a visible 7-day platform credit balance, and settle the week’s due by the next Monday.</p>
+          <h1 class="page-title">Track your weekly credit clearly</h1>
+          <p>See your due amount, open credit orders, and the fastest way to settle the current KhataBook cycle.</p>
         </div>
         <div class="hero-inline-facts">
           <span class="soft-pill">Due {{ khatabook_summary.due_date|date:"M d" }}</span>
@@ -17,10 +17,33 @@
       </div>
     </article>
 
-    <section class="layout-two" id="workspace">
+    <section class="summary-grid customer-khatabook-metrics" data-appear>
+      <article class="metric-card checkout-summary-card">
+        <span class="metric-label">Used Credit</span>
+        <strong class="metric-value">Rs. {{ khatabook_summary.outstanding_amount }}</strong>
+        <p>Current weekly due amount</p>
+      </article>
+      <article class="metric-card checkout-summary-card">
+        <span class="metric-label">Orders on Credit</span>
+        <strong class="metric-value">{{ khatabook_orders|length }}</strong>
+        <p>Orders covered in this cycle</p>
+      </article>
+      <article class="metric-card checkout-summary-card">
+        <span class="metric-label">Due Date</span>
+        <strong class="metric-value">{{ khatabook_summary.due_date|date:"M d" }}</strong>
+        <p>Repay before default begins</p>
+      </article>
+      <article class="metric-card checkout-summary-card">
+        <span class="metric-label">Status</span>
+        <strong class="metric-value">{{ khatabook_summary.status_label }}</strong>
+        <p>{{ khatabook_summary.detail }}</p>
+      </article>
+    </section>
+
+    <section class="layout-two customer-khatabook-layout" id="workspace">
       <div class="stack">
         <article class="card" data-appear>
-          <span class="eyebrow">Weekly Due</span>
+          <span class="eyebrow">Credit Overview</span>
           <h2 class="section-title">{{ khatabook_summary.headline }}</h2>
           {% if khatabook_summary.is_defaulted %}
             <div class="checkout-alert checkout-alert-error">
@@ -47,8 +70,13 @@
         </article>
 
         <article class="card" data-appear>
-          <span class="eyebrow">Covered Orders</span>
-          <h2 class="section-title">Orders in this KhataBook cycle</h2>
+          <div class="split-row">
+            <div>
+              <span class="eyebrow">Orders on Credit</span>
+              <h2 class="section-title">Orders in this KhataBook cycle</h2>
+            </div>
+            <span class="soft-pill">{{ khatabook_orders|length }} order{{ khatabook_orders|length|pluralize }}</span>
+          </div>
           <div class="stack">
             {% for order in khatabook_orders %}
               <div class="compact-item">
@@ -78,7 +106,7 @@
 
       <div class="stack">
         <article class="card" data-appear>
-          <span class="eyebrow">Repay Due</span>
+          <span class="eyebrow">Repay Now</span>
           <h2 class="section-title">Choose how to settle this week</h2>
           {% if khatabook_collection_request %}
             <div class="checkout-cod-panel">
@@ -136,7 +164,10 @@
               <p>Your KhataBook balance is empty right now. The section will start tracking dues after your first KhataBook checkout.</p>
             </div>
           {% endif %}
-          <a class="button secondary" href="{% url 'core:customer_dashboard' %}">Back To Stores</a>
+          <div class="inline-actions">
+            <a class="button primary" href="{% url 'core:customer_dashboard' %}">Browse Stores</a>
+            <a class="button secondary" href="{% url 'core:customer_orders' %}">View Orders</a>
+          </div>
         </article>
       </div>
     </section>

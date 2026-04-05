@@ -2,25 +2,38 @@
 
 {% block content %}
   <section class="page-stack" id="top">
-    <article class="hero-card glass-card hero-card-customer" data-appear>
-      <span class="eyebrow">Store</span>
-      <h1>{{ shop.name }}</h1>
-      <p class="hero-lead">{{ shop.description }}</p>
+    <article class="customer-store-shell card" data-appear>
+      <div class="customer-store-banner">
+        {% if shop.image_source %}
+          <img src="{{ shop.image_source }}" alt="{{ shop.name }}" />
+        {% else %}
+          <div class="customer-store-banner-fallback">{{ shop.name|first|upper }}</div>
+        {% endif %}
+      </div>
+      <div class="customer-store-head">
+        <div>
+          <span class="eyebrow">Store Page</span>
+          <h1 class="page-title">{{ shop.name }}</h1>
+          <p class="hero-lead">{{ shop.description }}</p>
+        </div>
+        <div class="hero-actions">
+          <a class="button secondary" href="{% url 'core:customer_dashboard' %}">
+            <span class="ui-icon icon-store" aria-hidden="true"></span>
+            <span>Back To Stores</span>
+          </a>
+          <a class="button primary" href="{% url 'core:customer_cart' %}">
+            <span class="ui-icon icon-shopping-cart" aria-hidden="true"></span>
+            <span>Open Cart</span>
+          </a>
+        </div>
+      </div>
       <div class="hero-inline-facts">
         <span class="soft-pill"><span class="ui-icon icon-store" aria-hidden="true"></span><span>{{ shop.get_shop_type_display }}</span></span>
-        <span class="soft-pill"><span class="ui-icon icon-map-pin" aria-hidden="true"></span><span>{{ shop.area }}</span></span>
+        <span class="soft-pill"><span class="ui-icon icon-star" aria-hidden="true"></span><span>{{ shop.rating }} rating</span></span>
         <span class="soft-pill"><span class="ui-icon icon-map-pinned" aria-hidden="true"></span><span>{{ shop.distance_km }} km away</span></span>
-        <span class="soft-pill"><span class="ui-icon icon-star" aria-hidden="true"></span><span>Rating {{ shop.rating }}</span></span>
-      </div>
-      <div class="hero-actions">
-        <a class="button secondary" href="{% url 'core:customer_dashboard' %}">
-          <span class="ui-icon icon-store" aria-hidden="true"></span>
-          <span>Back To Stores</span>
-        </a>
-        <a class="button primary" href="{% url 'core:customer_cart' %}">
-          <span class="ui-icon icon-shopping-cart" aria-hidden="true"></span>
-          <span>Open Cart</span>
-        </a>
+        <span class="soft-pill"><span class="ui-icon icon-clock-3" aria-hidden="true"></span><span>Eco delivery in 1-4 hours</span></span>
+        <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>Min order Rs. 100</span></span>
+        <span class="status-chip success">Open now</span>
       </div>
     </article>
 
@@ -29,6 +42,9 @@
         <label for="product-search" class="tiny muted">Search products in {{ shop.name }}</label>
         <div class="split-row split-row-inline">
           <input id="product-search" class="input" type="search" name="q" value="{{ product_query }}" placeholder="Search by product, category, or tag" />
+          {% if selected_category and selected_category != 'All' %}
+            <input type="hidden" name="category" value="{{ selected_category }}" />
+          {% endif %}
           <button class="button primary" type="submit">
             <span class="ui-icon icon-search" aria-hidden="true"></span>
             <span>Search</span>
@@ -36,6 +52,25 @@
         </div>
       </form>
     </article>
+
+    <section class="card customer-store-tabs-card" data-appear>
+      <div class="split-row">
+        <div>
+          <span class="eyebrow">Category Tabs</span>
+          <h2 class="section-title">Jump to what you need</h2>
+        </div>
+        <span class="soft-pill">{{ products|length }} products</span>
+      </div>
+      <div class="customer-store-tabs">
+        {% for category in category_tabs %}
+          <a
+            class="customer-store-tab{% if selected_category == category %} customer-store-tab-active{% endif %}"
+            href="?{% if category != 'All' %}category={{ category|urlencode }}{% endif %}{% if product_query %}{% if category != 'All' %}&{% endif %}q={{ product_query|urlencode }}{% endif %}">
+            {{ category }}
+          </a>
+        {% endfor %}
+      </div>
+    </section>
 
     <section class="card" data-appear>
       <div class="split-row">
@@ -49,35 +84,62 @@
       <div class="product-grid">
         {% for product in products %}
           <div class="product-card product-card-rich">
-            <div class="product-media" style="background: linear-gradient(135deg, {{ product.color }}, #fff4ee);">
+            <div class="product-media customer-product-media" style="background: linear-gradient(135deg, {{ product.color }}, #fff4ee);">
+              <div class="customer-product-badge-stack">
+                {% for badge in product.customer_badges %}
+                  <span class="customer-product-image-badge {% if badge == 'Low Stock' %}warn{% elif badge == 'Popular' %}info{% else %}success{% endif %}">{{ badge }}</span>
+                {% endfor %}
+                {% if not product.customer_badges %}
+                  <span class="customer-product-image-badge success">Fresh</span>
+                {% endif %}
+              </div>
               {% if product.image_source %}
                 <img src="{{ product.image_source }}" alt="{{ product.name }}" />
               {% else %}
-                <span>{{ product.name|first|upper }}</span>
+                <span class="customer-product-media-fallback">{{ product.name|first|upper }}</span>
               {% endif %}
             </div>
-            <div class="product-copy">
-              <strong>{{ product.name }}</strong>
-              <p>{{ product.preview_description|default:product.subtitle }}</p>
-              <div class="product-meta-row">
-                <span class="soft-pill">{{ product.unit }}</span>
-                <span class="soft-pill">Stock {{ product.stock }}</span>
-                {% if product.tag %}<span class="soft-pill">{{ product.tag }}</span>{% endif %}
+            <div class="product-copy customer-product-copy">
+              <div class="customer-product-info">
+                <strong class="customer-product-name">{{ product.name }}</strong>
+                <p class="customer-product-description">{{ product.preview_description|default:product.subtitle }}</p>
+                <div class="product-meta-row customer-product-meta">
+                  <span class="soft-pill">{{ product.unit }}</span>
+                  <span class="status-chip {{ product.stock_status_chip }}">{{ product.stock_status_label }}</span>
+                </div>
               </div>
-            </div>
-            <form method="post" action="{% url 'core:cart_add' product.id %}" class="inline-actions">
-              {% csrf_token %}
-              <input type="hidden" name="next" value="{{ request.get_full_path }}" />
-              <input type="number" min="1" max="{{ product.stock }}" name="quantity" value="1" class="tiny-input" />
-              <button class="button small primary" type="submit" {% if product.stock <= 0 or not shop.is_open %}disabled{% endif %}>
-                {% if product.stock <= 0 %}
-                  Out Of Stock
-                {% else %}
-                  <span class="ui-icon icon-plus" aria-hidden="true"></span>
-                  <span>Add for Rs. {{ product.price }}</span>
+
+              <div class="customer-product-price-row">
+                <div class="customer-product-price-copy">
+                  <strong class="customer-product-price">Rs. {{ product.price }}</strong>
+                  {% if product.mrp and product.mrp > product.price %}
+                    <span class="customer-product-mrp">{{ product.mrp_label }}</span>
+                  {% endif %}
+                </div>
+                {% if product.discount_percent %}
+                  <span class="customer-product-discount">{{ product.discount_percent }}% off</span>
                 {% endif %}
-              </button>
-            </form>
+              </div>
+
+              <form method="post" action="{% url 'core:cart_add' product.id %}" class="customer-product-cart-form" data-product-stepper>
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+                <div class="customer-product-cart-row">
+                  <div class="customer-product-stepper">
+                    <button class="customer-product-stepper-button" type="button" data-stepper-decrease aria-label="Decrease quantity">-</button>
+                    <input type="number" min="1" max="{{ product.stock }}" name="quantity" value="1" class="customer-product-stepper-input" />
+                    <button class="customer-product-stepper-button" type="button" data-stepper-increase aria-label="Increase quantity">+</button>
+                  </div>
+                  <button class="button small primary customer-product-add-button" type="submit" {% if product.stock <= 0 or not shop.is_open %}disabled{% endif %}>
+                    {% if product.stock <= 0 %}
+                      Out Of Stock
+                    {% else %}
+                      Add
+                    {% endif %}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         {% empty %}
           <div class="nested-panel">
@@ -87,5 +149,45 @@
         {% endfor %}
       </div>
     </section>
+
   </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  {{ block.super }}
+  <script>
+    (function () {
+      var forms = document.querySelectorAll('[data-product-stepper]');
+      if (!forms.length) {
+        return;
+      }
+
+      forms.forEach(function (form) {
+        var input = form.querySelector('input[name="quantity"]');
+        var decrease = form.querySelector('[data-stepper-decrease]');
+        var increase = form.querySelector('[data-stepper-increase]');
+        if (!input || !decrease || !increase) {
+          return;
+        }
+
+        function clamp(value) {
+          var min = Number(input.getAttribute('min') || '1');
+          var max = Number(input.getAttribute('max') || '999');
+          return Math.max(min, Math.min(max, value));
+        }
+
+        decrease.addEventListener('click', function () {
+          input.value = clamp(Number(input.value || '1') - 1);
+        });
+
+        increase.addEventListener('click', function () {
+          input.value = clamp(Number(input.value || '1') + 1);
+        });
+
+        input.addEventListener('change', function () {
+          input.value = clamp(Number(input.value || '1'));
+        });
+      });
+    })();
+  </script>
 {% endblock %}
