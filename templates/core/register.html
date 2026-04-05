@@ -31,7 +31,7 @@
         <section class="auth-note-panel">
           <div>
             <strong>Registration already in progress</strong>
-            <p>We still have a pending mobile verification for {{ pending_registration.full_name }}.</p>
+            <p>We still have a pending email verification for {{ pending_registration.full_name }}.</p>
           </div>
           <div class="form-actions">
             <a class="auth-primary-button" href="{% url 'core:register_verify' %}">Continue OTP Verification</a>
@@ -52,7 +52,7 @@
       <div class="auth-step-strip">
         <span class="soft-pill">1. Choose role</span>
         <span class="soft-pill">2. Add onboarding details</span>
-        <span class="soft-pill">{% if pending_google_auth %}3. Start workspace{% else %}3. Verify mobile OTP{% endif %}</span>
+        <span class="soft-pill">{% if pending_google_auth %}3. Start workspace{% else %}3. Verify email OTP{% endif %}</span>
       </div>
 
       <div class="auth-role-grid">

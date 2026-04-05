@@ -6,14 +6,14 @@
       <div class="auth-lockmark" aria-hidden="true">
         <img src="/static/core/gramexpress.webp?v={{ shell_asset_version }}" alt="" loading="eager" decoding="async" />
       </div>
-      <h1>Verify Your Mobile Number</h1>
+      <h1>Verify Your Email Address</h1>
       <p class="auth-subtitle">The OTP step now lives on its own screen.</p>
-      <p class="auth-lead">We sent a 6 digit code to {{ pending_registration_phone }} for your {{ pending_registration_role_label|lower }} account.</p>
+      <p class="auth-lead">We sent a 6 digit code to {{ pending_registration_masked_email }} for your {{ pending_registration_role_label|lower }} account.</p>
 
       <div class="auth-step-strip">
         <a class="soft-pill" href="{% url 'core:register' %}">1. Choose role</a>
         <a class="soft-pill" href="{% url 'core:register_details' %}?account_type={{ pending_registration.account_type }}">2. Add onboarding details</a>
-        <span class="soft-pill soft-pill-active">3. Verify mobile OTP</span>
+        <span class="soft-pill soft-pill-active">3. Verify email OTP</span>
       </div>
 
       <section class="auth-note-panel">
@@ -27,7 +27,7 @@
       <form class="auth-form auth-form-tight" method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="verify_register_otp" />
-        {% include 'core/otp_input.html' with otp_field=otp_form.code otp_label='Mobile OTP' otp_autofocus=True %}
+        {% include 'core/otp_input.html' with otp_field=otp_form.code otp_label='Email OTP' otp_autofocus=True %}
         <button class="auth-primary-button" type="submit">Verify and Continue</button>
       </form>
 

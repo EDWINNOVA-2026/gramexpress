@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core import mail
 from django.test import Client, RequestFactory, TestCase
@@ -36,6 +37,7 @@ from .models import (
     Order,
     OrderItem,
     OrderStatus,
+    OtpChannel,
     OtpPurpose,
     PaymentMethod,
     PaymentStatus,
@@ -45,6 +47,7 @@ from .models import (
     SettlementStatus,
     Shop,
     ShopOwnerProfile,
+    VehicleType,
 )
 from .forms import LoginOtpVerifyForm, UnifiedRegistrationForm
 from .views import (
@@ -404,6 +407,24 @@ class CoreFlowTests(TestCase):
         self.client.force_login(self.customer_user)
         response = self.client.get(reverse('core:home'))
         self.assertRedirects(response, reverse('core:customer_dashboard'))
+
+    def test_rider_profile_rejects_user_already_linked_to_another_role(self):
+        duplicate_rider = RiderProfile(
+            user=self.customer_user,
+            full_name='Duplicate Rider',
+            phone='7000000001',
+            email='duplicate-rider@example.com',
+            age=25,
+            vehicle_type=VehicleType.ELECTRIC,
+            latitude=Decimal('12.915300'),
+            longitude=Decimal('76.643800'),
+        )
+
+        with self.assertRaises(ValidationError) as error:
+            duplicate_rider.full_clean()
+
+        self.assertIn('user', error.exception.message_dict)
+        self.assertIn('customer', error.exception.message_dict['user'][0].lower())
 
     def test_registration_phone_requires_exactly_ten_digits(self):
         form = UnifiedRegistrationForm(
@@ -2778,7 +2799,8 @@ class CoreFlowTests(TestCase):
         self.assertEqual(checkout_session.payment_status, PaymentStatus.PAID)
         self.assertTrue(Order.objects.filter(checkout_session=checkout_session).exists())
 
-    def test_registration_flow_sends_mobile_otp_and_creates_customer(self):
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_registration_flow_sends_email_otp_and_creates_customer(self):
         register_payload = {
             'account_type': RoleType.CUSTOMER,
             'full_name': 'New User',
@@ -2796,12 +2818,22 @@ class CoreFlowTests(TestCase):
         }
         response = self.client.post(reverse('core:register_details'), register_payload, follow=True)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Verify Your Mobile Number')
+        self.assertContains(response, 'Verify Your Email Address')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].subject, 'Your GramExpress registration OTP')
 
         otp = AuthOtpToken.objects.filter(
             purpose=OtpPurpose.REGISTER,
-            phone='9990001112',
+            channel=OtpChannel.EMAIL,
+            email='newuser@example.com',
         ).latest('created_at')
+        self.assertFalse(
+            AuthOtpToken.objects.filter(
+                purpose=OtpPurpose.REGISTER,
+                channel=OtpChannel.SMS,
+                phone='9990001112',
+            ).exists()
+        )
         verify_response = self.client.post(
             reverse('core:register_verify'),
             {'action': 'verify_register_otp', 'code': otp.code},

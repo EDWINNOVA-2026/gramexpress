@@ -266,7 +266,7 @@ class UnifiedRegistrationForm(forms.Form, BaseStyledForm):
         required_fields_by_role = {
             RoleType.CUSTOMER: ['preferred_language', 'address_line_1', 'district', 'pincode', 'latitude', 'longitude'],
             RoleType.SHOP: ['shop_name', 'shop_type', 'area', 'address_line_1', 'district', 'state', 'pincode', 'latitude', 'longitude'],
-            RoleType.RIDER: ['age', 'vehicle_type', 'photo_url', 'latitude', 'longitude'],
+            RoleType.RIDER: ['age', 'vehicle_type', 'latitude', 'longitude'],
         }
         for field_name in required_fields_by_role.get(account_type, []):
             if cleaned_data.get(field_name) in [None, '']:

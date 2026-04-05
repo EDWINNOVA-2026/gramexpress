@@ -5675,20 +5675,21 @@ def register_details_view(request: HttpRequest) -> HttpResponse:
                 payload = serialize_registration_data(cleaned_data)
                 token = create_auth_otp(
                     purpose=OtpPurpose.REGISTER,
-                    channel=OtpChannel.SMS,
+                    channel=OtpChannel.EMAIL,
                     role=payload['account_type'],
-                    phone=payload['phone'],
+                    email=payload['email'],
                     metadata={'full_name': payload['full_name']},
                 )
-                delivered, detail = send_sms_otp(
-                    phone=payload['phone'],
+                delivered, detail = send_email_otp(
+                    email=payload['email'],
                     code=token.code,
-                    intro='Your GramExpress registration code is',
+                    subject='Your GramExpress registration OTP',
+                    intro='Use this OTP to finish creating your GramExpress account.',
                 )
                 if delivered:
                     request.session[PENDING_REGISTRATION_SESSION_KEY] = payload
                     request.session.modified = True
-                    messages.success(request, 'We sent a mobile OTP to verify your registration.')
+                    messages.success(request, 'We sent a 6 digit OTP to your email address for registration.')
                     return redirect('core:register_verify')
                 token.delete()
                 form.add_error(None, detail)
@@ -5726,18 +5727,19 @@ def register_verify_view(request: HttpRequest) -> HttpResponse:
         if action == 'resend_register_otp':
             token = create_auth_otp(
                 purpose=OtpPurpose.REGISTER,
-                channel=OtpChannel.SMS,
+                channel=OtpChannel.EMAIL,
                 role=pending_registration['account_type'],
-                phone=pending_registration['phone'],
+                email=pending_registration['email'],
                 metadata={'full_name': pending_registration['full_name']},
             )
-            delivered, detail = send_sms_otp(
-                phone=pending_registration['phone'],
+            delivered, detail = send_email_otp(
+                email=pending_registration['email'],
                 code=token.code,
-                intro='Your GramExpress registration code is',
+                subject='Your GramExpress registration OTP',
+                intro='Use this OTP to finish creating your GramExpress account.',
             )
             if delivered:
-                messages.success(request, 'A fresh mobile OTP was sent.')
+                messages.success(request, 'A fresh email OTP was sent.')
                 return redirect('core:register_verify')
             token.delete()
             messages.error(request, detail)
@@ -5747,9 +5749,9 @@ def register_verify_view(request: HttpRequest) -> HttpResponse:
                 token = (
                     AuthOtpToken.objects.filter(
                         purpose=OtpPurpose.REGISTER,
-                        channel=OtpChannel.SMS,
+                        channel=OtpChannel.EMAIL,
                         role=pending_registration['account_type'],
-                        phone=normalize_phone(pending_registration['phone']),
+                        email__iexact=pending_registration['email'],
                         code=otp_form.cleaned_data['code'],
                         is_used=False,
                     )
@@ -5769,7 +5771,7 @@ def register_verify_view(request: HttpRequest) -> HttpResponse:
                     user, _ = create_account_from_registration(normalized_data)
                     request.session.pop(PENDING_REGISTRATION_SESSION_KEY, None)
                     login(request, user)
-                    messages.success(request, 'Your account is ready and your mobile number is verified.')
+                    messages.success(request, 'Your account is ready and your email address is verified.')
                     return redirect(get_dashboard_url_for_user(user))
                 otp_form.add_error('code', 'That OTP is invalid or expired.')
 
@@ -5780,7 +5782,8 @@ def register_verify_view(request: HttpRequest) -> HttpResponse:
             {
                 'otp_form': otp_form,
                 'pending_registration': pending_registration,
-                'pending_registration_phone': pending_registration.get('phone', ''),
+                'pending_registration_email': pending_registration.get('email', ''),
+                'pending_registration_masked_email': mask_email(pending_registration.get('email', '')),
                 'pending_registration_role_label': role_label(pending_registration.get('account_type', '')),
                 'otp_expiry_minutes': getattr(settings, 'OTP_EXPIRY_MINUTES', 10),
             },

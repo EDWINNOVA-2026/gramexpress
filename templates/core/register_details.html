@@ -13,7 +13,7 @@
       <div class="auth-step-strip">
         <a class="soft-pill" href="{% url 'core:register' %}">1. Choose role</a>
         <span class="soft-pill soft-pill-active">2. Add onboarding details</span>
-        <span class="soft-pill">3. Verify mobile OTP</span>
+        <span class="soft-pill">3. Verify email OTP</span>
       </div>
 
       <div class="auth-role-grid auth-role-grid-compact">
@@ -232,7 +232,7 @@
         {% for error in form.non_field_errors %}<small class="field-error">{{ error }}</small>{% endfor %}
 
         <div class="form-actions">
-          <button class="auth-primary-button" type="submit">Send Mobile OTP</button>
+          <button class="auth-primary-button" type="submit">Send Email OTP</button>
           <a class="auth-secondary-button" href="{% url 'core:register' %}">Change Role</a>
         </div>
       </form>

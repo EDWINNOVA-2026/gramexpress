@@ -3,6 +3,7 @@ from decimal import Decimal
 from functools import lru_cache
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.utils import OperationalError, ProgrammingError
 from django.utils import timezone
@@ -294,6 +295,35 @@ class LocationMixin(models.Model):
         return f'{self.latitude}, {self.longitude}'
 
 
+def validate_single_role_user(*, user, current_model, current_pk=None) -> None:
+    if not user:
+        return
+
+    profile_checks = [
+        (CustomerProfile, 'customer'),
+        (ShopOwnerProfile, 'store owner'),
+        (RiderProfile, 'rider'),
+    ]
+    conflicting_roles = []
+    for model_class, role_label in profile_checks:
+        queryset = model_class.objects.filter(user=user)
+        if model_class is current_model and current_pk:
+            queryset = queryset.exclude(pk=current_pk)
+        if model_class is not current_model and queryset.exists():
+            conflicting_roles.append(role_label)
+        elif model_class is current_model and queryset.exists():
+            conflicting_roles.append(role_label)
+
+    if conflicting_roles:
+        joined_roles = ', '.join(conflicting_roles)
+        raise ValidationError(
+            {
+                'user': f'This user is already linked to another role profile: {joined_roles}. '
+                'Assign a different user for this account.'
+            }
+        )
+
+
 class CustomerProfile(TimeStampedModel, LocationMixin):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -324,6 +354,10 @@ class CustomerProfile(TimeStampedModel, LocationMixin):
     def __str__(self) -> str:
         return f'{self.full_name} ({self.phone})'
 
+    def clean(self):
+        super().clean()
+        validate_single_role_user(user=self.user, current_model=CustomerProfile, current_pk=self.pk)
+
 
 class ShopOwnerProfile(TimeStampedModel):
     user = models.OneToOneField(
@@ -347,6 +381,10 @@ class ShopOwnerProfile(TimeStampedModel):
 
     def __str__(self) -> str:
         return self.full_name
+
+    def clean(self):
+        super().clean()
+        validate_single_role_user(user=self.user, current_model=ShopOwnerProfile, current_pk=self.pk)
 
 
 class RiderProfile(TimeStampedModel, LocationMixin):
@@ -385,6 +423,10 @@ class RiderProfile(TimeStampedModel, LocationMixin):
 
     def __str__(self) -> str:
         return self.full_name
+
+    def clean(self):
+        super().clean()
+        validate_single_role_user(user=self.user, current_model=RiderProfile, current_pk=self.pk)
 
 
 class Shop(TimeStampedModel, LocationMixin):
