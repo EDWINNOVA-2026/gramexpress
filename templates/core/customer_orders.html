@@ -36,6 +36,7 @@
         </div>
         <div class="action-cluster">
           <span class="status-chip info">{{ active_orders.0.get_status_display }}</span>
+          <span class="soft-pill">{{ active_orders.0.delivery_slot_name }}</span>
           <span class="pill">Rs. {{ active_orders.0.total_amount }}</span>
           <a class="button small secondary" href="{% url 'core:order_detail' active_orders.0.id %}">
             <span class="ui-icon icon-package" aria-hidden="true"></span>
@@ -76,6 +77,7 @@
               <strong>{{ order.display_id }}</strong>
               <p>{{ order.shop.name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
               <p class="utility-note">{{ order.tracking_label }}</p>
+              <p class="utility-note">{{ order.delivery_slot_name }} | {{ order.time_remaining_label }} left | Deadline {{ order.deadline_label }}</p>
               <p class="utility-note">{{ order.payment_summary.label }} | {{ order.payment_summary.status_label }}</p>
               {% if order.payment_method == 'khata' and order.credit_due_date %}
                 <p class="utility-note">KhataBook due on {{ order.credit_due_date|date:"M d, Y" }}</p>
@@ -203,19 +205,33 @@
           {% if order.can_be_rated_by_customer %}
             <form method="post" action="{% url 'core:customer_rate_order' order.id %}" class="stack small-gap">
               {% csrf_token %}
-              <label>Rate this order (1-5)
-                <input type="number" name="customer_rating" min="1" max="5" required />
-              </label>
-              <label>Review
-                <textarea name="customer_review" rows="2"></textarea>
+              <input type="hidden" name="next" value="{% url 'core:customer_orders' %}" />
+              <fieldset class="star-rating-field">
+                <legend class="star-rating-legend">Rate your driver</legend>
+                <p class="star-rating-hint">Tap a star to choose your rating.</p>
+                <div class="star-rating-group" aria-label="Rate your driver">
+                  <input class="star-rating-input" id="active-order-{{ order.id }}-rating-5" type="radio" name="customer_rating" value="5" required />
+                  <label class="star-rating-label" for="active-order-{{ order.id }}-rating-5" title="5 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">5 stars</span></label>
+                  <input class="star-rating-input" id="active-order-{{ order.id }}-rating-4" type="radio" name="customer_rating" value="4" />
+                  <label class="star-rating-label" for="active-order-{{ order.id }}-rating-4" title="4 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">4 stars</span></label>
+                  <input class="star-rating-input" id="active-order-{{ order.id }}-rating-3" type="radio" name="customer_rating" value="3" />
+                  <label class="star-rating-label" for="active-order-{{ order.id }}-rating-3" title="3 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">3 stars</span></label>
+                  <input class="star-rating-input" id="active-order-{{ order.id }}-rating-2" type="radio" name="customer_rating" value="2" />
+                  <label class="star-rating-label" for="active-order-{{ order.id }}-rating-2" title="2 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">2 stars</span></label>
+                  <input class="star-rating-input" id="active-order-{{ order.id }}-rating-1" type="radio" name="customer_rating" value="1" />
+                  <label class="star-rating-label" for="active-order-{{ order.id }}-rating-1" title="1 star"><span aria-hidden="true">&#9733;</span><span class="sr-only">1 star</span></label>
+                </div>
+              </fieldset>
+              <label>Delivery description
+                <textarea name="customer_review" rows="2" placeholder="Share how the driver handled your delivery and handoff."></textarea>
               </label>
               <button class="button small primary" type="submit">
                 <span class="ui-icon icon-star" aria-hidden="true"></span>
-                <span>Submit Rating</span>
+                <span>Save Driver Feedback</span>
               </button>
             </form>
           {% elif order.customer_rating %}
-            <p class="muted">You rated this order {{ order.customer_rating }}/5. {{ order.customer_review }}</p>
+            <p class="muted">You rated the driver {{ order.customer_rating }}/5. {{ order.customer_review }}</p>
           {% endif %}
         </div>
       {% empty %}
@@ -239,6 +255,7 @@
               <strong>{{ order.display_id }}</strong>
               <p>{{ order.shop.name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
               <p class="utility-note">{{ order.payment_summary.label }} | {{ order.payment_summary.status_label }}</p>
+              <p class="utility-note">{{ order.delivery_slot_name }} | Deadline {{ order.deadline_label }}</p>
               {% if order.payment_method == 'khata' and order.credit_due_date %}
                 <p class="utility-note">KhataBook due on {{ order.credit_due_date|date:"M d, Y" }}</p>
               {% endif %}
@@ -272,6 +289,43 @@
             {% endfor %}
           </div>
           <p class="utility-note">Last update {{ order.last_update_label }}{% if order.last_update_timestamp_label %} • {{ order.last_update_timestamp_label }}{% endif %}</p>
+          {% if order.can_be_rated_by_customer %}
+            <form method="post" action="{% url 'core:customer_rate_order' order.id %}" class="stack small-gap top-gap-sm">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{% url 'core:customer_orders' %}" />
+              <fieldset class="star-rating-field">
+                <legend class="star-rating-legend">Rate your driver</legend>
+                <p class="star-rating-hint">Tap a star to choose your rating.</p>
+                <div class="star-rating-group" aria-label="Rate your driver">
+                  <input class="star-rating-input" id="history-order-{{ order.id }}-rating-5" type="radio" name="customer_rating" value="5" required />
+                  <label class="star-rating-label" for="history-order-{{ order.id }}-rating-5" title="5 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">5 stars</span></label>
+                  <input class="star-rating-input" id="history-order-{{ order.id }}-rating-4" type="radio" name="customer_rating" value="4" />
+                  <label class="star-rating-label" for="history-order-{{ order.id }}-rating-4" title="4 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">4 stars</span></label>
+                  <input class="star-rating-input" id="history-order-{{ order.id }}-rating-3" type="radio" name="customer_rating" value="3" />
+                  <label class="star-rating-label" for="history-order-{{ order.id }}-rating-3" title="3 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">3 stars</span></label>
+                  <input class="star-rating-input" id="history-order-{{ order.id }}-rating-2" type="radio" name="customer_rating" value="2" />
+                  <label class="star-rating-label" for="history-order-{{ order.id }}-rating-2" title="2 stars"><span aria-hidden="true">&#9733;</span><span class="sr-only">2 stars</span></label>
+                  <input class="star-rating-input" id="history-order-{{ order.id }}-rating-1" type="radio" name="customer_rating" value="1" />
+                  <label class="star-rating-label" for="history-order-{{ order.id }}-rating-1" title="1 star"><span aria-hidden="true">&#9733;</span><span class="sr-only">1 star</span></label>
+                </div>
+              </fieldset>
+              <label>Delivery description
+                <textarea name="customer_review" rows="2" placeholder="Share how the driver handled your delivery and handoff."></textarea>
+              </label>
+              <button class="button small primary" type="submit">
+                <span class="ui-icon icon-star" aria-hidden="true"></span>
+                <span>Save Driver Feedback</span>
+              </button>
+            </form>
+          {% elif order.customer_rating %}
+            <div class="compact-item content-stack top-gap-sm">
+              <strong>Driver feedback</strong>
+              <p>You rated the driver {{ order.customer_rating }}/5.</p>
+              {% if order.customer_review %}
+                <span class="tiny muted">{{ order.customer_review }}</span>
+              {% endif %}
+            </div>
+          {% endif %}
         </div>
       {% empty %}
         <div class="nested-panel">

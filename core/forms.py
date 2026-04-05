@@ -2,6 +2,8 @@ from django import forms
 
 from .models import (
     CustomerProfile,
+    DeliverySlot,
+    DEFAULT_DELIVERY_SLOT,
     Order,
     PaymentMethod,
     Product,
@@ -488,6 +490,7 @@ class ProductForm(forms.ModelForm, BaseStyledForm):
 
 
 class CustomerOrderMetaForm(forms.Form, BaseStyledForm):
+    delivery_slot = forms.ChoiceField(choices=DeliverySlot.choices)
     payment_method = forms.ChoiceField(choices=PaymentMethod.choices)
     customer_notes = forms.CharField(max_length=200, required=False)
 
@@ -498,6 +501,7 @@ class CustomerOrderMetaForm(forms.Form, BaseStyledForm):
             self.fields['payment_method'].choices = [
                 choice for choice in PaymentMethod.choices if choice[0] != PaymentMethod.RAZORPAY
             ]
+        self.fields['delivery_slot'].initial = self.initial.get('delivery_slot', DEFAULT_DELIVERY_SLOT)
         self.fields['payment_method'].initial = self.initial.get('payment_method', PaymentMethod.COD)
         self._style_fields()
 
@@ -514,6 +518,9 @@ class RatingForm(forms.ModelForm, BaseStyledForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._style_fields()
+        self.fields['customer_rating'].label = 'Rate your driver'
+        self.fields['customer_review'].label = 'Delivery description'
+        self.fields['customer_review'].widget.attrs['placeholder'] = 'Share how the driver handled your delivery and handoff.'
 
 
 class StoreRatingForm(forms.ModelForm, BaseStyledForm):
