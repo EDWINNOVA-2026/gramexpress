@@ -86,20 +86,20 @@
   }
 
   .site-shell {
-    width: min(100% - 1.5rem, 1360px);
+    width: min(100% - 1.5rem, 1440px);
     @apply relative z-10 mx-auto;
   }
 
   .site-header {
-    @apply sticky top-0 z-30 pt-4;
+    @apply sticky top-0 z-30 pt-3;
   }
 
   .site-main {
-    @apply grid gap-6 pb-28 pt-5;
+    @apply grid gap-8 pb-28 pt-6;
   }
 
   .site-main.site-main-auth {
-    @apply flex min-h-screen items-center py-8;
+    @apply flex min-h-screen items-center py-10;
   }
 
   .topbar,
@@ -111,7 +111,7 @@
   .store-card,
   .nested-panel,
   .toast {
-    @apply border border-slate-200/80 bg-white shadow-soft;
+    @apply border border-slate-200/60 bg-white shadow-soft;
   }
 
   .topbar {
@@ -223,10 +223,182 @@
     @apply flex flex-wrap items-center gap-2;
   }
 
+  .ui-icon {
+    @apply inline-block shrink-0 align-middle;
+    width: 1rem;
+    height: 1rem;
+    background-color: currentColor;
+    -webkit-mask: var(--icon) center / contain no-repeat;
+    mask: var(--icon) center / contain no-repeat;
+  }
+
+  .ui-icon-lg {
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+
+  .ui-icon-xl {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  .icon-house {
+    --icon: url('/static/core/icons/house.svg');
+  }
+
+  .icon-shopping-cart {
+    --icon: url('/static/core/icons/shopping-cart.svg');
+  }
+
+  .icon-package {
+    --icon: url('/static/core/icons/package.svg');
+  }
+
+  .icon-user {
+    --icon: url('/static/core/icons/user.svg');
+  }
+
+  .icon-layout-dashboard {
+    --icon: url('/static/core/icons/layout-dashboard.svg');
+  }
+
+  .icon-clipboard-list {
+    --icon: url('/static/core/icons/clipboard-list.svg');
+  }
+
+  .icon-boxes {
+    --icon: url('/static/core/icons/boxes.svg');
+  }
+
+  .icon-settings {
+    --icon: url('/static/core/icons/settings.svg');
+  }
+
+  .icon-bell {
+    --icon: url('/static/core/icons/bell.svg');
+  }
+
+  .icon-log-out {
+    --icon: url('/static/core/icons/log-out.svg');
+  }
+
+  .icon-shield {
+    --icon: url('/static/core/icons/shield.svg');
+  }
+
+  .icon-log-in {
+    --icon: url('/static/core/icons/log-in.svg');
+  }
+
+  .icon-user-plus {
+    --icon: url('/static/core/icons/user-plus.svg');
+  }
+
+  .icon-search {
+    --icon: url('/static/core/icons/search.svg');
+  }
+
+  .icon-locate-fixed {
+    --icon: url('/static/core/icons/locate-fixed.svg');
+  }
+
+  .icon-store {
+    --icon: url('/static/core/icons/store.svg');
+  }
+
+  .icon-star {
+    --icon: url('/static/core/icons/star.svg');
+  }
+
+  .icon-truck {
+    --icon: url('/static/core/icons/truck.svg');
+  }
+
+  .icon-clock-3 {
+    --icon: url('/static/core/icons/clock-3.svg');
+  }
+
+  .icon-refresh-cw {
+    --icon: url('/static/core/icons/refresh-cw.svg');
+  }
+
+  .icon-trash-2 {
+    --icon: url('/static/core/icons/trash-2.svg');
+  }
+
+  .icon-credit-card {
+    --icon: url('/static/core/icons/credit-card.svg');
+  }
+
+  .icon-wallet {
+    --icon: url('/static/core/icons/wallet.svg');
+  }
+
+  .icon-map-pinned {
+    --icon: url('/static/core/icons/map-pinned.svg');
+  }
+
+  .icon-shopping-bag {
+    --icon: url('/static/core/icons/shopping-bag.svg');
+  }
+
+  .icon-plus {
+    --icon: url('/static/core/icons/plus.svg');
+  }
+
+  .icon-square-pen {
+    --icon: url('/static/core/icons/square-pen.svg');
+  }
+
+  .icon-bike {
+    --icon: url('/static/core/icons/bike.svg');
+  }
+
+  .icon-indian-rupee {
+    --icon: url('/static/core/icons/indian-rupee.svg');
+  }
+
+  .icon-badge-check {
+    --icon: url('/static/core/icons/badge-check.svg');
+  }
+
+  .icon-package-open {
+    --icon: url('/static/core/icons/package-open.svg');
+  }
+
+  .icon-map-pin {
+    --icon: url('/static/core/icons/map-pin.svg');
+  }
+
+  .icon-history {
+    --icon: url('/static/core/icons/history.svg');
+  }
+
+  .icon-tag {
+    --icon: url('/static/core/icons/tag.svg');
+  }
+
+  .icon-life-buoy {
+    --icon: url('/static/core/icons/life-buoy.svg');
+  }
+
   .nav a,
   .feature-nav-link,
   .mobile-bottom-link {
     @apply rounded-md px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-950;
+  }
+
+  .nav a {
+    @apply inline-flex items-center gap-2;
+  }
+
+  .feature-nav-link,
+  .mobile-bottom-link {
+    @apply inline-grid justify-items-center gap-1 text-center leading-tight;
+  }
+
+  .menu-link-copy {
+    @apply inline-flex items-center gap-3;
   }
 
   .nav-primary a {
@@ -408,25 +580,57 @@
   .auth-primary-button,
   .auth-secondary-button,
   .auth-social-button {
-    @apply inline-flex items-center justify-center gap-2 rounded-md border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50;
+    transition: all 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    backdrop-filter: blur(12px) saturate(1.4);
+    -webkit-backdrop-filter: blur(12px) saturate(1.4);
   }
 
   .button.primary,
   .auth-primary-button {
-    @apply border-slate-900 bg-slate-900 text-white hover:bg-slate-800;
+    @apply text-white;
+    background: rgba(15, 23, 42, 0.88);
+    border: 1px solid rgba(15, 23, 42, 0.7);
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.28), inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+
+  .button.primary:hover,
+  .auth-primary-button:hover {
+    background: rgba(15, 23, 42, 0.95);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.35), inset 0 1px 0 rgba(255,255,255,0.1);
   }
 
   .button.secondary,
   .auth-secondary-button {
-    @apply border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50;
+    @apply text-slate-700;
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255,255,255,0.6);
+  }
+
+  .button.secondary:hover,
+  .auth-secondary-button:hover {
+    background: rgba(255, 255, 255, 0.75);
+    border-color: rgba(226, 232, 240, 0.6);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255,255,255,0.7);
   }
 
   .button.danger {
-    @apply border-red-200 bg-red-50 text-red-700 hover:bg-red-100;
+    background: rgba(254, 242, 242, 0.7);
+    @apply text-red-700;
+    border: 1px solid rgba(252, 165, 165, 0.4);
+    backdrop-filter: blur(12px) saturate(1.4);
+    -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  }
+
+  .button.danger:hover {
+    background: rgba(254, 226, 226, 0.85);
   }
 
   .button.small {
-    @apply px-3 py-2 text-xs;
+    @apply rounded-lg px-3.5 py-2 text-xs;
   }
 
   .auth-social-button,
@@ -435,11 +639,22 @@
   }
 
   .auth-social-button-disabled {
-    @apply border-slate-200 bg-slate-100 text-slate-400;
+    @apply text-slate-400;
+    background: rgba(241, 245, 249, 0.5);
+    border: 1px solid rgba(226, 232, 240, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
   }
 
   .auth-link-button {
-    @apply text-sm font-semibold text-slate-700 underline-offset-4 hover:text-slate-950 hover:underline;
+    @apply text-sm font-semibold text-slate-700;
+    text-decoration: none;
+    position: relative;
+    transition: color 200ms ease;
+  }
+
+  .auth-link-button:hover {
+    @apply text-slate-950;
   }
 
   [data-location-trigger].is-loading,
@@ -449,7 +664,12 @@
 
   .soft-pill,
   .pill {
-    @apply inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700;
+    @apply inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium text-slate-700;
+    background: rgba(255, 255, 255, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(10px) saturate(1.4);
+    -webkit-backdrop-filter: blur(10px) saturate(1.4);
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255,255,255,0.5);
   }
 
   .soft-pill-active {
@@ -531,7 +751,7 @@
   .product-grid,
   .landing-hero-grid,
   .customer-home-shell {
-    @apply grid gap-6;
+    @apply grid gap-7;
   }
 
   .inline-actions,
@@ -563,13 +783,15 @@
   .customer-home-section,
   .store-card,
   .product-card {
-    @apply rounded-2xl p-7;
+    @apply rounded-3xl p-7;
+    transition: transform 280ms cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 280ms ease;
   }
 
   .glass-card,
   .hero-card {
-    background: rgba(255, 255, 255, 0.86);
-    @apply backdrop-blur;
+    @apply backdrop-blur-sm;
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.5);
   }
 
   .hero-card,
@@ -577,16 +799,20 @@
   .order-hero-card,
   .tracking-hero-card,
   .checkout-hero-card {
-    @apply rounded-2xl border border-slate-200 bg-white p-8 shadow-soft;
+    @apply rounded-3xl bg-white p-8;
+    border: 1px solid rgba(226, 232, 240, 0.6);
+    box-shadow: 0 16px 48px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
   }
 
   .hero-card h1,
   .page-title {
-    @apply text-3xl font-bold;
+    @apply text-3xl font-extrabold leading-tight;
+    letter-spacing: -0.03em;
   }
 
   .section-title {
-    @apply text-xl font-bold;
+    @apply text-xl font-bold leading-snug;
+    letter-spacing: -0.02em;
   }
 
   .page-title {
@@ -697,6 +923,42 @@
     @apply grid shrink-0 place-items-center rounded-lg bg-slate-900 text-[0.68rem] font-bold tracking-[0.18em] text-white;
     width: 2.5rem;
     height: 2.5rem;
+  }
+
+  .nav a .ui-icon,
+  .menu-link .ui-icon,
+  .button .ui-icon,
+  .soft-pill .ui-icon,
+  .pill .ui-icon,
+  .status-chip .ui-icon,
+  .eyebrow .ui-icon {
+    width: 0.95rem;
+    height: 0.95rem;
+  }
+
+  .feature-nav-link .ui-icon,
+  .mobile-bottom-link .ui-icon {
+    width: 0.95rem;
+    height: 0.95rem;
+  }
+
+  .compact-glyph .ui-icon,
+  .notification-icon .ui-icon,
+  .customer-home-badge-icon .ui-icon,
+  .customer-home-empty-icon .ui-icon,
+  .rider-route-icon .ui-icon {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .customer-home-search-icon .ui-icon {
+    width: 1.05rem;
+    height: 1.05rem;
+  }
+
+  .customer-home-category-icon .ui-icon {
+    width: 1.55rem;
+    height: 1.55rem;
   }
 
   .notification-shell,
@@ -1489,15 +1751,15 @@
 
 @media (min-width: 720px) {
   .site-shell {
-    width: min(100% - 2.25rem, 1360px);
+    width: min(100% - 2.5rem, 1440px);
   }
 
   .site-main {
-    @apply gap-8 pt-6;
+    @apply gap-9 pt-8;
   }
 
   .topbar {
-    @apply gap-6 px-6 py-5;
+    @apply gap-6 px-6 py-4;
   }
 
   .mobile-bottom-nav {
@@ -1578,15 +1840,15 @@
 
 @media (min-width: 1040px) {
   .dashboard-top {
-    grid-template-columns: minmax(0, 1.3fr) minmax(18rem, 0.7fr);
+    grid-template-columns: minmax(0, 1.35fr) minmax(20rem, 0.65fr);
   }
 
   .layout-two {
-    grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+    grid-template-columns: minmax(0, 1.2fr) minmax(20rem, 0.8fr);
   }
 
   .shop-dashboard-layout {
-    grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr);
+    grid-template-columns: minmax(0, 1.15fr) minmax(20rem, 0.85fr);
   }
 
   .quick-grid,
@@ -1612,7 +1874,7 @@
   }
 
   .section-stack {
-    @apply gap-8;
+    @apply gap-10;
   }
 
   .card,
@@ -1634,7 +1896,20 @@
   .customer-home-section,
   .store-card,
   .product-card {
-    @apply p-8;
+    @apply p-9;
+  }
+
+  .hero-card h1,
+  .page-title {
+    @apply text-4xl;
+  }
+
+  .section-title {
+    @apply text-2xl;
+  }
+
+  .metric-value {
+    @apply text-4xl;
   }
 
   .feature-nav {
@@ -1644,7 +1919,7 @@
   .auth-role-section,
   .auth-pane,
   .auth-subsection {
-    @apply gap-6 p-7;
+    @apply gap-7 p-8;
   }
 }
 
@@ -1665,7 +1940,49 @@
   }
 
   .site-main {
-    @apply gap-10;
+    @apply gap-12;
+  }
+
+  .hero-card h1,
+  .page-title {
+    @apply text-5xl;
+    letter-spacing: -0.04em;
+  }
+
+  .section-title {
+    @apply text-3xl;
+  }
+
+  .metric-value {
+    @apply text-5xl;
+  }
+}
+
+@media (min-width: 1440px) {
+  .site-shell {
+    width: min(100% - 4rem, 1520px);
+  }
+
+  .card,
+  .glass-card,
+  .metric-card,
+  .quick-card,
+  .hero-card,
+  .auth-card,
+  .auth-single-card,
+  .nested-panel,
+  .profile-card,
+  .empty-card,
+  .form-card,
+  .tracking-map-card,
+  .success-hero-card,
+  .customer-home-card,
+  .customer-home-hero,
+  .customer-home-location-card,
+  .customer-home-section,
+  .store-card,
+  .product-card {
+    @apply p-10;
   }
 }
 
