@@ -87,6 +87,18 @@
       </div>
     </section>
 
+    {% if customer_khatabook_warning %}
+      <section class="customer-home-section card" data-appear>
+        <div class="checkout-alert checkout-alert-error">
+          <strong>{{ customer_khatabook_warning.title }}</strong>
+          <p>{{ customer_khatabook_warning.detail }}</p>
+          <div class="inline-actions">
+            <a class="button small primary" href="{% url 'core:customer_khatabook' %}">Clear KhataBook Due</a>
+          </div>
+        </div>
+      </section>
+    {% endif %}
+
     {% if location_required %}
       <section class="customer-home-section card" data-appear>
         <div class="customer-home-section-intro">

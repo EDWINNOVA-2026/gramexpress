@@ -809,7 +809,12 @@
   .shop-dashboard-ops-list,
   .shop-dashboard-quick-links,
   .shop-dashboard-op-row,
-  .shop-dashboard-empty-state {
+  .shop-dashboard-empty-state,
+  .shop-khatabook-shell,
+  .shop-khatabook-order-list,
+  .shop-khatabook-order-card,
+  .shop-khatabook-lower,
+  .shop-khatabook-dashboard-card {
     @apply grid gap-4;
   }
 
@@ -955,7 +960,7 @@
   }
 
   .shop-dashboard-nav {
-    @apply sticky z-20 grid grid-cols-4 gap-1 p-2;
+    @apply sticky z-20 grid grid-cols-5 gap-1 p-2;
     top: calc(env(safe-area-inset-top) + 5.1rem);
   }
 
@@ -1018,6 +1023,14 @@
 
   .shop-dashboard-panel[open] summary::after {
     content: "−";
+  }
+
+  .shop-khatabook-order-card {
+    @apply gap-5;
+  }
+
+  .shop-khatabook-order-list {
+    @apply gap-5;
   }
 
   .quick-card,

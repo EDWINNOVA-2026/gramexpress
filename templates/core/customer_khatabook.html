@@ -22,6 +22,12 @@
         <article class="card" data-appear>
           <span class="eyebrow">Weekly Due</span>
           <h2 class="section-title">{{ khatabook_summary.headline }}</h2>
+          {% if khatabook_summary.is_defaulted %}
+            <div class="checkout-alert checkout-alert-error">
+              <strong>KhataBook is in default</strong>
+              <p>This weekly due crossed the 7-day deadline on {{ khatabook_summary.due_date|date:"M d, Y" }}. Pay now to close the overdue cycle.</p>
+            </div>
+          {% endif %}
           <div class="summary-grid">
             <div class="metric-card checkout-summary-card">
               <span class="metric-label">Outstanding this week</span>
@@ -85,7 +91,11 @@
                   Nearby riders are being notified.
                 {% endif %}
               </p>
-              <p class="utility-note">Share OTP <code>{{ khatabook_collection_request.collection_otp }}</code> only when the rider arrives to collect the repayment.</p>
+              {% if khatabook_collection_request.rider %}
+                <p class="utility-note">A fresh 6-digit repayment OTP was sent to your registered contact. Share it only when the rider arrives to collect the KhataBook due.</p>
+              {% else %}
+                <p class="utility-note">Your repayment OTP will be sent after a nearby rider accepts this collection request.</p>
+              {% endif %}
             </div>
           {% endif %}
           {% if khatabook_summary.cycle and not khatabook_summary.is_paid %}

@@ -57,6 +57,8 @@
                 <div class="bill-grid">
                   <div class="bill-row"><span>Items</span><strong>Rs. {{ group.subtotal }}</strong></div>
                   <div class="bill-row"><span>Delivery</span><strong>Rs. {{ group.delivery_fee }}</strong></div>
+                  <div class="bill-row"><span>Shopkeeper commission fee</span><strong>Rs. {{ group.shopkeeper_commission_fee }}</strong></div>
+                  <div class="bill-row"><span>GramExpress platform fee</span><strong>Rs. {{ group.platform_fee }}</strong></div>
                 </div>
                 <div class="compact-list top-gap-sm">
                   {% for item in cart.groups %}
@@ -87,6 +89,13 @@
             <span class="metric-label">Estimated payable</span>
             <strong class="metric-value">Rs. {{ estimated_total }}</strong>
             <p>{{ payment_method_label }} | {{ estimated_eta }}</p>
+          </div>
+          <div class="bill-grid top-gap-sm">
+            <div class="bill-row"><span>Items</span><strong>Rs. {{ estimated_subtotal }}</strong></div>
+            <div class="bill-row"><span>Delivery fee</span><strong>Rs. {{ estimated_delivery_fee }}</strong></div>
+            <div class="bill-row"><span>Shopkeeper commission fee</span><strong>Rs. {{ estimated_shopkeeper_commission_fee }}</strong></div>
+            <div class="bill-row"><span>GramExpress platform fee</span><strong>Rs. {{ estimated_platform_fee }}</strong></div>
+            <div class="bill-row"><span>Total</span><strong>Rs. {{ estimated_total }}</strong></div>
           </div>
 
           {% if is_cod %}

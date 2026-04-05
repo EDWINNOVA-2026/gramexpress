@@ -1,0 +1,207 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+  <section class="feature-nav card shop-segmented-nav" data-appear>
+    {% for item in page_nav %}
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}"{% if request.path == item.url %} aria-current="page"{% endif %}>{{ item.label }}</a>
+    {% endfor %}
+  </section>
+
+  <section class="page-stack shop-khatabook-shell" id="top">
+    <article class="card success-hero-card" data-appear>
+      <div class="split-row">
+        <div class="content-stack">
+          <span class="eyebrow">KhataBook</span>
+          <h1 class="page-title">Credit risk desk for {{ shop.name }}</h1>
+          <p>Follow every KhataBook order placed from this storefront, see who is still on platform credit, and understand exactly how much exposure the shop is carrying inside the 7-day cycle.</p>
+        </div>
+        <div class="hero-inline-facts">
+          <span class="soft-pill">{{ shop_khatabook.active_order_count }} open</span>
+          <span class="soft-pill">{{ shop_khatabook.active_collection_count }} recovery request{{ shop_khatabook.active_collection_count|pluralize }}</span>
+          <span class="status-chip {% if shop_khatabook.has_warning %}danger{% elif shop_khatabook.active_credit_exposure %}warn{% else %}success{% endif %}">
+            Rs. {{ shop_khatabook.active_credit_exposure }} live exposure
+          </span>
+        </div>
+      </div>
+    </article>
+
+    {% if shop_khatabook.has_warning %}
+      <article class="card" data-appear>
+        <div class="checkout-alert checkout-alert-error">
+          <strong>{{ shop_khatabook.warning_headline }}</strong>
+          <p>{{ shop_khatabook.warning_detail }}</p>
+        </div>
+      </article>
+    {% endif %}
+
+    <section class="card shop-khatabook-metrics-card" data-appear>
+      <div class="split-row">
+        <div class="content-stack">
+          <span class="eyebrow">Numbers</span>
+          <h2 class="section-title">Exposure across the 7-day cycle</h2>
+        </div>
+        <span class="soft-pill">Default rate {{ shop_khatabook.default_rate_percentage }}%</span>
+      </div>
+      <div class="summary-grid">
+        {% for metric in shop_khatabook.metrics %}
+          <article class="checkout-summary-card content-stack">
+            <div class="split-row">
+              <span class="metric-label">{{ metric.label }}</span>
+              <span class="status-chip {{ metric.chip }}">{{ metric.value }}</span>
+            </div>
+            <p>{{ metric.detail }}</p>
+          </article>
+        {% endfor %}
+      </div>
+      <div class="summary-grid">
+        <article class="checkout-summary-card content-stack">
+          <span class="metric-label">Total credit sales</span>
+          <strong class="metric-value">Rs. {{ shop_khatabook.total_credit_sales }}</strong>
+          <p>All KhataBook orders ever placed from this storefront.</p>
+        </article>
+        <article class="checkout-summary-card content-stack">
+          <span class="metric-label">Recovered credit</span>
+          <strong class="metric-value">Rs. {{ shop_khatabook.settled_credit_amount }}</strong>
+          <p>Credit that has already been repaid by customers and is ready for storefront settlement flow.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="card" data-appear>
+      <div class="split-row">
+        <div class="content-stack">
+          <span class="eyebrow">Open Exposure</span>
+          <h2 class="section-title">Orders still on customer credit</h2>
+          <p class="subtle">The shop does not see customer identity here. Instead, use order-level monetary visibility, rider pickup status, and item data to judge live risk.</p>
+        </div>
+        <span class="status-chip warn">{{ shop_khatabook.active_order_count }} open</span>
+      </div>
+
+      <div class="shop-khatabook-order-list">
+        {% for order in shop_khatabook.active_orders %}
+          <article class="nested-panel shop-khatabook-order-card">
+            <div class="split-row">
+              <div class="content-stack">
+                <strong>{{ order.display_id }}</strong>
+                <p>{{ order.credit_cycle_label }}{% if order.current_due_date %} | due {{ order.current_due_date|date:"M d, Y" }}{% endif %}</p>
+                <p class="utility-note">{{ order.credit_state_detail }}</p>
+              </div>
+              <div class="action-cluster">
+                <span class="pill">Exposure Rs. {{ order.credit_exposure_amount }}</span>
+                <span class="status-chip {{ order.credit_state_chip }}">{{ order.credit_state_label }}</span>
+              </div>
+            </div>
+
+            <div class="summary-grid">
+              <div class="checkout-summary-card content-stack">
+                <span class="metric-label">Customer checkout total</span>
+                <strong>Rs. {{ order.total_amount }}</strong>
+                <p>This includes delivery and platform-side fees, but those are excluded from your storefront credit exposure.</p>
+              </div>
+              <div class="checkout-summary-card content-stack">
+                <span class="metric-label">Shop risk share</span>
+                <strong>Rs. {{ order.shop_exposure_share }}</strong>
+                <p>50% of this order's exposure sits with the storefront during the live credit window.</p>
+              </div>
+              <div class="checkout-summary-card content-stack">
+                <span class="metric-label">Rider pickup status</span>
+                <strong>{{ order.rider_summary }}</strong>
+                <p>{{ order.rider_status_detail }}</p>
+              </div>
+            </div>
+
+            <div class="compact-list line-list">
+              {% for item in order.product_lines %}
+                <div class="list-item compact-item compact-item-tight">
+                  <div>
+                    <strong>{{ item.name }}</strong>
+                    <p>{{ item.quantity }} x {{ item.unit }} at Rs. {{ item.unit_price }}</p>
+                    <p class="tiny muted">Current stock left {{ item.stock_left }}</p>
+                  </div>
+                  <span class="muted">Rs. {{ item.line_total }}</span>
+                </div>
+              {% endfor %}
+            </div>
+
+            {% if order.collection_request %}
+              <div class="checkout-cod-panel">
+                <strong>Recovery request is already active</strong>
+                <p>
+                  {{ order.collection_request.get_status_display }}{% if order.collection_request.rider %} with {{ order.collection_request.rider.full_name }}{% endif %}
+                  for Rs. {{ order.collection_request.amount }}.
+                </p>
+              </div>
+            {% endif %}
+          </article>
+        {% empty %}
+          <div class="empty-card">
+            <span class="eyebrow">No open exposure</span>
+            <h2 class="section-title">All current KhataBook credit is closed</h2>
+            <p>Fresh credit orders will appear here as soon as customers place a KhataBook checkout from your store.</p>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="layout-two shop-khatabook-lower">
+      <article class="card" data-appear>
+        <div class="split-row">
+          <div class="content-stack">
+            <span class="eyebrow">Defaulted</span>
+            <h2 class="section-title">Amounts already overdue</h2>
+          </div>
+          <span class="status-chip {% if shop_khatabook.defaulted_order_count %}danger{% else %}success{% endif %}">{{ shop_khatabook.defaulted_order_count }} order{{ shop_khatabook.defaulted_order_count|pluralize }}</span>
+        </div>
+
+        <div class="stack">
+          {% for order in shop_khatabook.defaulted_orders %}
+            <article class="checkout-alert checkout-alert-error">
+              <div class="split-row">
+                <strong>{{ order.display_id }}</strong>
+                <span class="pill">Exposure Rs. {{ order.credit_exposure_amount }}</span>
+              </div>
+              <p>{{ order.credit_state_detail }}</p>
+              <p class="tiny muted">Customer checkout total Rs. {{ order.total_amount }}</p>
+              <p class="tiny muted">Expected recovery date {{ order.current_due_date|date:"M d, Y" }} | Shop share at risk Rs. {{ order.shop_exposure_share }}</p>
+            </article>
+          {% empty %}
+            <div class="checkout-cod-panel">
+              <strong>No defaulted money right now</strong>
+              <p>Nothing has crossed the 7-day KhataBook deadline for this storefront.</p>
+            </div>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="card" data-appear>
+        <div class="split-row">
+          <div class="content-stack">
+            <span class="eyebrow">Recovered</span>
+            <h2 class="section-title">Credit already paid back</h2>
+          </div>
+          <span class="status-chip success">{{ shop_khatabook.settled_order_count }} settled</span>
+        </div>
+
+        <div class="stack">
+          {% for order in shop_khatabook.settled_orders|slice:":6" %}
+            <div class="compact-item">
+              <div class="split-row">
+                <div>
+                  <strong>{{ order.display_id }}</strong>
+                  <p>{{ order.credit_cycle_label }}</p>
+                </div>
+                <span class="pill">Exposure Rs. {{ order.credit_exposure_amount }}</span>
+              </div>
+              <p class="utility-note">{{ order.credit_state_detail }}</p>
+            </div>
+          {% empty %}
+            <div class="checkout-cod-panel">
+              <strong>No recovered credit yet</strong>
+              <p>Once a customer clears KhataBook dues, the recovered orders will appear here.</p>
+            </div>
+          {% endfor %}
+        </div>
+      </article>
+    </section>
+  </section>
+{% endblock %}

@@ -96,6 +96,8 @@ RIDER_FIXED_PAY_CAP = Decimal('5000.00')
 RIDER_GOODWILL_BONUS = Decimal('1000.00')
 RIDER_COMPLETION_SHARE_THRESHOLD = Decimal('20.00')
 KHATABOOK_COLLECTION_GEOFENCE_KM = 0.3
+SHOPKEEPER_COMMISSION_FEE = Decimal('5.00')
+GRAMEXPRESS_PLATFORM_FEE = Decimal('5.00')
 ACCOUNT_ROLE_CHOICES = [RoleType.CUSTOMER, RoleType.SHOP, RoleType.RIDER]
 REGISTRATION_ROLE_DESCRIPTIONS = {
     RoleType.CUSTOMER: 'Browse local stores, save your address, and place deliveries quickly.',
@@ -381,6 +383,96 @@ def delivery_otp_is_expired(order: Order) -> bool:
 
 def send_customer_delivery_otp_sms(*, order: Order, intro: str) -> tuple[bool, str]:
     return send_sms_otp(phone=order.customer.phone, code=order.customer_otp, intro=intro)
+
+
+def send_customer_khatabook_collection_otp_sms(
+    *,
+    collection_request: KhataBookCollectionRequest,
+    intro: str,
+) -> tuple[bool, str]:
+    return send_sms_otp(phone=collection_request.customer.phone, code=collection_request.collection_otp, intro=intro)
+
+
+def send_customer_khatabook_collection_otp_email(
+    *,
+    collection_request: KhataBookCollectionRequest,
+    rider: RiderProfile,
+) -> tuple[bool, str]:
+    recipient = (collection_request.customer.email or '').strip()
+    if not recipient:
+        return False, 'No customer email is available for this KhataBook collection.'
+
+    message = '\n'.join(
+        [
+            'Your GramExpress KhataBook repayment rider is on the way.',
+            '',
+            f'Collection request: {collection_request.display_id}',
+            f'Rider: {rider.full_name}',
+            f'Amount: Rs. {collection_request.amount}',
+            f'Repayment OTP: {collection_request.collection_otp}',
+            '',
+            'Share this OTP only when the rider arrives to collect the KhataBook repayment.',
+        ]
+    )
+    try:
+        send_mail(
+            subject=f'KhataBook repayment OTP for {collection_request.display_id}',
+            message=message,
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@gramexpress.local'),
+            recipient_list=[recipient],
+            fail_silently=False,
+        )
+        return True, 'KhataBook collection OTP email sent successfully.'
+    except Exception:
+        return False, 'KhataBook collection OTP email could not be sent with the current mail settings.'
+
+
+def ensure_khatabook_collection_otp_ready(
+    *,
+    collection_request: KhataBookCollectionRequest,
+    rider: RiderProfile,
+    force_new: bool = False,
+) -> tuple[bool, bool]:
+    updates = []
+    if force_new or not collection_request.collection_otp:
+        collection_request.collection_otp = generate_delivery_otp()
+        updates.append('collection_otp')
+    if updates:
+        collection_request.save(update_fields=[*updates, 'updated_at'])
+
+    customer_email = (collection_request.customer.email or '').strip() or 'Unavailable'
+    print(
+        '[GramExpress KhataBook OTP] '
+        f'{collection_request.display_id}: '
+        f'Rider {rider.full_name} | '
+        f'Customer email {customer_email} | '
+        f'Repayment OTP {collection_request.collection_otp}'
+    )
+
+    otp_email_sent, _ = send_customer_khatabook_collection_otp_email(
+        collection_request=collection_request,
+        rider=rider,
+    )
+    otp_sms_sent, _ = send_customer_khatabook_collection_otp_sms(
+        collection_request=collection_request,
+        intro='Your GramExpress rider is ready for KhataBook repayment collection.',
+    )
+    create_notification(
+        customer=collection_request.customer,
+        title='KhataBook repayment OTP sent',
+        body=(
+            f'A 6-digit repayment OTP was sent for {collection_request.display_id}. '
+            'Share it only when the rider arrives to collect the KhataBook due.'
+        ),
+        notification_type=NotificationType.PAYMENT,
+    )
+    create_notification(
+        rider=rider,
+        title='KhataBook OTP ready',
+        body=f'Ask the customer for the repayment OTP sent for {collection_request.display_id} before closing the collection.',
+        notification_type=NotificationType.PAYMENT,
+    )
+    return otp_email_sent, otp_sms_sent
 
 
 def first_order_notification(
@@ -945,6 +1037,7 @@ def shop_page_nav() -> list[dict[str, str]]:
     return [
         {'label': 'Overview', 'url': reverse('core:shop_dashboard')},
         {'label': 'Orders', 'url': reverse('core:shop_orders')},
+        {'label': 'KhataBook', 'url': reverse('core:shop_khatabook')},
         {'label': 'Catalog', 'url': reverse('core:shop_products')},
         {'label': 'Settings', 'url': reverse('core:shop_settings')},
     ]
@@ -1055,7 +1148,8 @@ def send_order_status_email(
     if not recipient:
         return False, 'No customer email is available for this order.'
 
-    item_lines, subtotal = build_order_item_summary(order)
+    item_lines, _ = build_order_item_summary(order)
+    bill_breakup = build_order_bill_breakup(order)
     rider_name = order.rider.full_name if order.rider else 'Pending rider assignment'
     rider_phone = order.rider.phone if order.rider else 'Unavailable'
     rider_email = order.rider.email if order.rider and order.rider.email else 'Unavailable'
@@ -1081,9 +1175,11 @@ def send_order_status_email(
             f'Store: {order.shop.name}',
             f'Status: {order.get_status_display()}',
             f'Payment: {order.get_payment_method_display()} ({order.get_payment_status_display()})',
-            f'Item total: Rs. {subtotal}',
-            f'Delivery fee: Rs. {order.delivery_fee}',
-            f'Total: Rs. {order.total_amount}',
+            f'Item total: Rs. {bill_breakup["subtotal"]}',
+            f'Delivery fee: Rs. {bill_breakup["delivery_fee"]}',
+            f'Shopkeeper commission fee: Rs. {bill_breakup["shopkeeper_commission_fee"]}',
+            f'GramExpress platform fee: Rs. {bill_breakup["platform_fee"]}',
+            f'Total: Rs. {bill_breakup["total"]}',
             *( [f'Payment reference: {payment_reference}'] if payment_reference else [] ),
             '',
             'Order Summary',
@@ -1124,7 +1220,8 @@ def send_store_order_status_email(
     if not recipient:
         return False, 'No store email is available for this order.'
 
-    item_lines, subtotal = build_order_item_summary(order)
+    item_lines, _ = build_order_item_summary(order)
+    bill_breakup = build_order_bill_breakup(order)
     rider_name = order.rider.full_name if order.rider else 'Pending rider assignment'
     rider_phone = order.rider.phone if order.rider else 'Unavailable'
     customer_phone = order.customer.phone or 'Unavailable'
@@ -1150,9 +1247,11 @@ def send_store_order_status_email(
             f'Customer phone: {customer_phone}',
             f'Rider: {rider_name}',
             f'Rider phone: {rider_phone}',
-            f'Item total: Rs. {subtotal}',
-            f'Delivery fee: Rs. {order.delivery_fee}',
-            f'Total: Rs. {order.total_amount}',
+            f'Item total: Rs. {bill_breakup["subtotal"]}',
+            f'Delivery fee: Rs. {bill_breakup["delivery_fee"]}',
+            f'Shopkeeper commission fee: Rs. {bill_breakup["shopkeeper_commission_fee"]}',
+            f'GramExpress platform fee: Rs. {bill_breakup["platform_fee"]}',
+            f'Total: Rs. {bill_breakup["total"]}',
             '',
             'Order Summary',
             *item_lines,
@@ -1449,11 +1548,20 @@ def build_cart_context(request: HttpRequest):
 
     groups = []
     for shop, shop_items in grouped.items():
+        fee_breakup = checkout_fee_breakup(
+            subtotal=sum(item['line_total'] for item in shop_items),
+            delivery_fee=DEFAULT_DELIVERY_FEE,
+        )
         groups.append(
             {
                 'shop': shop,
                 'items': shop_items,
-                'subtotal': sum(item['line_total'] for item in shop_items),
+                'subtotal': fee_breakup['subtotal'],
+                'delivery_fee': fee_breakup['delivery_fee'],
+                'shopkeeper_commission_fee': fee_breakup['shopkeeper_commission_fee'],
+                'platform_fee': fee_breakup['platform_fee'],
+                'total': fee_breakup['total'],
+                'shop_credit_exposure': fee_breakup['shop_credit_exposure'],
                 'has_blocking_issue': any(item['has_blocking_issue'] for item in shop_items),
                 'item_count': sum(item['quantity'] for item in shop_items),
             }
@@ -1494,16 +1602,50 @@ def quantize_percent(value: Decimal) -> Decimal:
     return value.quantize(Decimal('0.1'))
 
 
+def checkout_fee_breakup(*, subtotal: Decimal, delivery_fee: Decimal = DEFAULT_DELIVERY_FEE) -> dict[str, Decimal]:
+    subtotal = quantize_money(subtotal)
+    delivery_fee = quantize_money(delivery_fee)
+    shopkeeper_commission_fee = quantize_money(SHOPKEEPER_COMMISSION_FEE)
+    platform_fee = quantize_money(GRAMEXPRESS_PLATFORM_FEE)
+    total = quantize_money(subtotal + delivery_fee + shopkeeper_commission_fee + platform_fee)
+    shop_credit_exposure = quantize_money(subtotal + shopkeeper_commission_fee)
+    return {
+        'subtotal': subtotal,
+        'delivery_fee': delivery_fee,
+        'shopkeeper_commission_fee': shopkeeper_commission_fee,
+        'platform_fee': platform_fee,
+        'total': total,
+        'shop_credit_exposure': shop_credit_exposure,
+    }
+
+
+def build_order_bill_breakup(order: Order) -> dict[str, Decimal]:
+    _, subtotal = build_order_item_summary(order)
+    fee_breakup = checkout_fee_breakup(subtotal=subtotal, delivery_fee=order.delivery_fee)
+    legacy_total = quantize_money(subtotal + order.delivery_fee)
+    if order.total_amount and order.total_amount <= legacy_total:
+        fee_breakup['shopkeeper_commission_fee'] = Decimal('0.00')
+        fee_breakup['platform_fee'] = Decimal('0.00')
+        fee_breakup['shop_credit_exposure'] = subtotal
+        fee_breakup['total'] = quantize_money(order.total_amount)
+    elif order.total_amount and order.total_amount != fee_breakup['total']:
+        fee_breakup['total'] = quantize_money(order.total_amount)
+    return fee_breakup
+
+
 def build_cart_snapshot(cart: dict[str, Any]) -> dict[str, Any]:
     groups = []
     for group in cart['groups']:
-        delivery_fee = DEFAULT_DELIVERY_FEE
+        fee_breakup = checkout_fee_breakup(subtotal=group['subtotal'], delivery_fee=DEFAULT_DELIVERY_FEE)
         groups.append(
             {
                 'shop_id': group['shop'].id,
-                'delivery_fee': decimal_to_str(delivery_fee),
-                'subtotal': decimal_to_str(group['subtotal']),
-                'total': decimal_to_str(group['subtotal'] + delivery_fee),
+                'delivery_fee': decimal_to_str(fee_breakup['delivery_fee']),
+                'shopkeeper_commission_fee': decimal_to_str(fee_breakup['shopkeeper_commission_fee']),
+                'platform_fee': decimal_to_str(fee_breakup['platform_fee']),
+                'subtotal': decimal_to_str(fee_breakup['subtotal']),
+                'total': decimal_to_str(fee_breakup['total']),
+                'shop_credit_exposure': decimal_to_str(fee_breakup['shop_credit_exposure']),
                 'items': [
                     {
                         'product_id': item['product'].id,
@@ -1663,6 +1805,16 @@ def mark_khatabook_cycle_paid(
             update_fields.append('credit_paid_at')
         if update_fields:
             order.save(update_fields=[*update_fields, 'updated_at'])
+        create_notification(
+            shop_owner=order.shop.owner,
+            order=order,
+            title='KhataBook payment recovered',
+            body=(
+                f'{order.display_id} was cleared by the customer. '
+                'This credit cycle is settled and the storefront payout can now move forward.'
+            ),
+            notification_type=NotificationType.PAYMENT,
+        )
     return cycle
 
 
@@ -1684,6 +1836,8 @@ def build_khatabook_cycle_summary(cycle: KhataBookCycle | None) -> dict[str, Any
             'detail': f'Orders placed this week will stay on credit and become due on {upcoming_due.strftime("%b %d")}.',
             'collection_requested': False,
             'is_paid': False,
+            'is_overdue': False,
+            'is_defaulted': False,
         }
 
     cycle = refresh_khatabook_cycle(cycle)
@@ -1704,6 +1858,29 @@ def build_khatabook_cycle_summary(cycle: KhataBookCycle | None) -> dict[str, Any
             'detail': 'You have cleared the weekly credit line for this cycle.',
             'collection_requested': False,
             'is_paid': True,
+            'is_overdue': False,
+            'is_defaulted': False,
+        }
+    if cycle.outstanding_amount > Decimal('0.00') and cycle.due_date < today:
+        return {
+            'cycle': cycle,
+            'status': 'overdue',
+            'status_label': 'Defaulted',
+            'badge_class': 'danger',
+            'outstanding_amount': cycle.outstanding_amount,
+            'total_amount': cycle.total_amount,
+            'paid_amount': cycle.paid_amount,
+            'due_date': cycle.due_date,
+            'days_left': days_left,
+            'headline': f'Rs. {cycle.outstanding_amount} is overdue from {cycle.due_date.strftime("%b %d")}.',
+            'detail': (
+                'Your 7-day credit window has already closed. Pay now through rider collection or Razorpay UPI '
+                'to clear the default and reset the cycle.'
+            ),
+            'collection_requested': status == KhataBookCycleStatus.COLLECTION_REQUESTED,
+            'is_paid': False,
+            'is_overdue': True,
+            'is_defaulted': True,
         }
     if status == KhataBookCycleStatus.COLLECTION_REQUESTED:
         return {
@@ -1720,6 +1897,8 @@ def build_khatabook_cycle_summary(cycle: KhataBookCycle | None) -> dict[str, Any
             'detail': 'A delivery agent may take time to arrive for the KhataBook repayment handoff.',
             'collection_requested': True,
             'is_paid': False,
+            'is_overdue': False,
+            'is_defaulted': False,
         }
     return {
         'cycle': cycle,
@@ -1735,6 +1914,252 @@ def build_khatabook_cycle_summary(cycle: KhataBookCycle | None) -> dict[str, Any
         'detail': 'This week’s credit stays open until the next Monday repayment deadline.',
         'collection_requested': False,
         'is_paid': False,
+        'is_overdue': False,
+        'is_defaulted': False,
+    }
+
+
+def split_khatabook_exposure(amount: Decimal) -> Decimal:
+    return (amount / Decimal('2')).quantize(Decimal('0.01'))
+
+
+def create_notification_once(
+    *,
+    title: str,
+    body: str,
+    notification_type: str,
+    customer: CustomerProfile | None = None,
+    shop_owner: ShopOwnerProfile | None = None,
+    rider: RiderProfile | None = None,
+    order: Order | None = None,
+) -> Notification | None:
+    filters: dict[str, Any] = {
+        'title': title,
+        'body': body,
+        'notification_type': notification_type,
+        'customer': customer,
+        'shop_owner': shop_owner,
+        'rider': rider,
+        'order': order,
+    }
+    if Notification.objects.filter(**filters).exists():
+        return None
+    return create_notification(
+        customer=customer,
+        shop_owner=shop_owner,
+        rider=rider,
+        order=order,
+        title=title,
+        body=body,
+        notification_type=notification_type,
+    )
+
+
+def maybe_create_customer_khatabook_default_notification(customer: CustomerProfile) -> None:
+    for cycle in customer.khatabook_cycles.all():
+        cycle_summary = build_khatabook_cycle_summary(cycle)
+        if not cycle_summary['is_defaulted']:
+            continue
+        create_notification_once(
+            customer=customer,
+            title='KhataBook due overdue',
+            body=(
+                f'Your KhataBook due of Rs. {cycle_summary["outstanding_amount"]} for the week starting '
+                f'{cycle.week_start.strftime("%b %d")} is overdue. Clear it now to close the default.'
+            ),
+            notification_type=NotificationType.PAYMENT,
+        )
+
+
+def build_shop_khatabook_context(shop: Shop) -> dict[str, Any]:
+    today = timezone.localdate()
+    credit_orders = list(
+        shop.orders.filter(payment_method=PaymentMethod.KHATABOOK)
+        .exclude(status=OrderStatus.CANCELLED)
+        .select_related('rider', 'khata_cycle')
+        .prefetch_related('items__product')
+        .all()
+    )
+    active_orders = []
+    defaulted_orders = []
+    settled_orders = []
+    active_collection_ids: set[int] = set()
+    total_credit_sales = Decimal('0.00')
+    active_credit_exposure = Decimal('0.00')
+    defaulted_amount = Decimal('0.00')
+    settled_credit_amount = Decimal('0.00')
+
+    for order in credit_orders:
+        enrich_order_progress(order)
+        order.item_count = sum(item.quantity for item in order.items.all())
+        order.bill_breakup = build_order_bill_breakup(order)
+        order.current_due_date = order.credit_due_date or (order.khata_cycle.due_date if order.khata_cycle_id else None)
+        order.credit_exposure_amount = order.bill_breakup['shop_credit_exposure']
+        order.shop_exposure_share = split_khatabook_exposure(order.credit_exposure_amount)
+        order.platform_exposure_share = split_khatabook_exposure(order.credit_exposure_amount)
+        if order.status == OrderStatus.OUT_FOR_DELIVERY:
+            order.shop_khata_dispatch_label = 'Picked up and moving to customer'
+        elif order.status == OrderStatus.PACKED and order.rider_id:
+            order.shop_khata_dispatch_label = 'Rider assigned and coming for pickup'
+        elif order.status == OrderStatus.PACKED:
+            order.shop_khata_dispatch_label = 'Packed and waiting for rider'
+        elif order.status == OrderStatus.DELIVERED:
+            order.shop_khata_dispatch_label = 'Delivered on credit'
+        else:
+            order.shop_khata_dispatch_label = 'Waiting for dispatch progress'
+        order.credit_cycle_label = (
+            f'{order.khata_cycle.week_start.strftime("%b %d")} to {order.khata_cycle.due_date.strftime("%b %d")}'
+            if order.khata_cycle_id
+            else 'Current cycle'
+        )
+        order.rider_summary = (
+            f'{order.rider.full_name} | {order.shop_khata_dispatch_label}'
+            if order.rider_id
+            else 'No rider assigned yet'
+        )
+        order.rider_status_detail = (
+            order.latest_rider_update
+            if order.rider_id
+            else 'Dispatch has not assigned a pickup rider yet.'
+        )
+        order.is_credit_settled = bool(order.credit_paid_at) or order.payment_status == PaymentStatus.PAID
+        order.is_defaulted = bool(
+            not order.is_credit_settled
+            and order.current_due_date
+            and order.current_due_date < today
+        )
+        order.is_credit_open = bool(not order.is_credit_settled and not order.is_defaulted)
+        if order.is_credit_settled:
+            order.credit_state_label = 'Recovered'
+            order.credit_state_chip = 'success'
+            order.credit_state_detail = (
+                f'Customer paid on {timezone.localtime(order.credit_paid_at).strftime("%b %d, %H:%M")}. '
+                'Platform can move this storefront payout next.'
+                if order.credit_paid_at
+                else 'This KhataBook order has already been settled.'
+            )
+        elif order.is_defaulted:
+            order.credit_state_label = 'Defaulted'
+            order.credit_state_chip = 'danger'
+            order.credit_state_detail = (
+                f'This credit crossed the 7-day deadline on {order.current_due_date.strftime("%b %d")}. '
+                f'Shop risk share is Rs. {order.shop_exposure_share} until recovery closes.'
+            )
+        else:
+            order.credit_state_label = 'Exposure open'
+            order.credit_state_chip = 'warn'
+            order.credit_state_detail = (
+                f'Credit stays open till {order.current_due_date.strftime("%b %d") if order.current_due_date else "next Monday"}. '
+                f'Shop risk share is Rs. {order.shop_exposure_share} during this window.'
+            )
+        order.product_lines = [
+            {
+                'name': item.product.name,
+                'subtitle': item.product.subtitle,
+                'quantity': item.quantity,
+                'unit_price': item.unit_price,
+                'line_total': item.line_total,
+                'unit': item.product.unit,
+                'stock_left': item.product.stock,
+            }
+            for item in order.items.all()
+        ]
+        total_credit_sales += order.credit_exposure_amount
+        if order.is_credit_settled:
+            settled_credit_amount += order.credit_exposure_amount
+            settled_orders.append(order)
+        else:
+            active_credit_exposure += order.credit_exposure_amount
+            collection_request = active_khatabook_collection_request(order.khata_cycle) if order.khata_cycle_id else None
+            order.collection_request = collection_request
+            if collection_request is not None:
+                active_collection_ids.add(collection_request.id)
+            if order.is_defaulted:
+                defaulted_amount += order.credit_exposure_amount
+                defaulted_orders.append(order)
+            else:
+                active_orders.append(order)
+
+    active_orders.sort(key=lambda order: (order.current_due_date or today, order.created_at, order.id))
+    defaulted_orders.sort(key=lambda order: (order.current_due_date or today, order.created_at, order.id))
+    settled_orders.sort(
+        key=lambda order: (order.credit_paid_at or order.updated_at or order.created_at, order.id),
+        reverse=True,
+    )
+
+    for order in defaulted_orders:
+        create_notification_once(
+            shop_owner=shop.owner,
+            title='KhataBook default alert',
+            body=(
+                f'{order.display_id} is overdue under KhataBook. Rs. {order.total_amount} remains unpaid, '
+                f'with Rs. {order.credit_exposure_amount} counted as storefront credit exposure, '
+                f'and your temporary shop risk share is Rs. {order.shop_exposure_share}.'
+            ),
+            notification_type=NotificationType.PAYMENT,
+        )
+
+    metrics = [
+        {
+            'label': 'Active exposure',
+            'value': f'Rs. {active_credit_exposure}',
+            'detail': 'All unpaid KhataBook orders that are still sitting on the store ledger.',
+            'chip': 'warn' if active_credit_exposure else 'info',
+        },
+        {
+            'label': 'Shop risk share',
+            'value': f'Rs. {split_khatabook_exposure(active_credit_exposure)}',
+            'detail': 'Your 50% share of the current live credit exposure.',
+            'chip': 'warn' if active_credit_exposure else 'info',
+        },
+        {
+            'label': 'Platform risk share',
+            'value': f'Rs. {split_khatabook_exposure(active_credit_exposure)}',
+            'detail': 'GramExpress carries the other 50% of the same outstanding exposure.',
+            'chip': 'info',
+        },
+        {
+            'label': 'Defaulted amount',
+            'value': f'Rs. {defaulted_amount}',
+            'detail': 'Credit that has already crossed the 7-day deadline without recovery.',
+            'chip': 'danger' if defaulted_amount else 'success',
+        },
+    ]
+    return {
+        'all_orders': credit_orders,
+        'active_orders': active_orders,
+        'defaulted_orders': defaulted_orders,
+        'settled_orders': settled_orders,
+        'metrics': metrics,
+        'total_credit_sales': total_credit_sales,
+        'active_credit_exposure': active_credit_exposure,
+        'defaulted_amount': defaulted_amount,
+        'settled_credit_amount': settled_credit_amount,
+        'shop_risk_share': split_khatabook_exposure(active_credit_exposure),
+        'platform_risk_share': split_khatabook_exposure(active_credit_exposure),
+        'defaulted_shop_risk_share': split_khatabook_exposure(defaulted_amount),
+        'defaulted_platform_risk_share': split_khatabook_exposure(defaulted_amount),
+        'active_collection_count': len(active_collection_ids),
+        'active_order_count': len(active_orders),
+        'defaulted_order_count': len(defaulted_orders),
+        'settled_order_count': len(settled_orders),
+        'default_rate_percentage': (
+            int(round(float((defaulted_amount / total_credit_sales) * Decimal('100'))))
+            if total_credit_sales > Decimal('0.00')
+            else 0
+        ),
+        'has_warning': defaulted_amount > Decimal('0.00'),
+        'warning_headline': (
+            f'Rs. {defaulted_amount} is already overdue across {len(defaulted_orders)} KhataBook order'
+            f'{"s" if len(defaulted_orders) != 1 else ""}.'
+            if defaulted_amount > Decimal('0.00')
+            else 'No customer default is open right now.'
+        ),
+        'warning_detail': (
+            f'Your currently exposed share inside defaulted credit is Rs. {split_khatabook_exposure(defaulted_amount)}.'
+            if defaulted_amount > Decimal('0.00')
+            else 'Live exposure is still within the agreed 7-day credit cycle.'
+        ),
     }
 
 
@@ -2231,18 +2656,28 @@ def build_checkout_context(
     razorpay_enabled = is_razorpay_ready()
     totals = []
     estimated_total = Decimal('0.00')
+    estimated_subtotal = Decimal('0.00')
+    estimated_delivery_fee = Decimal('0.00')
+    estimated_shopkeeper_commission_fee = Decimal('0.00')
+    estimated_platform_fee = Decimal('0.00')
     for group in cart['groups']:
-        group_total = group['subtotal'] + DEFAULT_DELIVERY_FEE
+        fee_breakup = checkout_fee_breakup(subtotal=group['subtotal'], delivery_fee=DEFAULT_DELIVERY_FEE)
         totals.append(
             {
                 'shop': group['shop'],
-                'subtotal': group['subtotal'],
-                'delivery_fee': DEFAULT_DELIVERY_FEE,
-                'total': group_total,
+                'subtotal': fee_breakup['subtotal'],
+                'delivery_fee': fee_breakup['delivery_fee'],
+                'shopkeeper_commission_fee': fee_breakup['shopkeeper_commission_fee'],
+                'platform_fee': fee_breakup['platform_fee'],
+                'total': fee_breakup['total'],
                 'item_count': sum(item['quantity'] for item in group['items']),
             }
         )
-        estimated_total += group_total
+        estimated_subtotal += fee_breakup['subtotal']
+        estimated_delivery_fee += fee_breakup['delivery_fee']
+        estimated_shopkeeper_commission_fee += fee_breakup['shopkeeper_commission_fee']
+        estimated_platform_fee += fee_breakup['platform_fee']
+        estimated_total += fee_breakup['total']
     return {
         'customer': customer,
         'cart': cart,
@@ -2253,6 +2688,10 @@ def build_checkout_context(
         'delivery_address': build_delivery_address(customer),
         'group_totals': totals,
         'estimated_total': estimated_total,
+        'estimated_subtotal': estimated_subtotal,
+        'estimated_delivery_fee': estimated_delivery_fee,
+        'estimated_shopkeeper_commission_fee': estimated_shopkeeper_commission_fee,
+        'estimated_platform_fee': estimated_platform_fee,
         'estimated_eta': '40-55 min',
         'is_cod': payment_method == PaymentMethod.COD,
         'is_khatabook': payment_method == PaymentMethod.KHATABOOK,
@@ -2286,6 +2725,18 @@ def notify_checkout_orders(*, checkout_session: CheckoutSession, created_orders:
             body=f'Order #{order.id} is waiting for packaging at {order.shop.name}.',
             notification_type=NotificationType.ORDER,
         )
+        if payment_method == PaymentMethod.KHATABOOK:
+            order_bill_breakup = build_order_bill_breakup(order)
+            create_notification(
+                shop_owner=order.shop.owner,
+                title='KhataBook credit order added',
+                body=(
+                    f'{order.display_id} entered KhataBook with Rs. {order_bill_breakup["shop_credit_exposure"]} '
+                    'counted as storefront credit exposure. '
+                    f'This credit stays open until {order.credit_due_date.strftime("%b %d") if order.credit_due_date else "next Monday"}.'
+                ),
+                notification_type=NotificationType.PAYMENT,
+            )
         create_notification(
             customer=order.customer,
             order=order,
@@ -2362,7 +2813,7 @@ def finalize_checkout_session(checkout_session: CheckoutSession) -> list[Order]:
                 delivery_address=locked_session.delivery_address,
                 customer_notes=locked_session.customer_notes,
                 customer_otp=generate_delivery_otp(),
-                total_amount=subtotal + Decimal(group_snapshot['delivery_fee']),
+                total_amount=Decimal(group_snapshot['total']),
             )
             for locked_product, quantity, unit_price in locked_items:
                 OrderItem.objects.create(
@@ -2478,6 +2929,7 @@ def customer_workspace_context(request: HttpRequest) -> dict[str, Any]:
         customer.khatabook_cycles.order_by('-week_start').first()
     )
     khatabook_summary = build_khatabook_cycle_summary(khatabook_cycle)
+    maybe_create_customer_khatabook_default_notification(customer)
 
     razorpay_enabled = is_razorpay_ready()
     return {
@@ -2509,6 +2961,17 @@ def customer_workspace_context(request: HttpRequest) -> dict[str, Any]:
         'razorpay_key_id': getattr(settings, 'RAZORPAY_KEY_ID', ''),
         'khatabook_cycle': khatabook_cycle,
         'khatabook_summary': khatabook_summary,
+        'customer_khatabook_warning': (
+            {
+                'title': 'KhataBook default alert',
+                'detail': (
+                    f'Rs. {khatabook_summary["outstanding_amount"]} is already overdue from '
+                    f'{khatabook_summary["due_date"].strftime("%b %d, %Y")}.'
+                ),
+            }
+            if khatabook_summary['is_defaulted']
+            else None
+        ),
     }
 
 
@@ -2523,6 +2986,7 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
     if shop is None:
         raise Shop.DoesNotExist
     sync_shop_owner_approval(owner, shop)
+    shop_khatabook = build_shop_khatabook_context(shop)
     approval_cards = [
         {
             'label': 'Owner approval',
@@ -2651,6 +3115,7 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
         'notifications': user_notifications(request.user),
         'live_product_count': shop.products.count(),
         'approval_cards': approval_cards,
+        'shop_khatabook': shop_khatabook,
         'active_order_count': sum(
             1 for order in orders if order.status not in [OrderStatus.DELIVERED, OrderStatus.CANCELLED]
         ),
@@ -2696,6 +3161,16 @@ def rider_workspace_context(request: HttpRequest) -> dict[str, Any]:
             .select_related('customer', 'khata_cycle', 'rider')
         )
         for collection_request in collection_candidates:
+            if (
+                collection_request.status == KhataBookCollectionStatus.ACCEPTED
+                and collection_request.rider_id
+                and not collection_request.collection_otp
+            ):
+                ensure_khatabook_collection_otp_ready(
+                    collection_request=collection_request,
+                    rider=collection_request.rider,
+                )
+                collection_request.refresh_from_db()
             enrich_khatabook_collection_request(collection_request, rider=rider)
             if collection_request.rider_id == rider.id:
                 active_khatabook_requests.append(collection_request)
@@ -3860,7 +4335,10 @@ def notification_open(request: HttpRequest, notification_id: int) -> HttpRespons
 def order_detail_view(request: HttpRequest, order_id: int) -> HttpResponse:
     order = get_order_for_user(request.user, order_id)
     active_role, active_profile = get_role_profile(request.user)
-    order.subtotal_amount = order.total_amount - order.delivery_fee
+    order.bill_breakup = build_order_bill_breakup(order)
+    order.subtotal_amount = order.bill_breakup['subtotal']
+    order.shopkeeper_commission_fee = order.bill_breakup['shopkeeper_commission_fee']
+    order.platform_fee = order.bill_breakup['platform_fee']
     if active_role == RoleType.RIDER:
         enrich_rider_order(order, active_profile)
     else:
@@ -4083,7 +4561,7 @@ def customer_khatabook_request_collection(request: HttpRequest) -> HttpResponse:
         amount=cycle.outstanding_amount,
         collection_address=build_delivery_address(request.role_profile),
         collection_notes='Customer requested COD / UPI repayment for the weekly KhataBook due.',
-        collection_otp=generate_delivery_otp(),
+        collection_otp='',
         latitude=request.role_profile.latitude,
         longitude=request.role_profile.longitude,
     )
@@ -4981,6 +5459,15 @@ def shop_orders_view(request: HttpRequest) -> HttpResponse:
 
 
 @role_required(RoleType.SHOP)
+def shop_khatabook_view(request: HttpRequest) -> HttpResponse:
+    try:
+        context = shop_workspace_context(request)
+    except Shop.DoesNotExist:
+        return redirect_missing_shop_setup(request)
+    return disable_html_cache(render(request, 'core/shop_khatabook.html', context))
+
+
+@role_required(RoleType.SHOP)
 def shop_products_view(request: HttpRequest) -> HttpResponse:
     try:
         context = shop_workspace_context(request, editing_product_id=request.GET.get('edit_product'))
@@ -5436,16 +5923,21 @@ def rider_accept_khatabook_collection(request: HttpRequest, request_id: int) -> 
         collection_request.rider = locked_rider
         collection_request.status = KhataBookCollectionStatus.ACCEPTED
         collection_request.accepted_at = timezone.now()
-        collection_request.save(update_fields=['rider', 'status', 'accepted_at', 'updated_at'])
+        collection_request.collection_otp = generate_delivery_otp()
+        collection_request.save(update_fields=['rider', 'status', 'accepted_at', 'collection_otp', 'updated_at'])
         locked_rider.is_available = False
         locked_rider.save(update_fields=['is_available', 'updated_at'])
 
+    otp_email_sent, otp_sms_sent = ensure_khatabook_collection_otp_ready(
+        collection_request=collection_request,
+        rider=locked_rider,
+    )
     create_notification(
         customer=collection_request.customer,
         title='Rider assigned for KhataBook collection',
         body=(
             f'{locked_rider.full_name} accepted {collection_request.display_id}. '
-            'Keep the KhataBook collection OTP ready for the repayment handoff.'
+            'A fresh 6-digit KhataBook repayment OTP was sent to your registered contact for the handoff.'
         ),
         notification_type=NotificationType.PAYMENT,
     )
@@ -5455,7 +5947,10 @@ def rider_accept_khatabook_collection(request: HttpRequest, request_id: int) -> 
         body=f'{collection_request.display_id} is now in your active queue for Rs. {collection_request.amount}.',
         notification_type=NotificationType.PAYMENT,
     )
-    messages.success(request, f'{collection_request.display_id} assigned to {locked_rider.full_name}.')
+    if otp_email_sent or otp_sms_sent:
+        messages.success(request, f'{collection_request.display_id} assigned to {locked_rider.full_name}. Customer OTP sent for repayment authentication.')
+    else:
+        messages.success(request, f'{collection_request.display_id} assigned to {locked_rider.full_name}.')
     return redirect('core:rider_deliveries')
 
 
@@ -5517,6 +6012,34 @@ def rider_complete_khatabook_collection(request: HttpRequest, request_id: int) -
     )
     messages.success(request, f'{collection_request.display_id} marked as collected.')
     return redirect('core:rider_completed_orders')
+
+
+@role_required(RoleType.RIDER)
+@require_POST
+def rider_resend_khatabook_collection_otp(request: HttpRequest, request_id: int) -> HttpResponse:
+    rider = request.role_profile
+    collection_request = get_object_or_404(
+        KhataBookCollectionRequest.objects.select_related('customer', 'rider', 'khata_cycle'),
+        pk=request_id,
+        rider=rider,
+    )
+    if collection_request.status != KhataBookCollectionStatus.ACCEPTED:
+        messages.error(request, 'Repayment OTPs can only be resent for active accepted KhataBook collections.')
+        return redirect('core:rider_deliveries')
+
+    otp_email_sent, otp_sms_sent = ensure_khatabook_collection_otp_ready(
+        collection_request=collection_request,
+        rider=rider,
+        force_new=True,
+    )
+    if otp_email_sent or otp_sms_sent:
+        messages.success(request, f'Fresh repayment OTP sent again for {collection_request.display_id}.')
+    else:
+        messages.warning(
+            request,
+            f'A new repayment OTP was generated for {collection_request.display_id}, but automatic delivery to the customer contact could not be confirmed.',
+        )
+    return redirect('core:rider_deliveries')
 
 
 @role_required(RoleType.RIDER)

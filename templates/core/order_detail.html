@@ -334,6 +334,12 @@
       <div class="bill-grid">
         <div class="bill-row"><span>Item total</span><strong>Rs. {{ order.subtotal_amount|floatformat:2 }}</strong></div>
         <div class="bill-row"><span>Delivery fee</span><strong>Rs. {{ order.delivery_fee|floatformat:2 }}</strong></div>
+        {% if order.shopkeeper_commission_fee %}
+          <div class="bill-row"><span>Shopkeeper commission fee</span><strong>Rs. {{ order.shopkeeper_commission_fee|floatformat:2 }}</strong></div>
+        {% endif %}
+        {% if order.platform_fee %}
+          <div class="bill-row"><span>GramExpress platform fee</span><strong>Rs. {{ order.platform_fee|floatformat:2 }}</strong></div>
+        {% endif %}
         <div class="bill-row"><span>Total</span><strong>Rs. {{ order.total_amount|floatformat:2 }}</strong></div>
         <div class="bill-row"><span>Payment status</span><strong>{{ payment_summary.status_label }}</strong></div>
       </div>

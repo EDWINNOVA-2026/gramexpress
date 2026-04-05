@@ -440,7 +440,7 @@ class CoreFlowTests(TestCase):
             customer=self.customer,
             week_start=timezone.localdate(),
             due_date=timezone.localdate() + timedelta(days=7),
-            total_amount=Decimal('43.00'),
+            total_amount=Decimal('53.00'),
         )
         khata_order = Order.objects.create(
             customer=self.customer,
@@ -449,7 +449,7 @@ class CoreFlowTests(TestCase):
             status=OrderStatus.CONFIRMED,
             payment_method=PaymentMethod.KHATABOOK,
             payment_status=PaymentStatus.PENDING,
-            total_amount=Decimal('43.00'),
+            total_amount=Decimal('53.00'),
             delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
             credit_due_date=cycle.due_date,
@@ -1112,7 +1112,7 @@ class CoreFlowTests(TestCase):
             customer=self.customer,
             week_start=timezone.localdate(),
             due_date=timezone.localdate() + timedelta(days=7),
-            total_amount=Decimal('43.00'),
+            total_amount=Decimal('53.00'),
         )
         khata_order = Order.objects.create(
             customer=self.customer,
@@ -1122,7 +1122,7 @@ class CoreFlowTests(TestCase):
             status=OrderStatus.OUT_FOR_DELIVERY,
             payment_method=PaymentMethod.KHATABOOK,
             payment_status=PaymentStatus.PENDING,
-            total_amount=Decimal('43.00'),
+            total_amount=Decimal('53.00'),
             delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
             customer_otp='555666',
@@ -1143,7 +1143,7 @@ class CoreFlowTests(TestCase):
             customer=self.customer,
             week_start=timezone.localdate(),
             due_date=timezone.localdate() + timedelta(days=7),
-            total_amount=Decimal('43.00'),
+            total_amount=Decimal('53.00'),
         )
         khata_order = Order.objects.create(
             customer=self.customer,
@@ -1152,7 +1152,7 @@ class CoreFlowTests(TestCase):
             status=OrderStatus.DELIVERED,
             payment_method=PaymentMethod.KHATABOOK,
             payment_status=PaymentStatus.PENDING,
-            total_amount=Decimal('43.00'),
+            total_amount=Decimal('53.00'),
             delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
             credit_due_date=khata_cycle.due_date,
@@ -1177,7 +1177,7 @@ class CoreFlowTests(TestCase):
             customer=self.customer,
             week_start=timezone.localdate(),
             due_date=timezone.localdate() + timedelta(days=7),
-            total_amount=Decimal('43.00'),
+            total_amount=Decimal('53.00'),
         )
         khata_order = Order.objects.create(
             customer=self.customer,
@@ -1186,7 +1186,7 @@ class CoreFlowTests(TestCase):
             status=OrderStatus.DELIVERED,
             payment_method=PaymentMethod.KHATABOOK,
             payment_status=PaymentStatus.PENDING,
-            total_amount=Decimal('43.00'),
+            total_amount=Decimal('53.00'),
             delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
             credit_due_date=khata_cycle.due_date,
@@ -1196,7 +1196,7 @@ class CoreFlowTests(TestCase):
             customer=self.customer,
             khata_cycle=khata_cycle,
             status=KhataBookCollectionStatus.REQUESTED,
-            amount=Decimal('43.00'),
+            amount=Decimal('53.00'),
             collection_address='1 MG Road, Mandya 571401',
             collection_otp='112233',
             latitude=self.customer.latitude,
@@ -1213,11 +1213,12 @@ class CoreFlowTests(TestCase):
         self.rider.refresh_from_db()
         self.assertEqual(collection_request.status, KhataBookCollectionStatus.ACCEPTED)
         self.assertEqual(collection_request.rider, self.rider)
+        self.assertEqual(len(collection_request.collection_otp), 6)
         self.assertFalse(self.rider.is_available)
 
         complete_response = self.client.post(
             reverse('core:rider_complete_khatabook_collection', args=[collection_request.id]),
-            {'collection_otp': '112233'},
+            {'collection_otp': collection_request.collection_otp},
             follow=True,
         )
         self.assertEqual(complete_response.status_code, 200)
@@ -1229,6 +1230,36 @@ class CoreFlowTests(TestCase):
         self.assertEqual(khata_cycle.status, KhataBookCycleStatus.PAID)
         self.assertEqual(khata_order.payment_status, PaymentStatus.PAID)
         self.assertTrue(self.rider.is_available)
+
+    def test_rider_deliveries_self_heal_missing_khatabook_collection_otp(self):
+        khata_cycle = KhataBookCycle.objects.create(
+            customer=self.customer,
+            week_start=timezone.localdate(),
+            due_date=timezone.localdate() + timedelta(days=7),
+            total_amount=Decimal('53.00'),
+        )
+        collection_request = KhataBookCollectionRequest.objects.create(
+            customer=self.customer,
+            khata_cycle=khata_cycle,
+            rider=self.rider,
+            status=KhataBookCollectionStatus.ACCEPTED,
+            amount=Decimal('53.00'),
+            collection_address='1 MG Road, Mandya 571401',
+            collection_otp='',
+            latitude=self.customer.latitude,
+            longitude=self.customer.longitude,
+        )
+        self.rider.is_available = False
+        self.rider.save(update_fields=['is_available', 'updated_at'])
+
+        self.client.force_login(self.rider_user)
+        response = self.client.get(reverse('core:rider_deliveries'))
+
+        self.assertEqual(response.status_code, 200)
+        collection_request.refresh_from_db()
+        self.assertEqual(collection_request.status, KhataBookCollectionStatus.ACCEPTED)
+        self.assertEqual(len(collection_request.collection_otp), 6)
+        self.assertContains(response, 'Resend KhataBook OTP')
 
     def test_rider_deliveries_highlight_current_mission(self):
         pickup_order = Order.objects.create(
@@ -1431,7 +1462,7 @@ class CoreFlowTests(TestCase):
             customer=self.customer,
             week_start=timezone.localdate(),
             due_date=timezone.localdate() + timedelta(days=7),
-            total_amount=Decimal('43.00'),
+            total_amount=Decimal('53.00'),
         )
         khata_order = Order.objects.create(
             customer=self.customer,
@@ -1440,7 +1471,7 @@ class CoreFlowTests(TestCase):
             status=OrderStatus.CONFIRMED,
             payment_method=PaymentMethod.KHATABOOK,
             payment_status=PaymentStatus.PENDING,
-            total_amount=Decimal('43.00'),
+            total_amount=Decimal('53.00'),
             delivery_fee=Decimal('15.00'),
             delivery_address='1 MG Road, Mandya 571401',
             credit_due_date=cycle.due_date,
@@ -1454,6 +1485,101 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, 'Your weekly credit line')
         self.assertContains(response, khata_order.display_id)
         self.assertContains(response, 'Request COD / UPI Collection')
+
+    def test_customer_dashboard_shows_khatabook_default_warning(self):
+        overdue_cycle = KhataBookCycle.objects.create(
+            customer=self.customer,
+            week_start=timezone.localdate() - timedelta(days=7),
+            due_date=timezone.localdate() - timedelta(days=1),
+            total_amount=Decimal('110.00'),
+        )
+        overdue_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            khata_cycle=overdue_cycle,
+            status=OrderStatus.DELIVERED,
+            payment_method=PaymentMethod.KHATABOOK,
+            payment_status=PaymentStatus.PENDING,
+            total_amount=Decimal('110.00'),
+            delivery_fee=Decimal('15.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            credit_due_date=overdue_cycle.due_date,
+        )
+        OrderItem.objects.create(order=overdue_order, product=self.product, quantity=1, unit_price=Decimal('85.00'))
+
+        self.client.force_login(self.customer_user)
+        response = self.client.get(reverse('core:customer_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'KhataBook default alert')
+        self.assertContains(response, 'Rs. 110.00 is already overdue')
+        self.assertTrue(
+            Notification.objects.filter(
+                customer=self.customer,
+                title='KhataBook due overdue',
+                notification_type=NotificationType.PAYMENT,
+            ).exists()
+        )
+
+    def test_shop_khatabook_page_shows_exposure_and_defaulted_credit(self):
+        open_cycle = KhataBookCycle.objects.create(
+            customer=self.customer,
+            week_start=timezone.localdate(),
+            due_date=timezone.localdate() + timedelta(days=4),
+            total_amount=Decimal('70.00'),
+        )
+        overdue_cycle = KhataBookCycle.objects.create(
+            customer=self.customer,
+            week_start=timezone.localdate() - timedelta(days=7),
+            due_date=timezone.localdate() - timedelta(days=1),
+            total_amount=Decimal('110.00'),
+        )
+        open_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            khata_cycle=open_cycle,
+            status=OrderStatus.PACKED,
+            payment_method=PaymentMethod.KHATABOOK,
+            payment_status=PaymentStatus.PENDING,
+            total_amount=Decimal('70.00'),
+            delivery_fee=Decimal('15.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            credit_due_date=open_cycle.due_date,
+        )
+        overdue_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            khata_cycle=overdue_cycle,
+            status=OrderStatus.DELIVERED,
+            payment_method=PaymentMethod.KHATABOOK,
+            payment_status=PaymentStatus.PENDING,
+            total_amount=Decimal('110.00'),
+            delivery_fee=Decimal('15.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            credit_due_date=overdue_cycle.due_date,
+        )
+        OrderItem.objects.create(order=open_order, product=self.product, quantity=1, unit_price=Decimal('45.00'))
+        OrderItem.objects.create(order=overdue_order, product=self.product, quantity=1, unit_price=Decimal('85.00'))
+
+        self.client.force_login(self.shop_user)
+        response = self.client.get(reverse('core:shop_khatabook'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Credit risk desk for Fresh Basket')
+        self.assertContains(response, 'Rs. 140.00 live exposure')
+        self.assertContains(response, 'Rs. 70.00')
+        self.assertContains(response, 'Rs. 110.00')
+        self.assertContains(response, self.rider.full_name)
+        self.assertContains(response, 'Current stock left 20')
+        self.assertNotContains(response, self.customer.full_name)
+        self.assertTrue(
+            Notification.objects.filter(
+                shop_owner=self.owner,
+                title='KhataBook default alert',
+                notification_type=NotificationType.PAYMENT,
+            ).exists()
+        )
 
     def test_order_detail_disables_html_cache(self):
         self.client.force_login(self.customer_user)
@@ -1545,9 +1671,9 @@ class CoreFlowTests(TestCase):
             hashlib.sha256,
         ).hexdigest()
 
-        with patch('core.views.fetch_razorpay_payment', return_value={'id': 'pay_test_123', 'order_id': 'order_test_123', 'amount': 7100, 'status': 'captured'}), patch(
+        with patch('core.views.fetch_razorpay_payment', return_value={'id': 'pay_test_123', 'order_id': 'order_test_123', 'amount': 8100, 'status': 'captured'}), patch(
             'core.views.fetch_razorpay_order',
-            return_value={'id': 'order_test_123', 'amount': 7100},
+            return_value={'id': 'order_test_123', 'amount': 8100},
         ):
             complete_response = self.client.post(
                 reverse('core:customer_razorpay_complete'),
@@ -1581,8 +1707,11 @@ class CoreFlowTests(TestCase):
                 {
                     'shop_id': self.shop.id,
                     'delivery_fee': '15.00',
+                    'shopkeeper_commission_fee': '5.00',
+                    'platform_fee': '5.00',
                     'subtotal': '28.00',
-                    'total': '43.00',
+                    'shop_credit_exposure': '33.00',
+                    'total': '53.00',
                     'items': [
                         {
                             'product_id': self.product.id,
@@ -1598,7 +1727,7 @@ class CoreFlowTests(TestCase):
             customer=self.customer,
             payment_method=PaymentMethod.RAZORPAY,
             payment_status=PaymentStatus.PENDING,
-            amount=Decimal('43.00'),
+            amount=Decimal('53.00'),
             delivery_address='1 MG Road, Mandya 571401',
             customer_notes='',
             cart_snapshot=snapshot,

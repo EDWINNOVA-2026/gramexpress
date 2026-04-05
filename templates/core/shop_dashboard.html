@@ -57,6 +57,11 @@
               <strong>{{ active_order_count }} active order{{ active_order_count|pluralize }}</strong>
               <p>Jump straight into confirmations, packing, and rider handoff.</p>
             </a>
+            <a class="shop-dashboard-quick-link" href="{% url 'core:shop_khatabook' %}">
+              <span class="metric-label">KhataBook</span>
+              <strong>Rs. {{ shop_khatabook.active_credit_exposure }} exposure</strong>
+              <p>Track live credit risk, defaulted money, and weekly recovery visibility without opening every order.</p>
+            </a>
             <a class="shop-dashboard-quick-link" href="{% url 'core:shop_products' %}">
               <span class="metric-label">Catalog</span>
               <strong>{{ live_product_count }} product{{ live_product_count|pluralize }} live</strong>
@@ -155,6 +160,51 @@
               {% endif %}
             </p>
           </article>
+          <article class="shop-dashboard-op-row">
+            <div class="shop-dashboard-op-head">
+              <strong>KhataBook</strong>
+              <span class="status-chip {% if shop_khatabook.defaulted_amount %}danger{% elif shop_khatabook.active_credit_exposure %}warn{% else %}success{% endif %}">Rs. {{ shop_khatabook.active_credit_exposure }}</span>
+            </div>
+            <p>
+              {% if shop_khatabook.defaulted_amount %}
+                Rs. {{ shop_khatabook.defaulted_amount }} is already overdue. Your current defaulted risk share is Rs. {{ shop_khatabook.defaulted_shop_risk_share }}.
+              {% elif shop_khatabook.active_credit_exposure %}
+                Live customer credit is open. Your temporary shop-side exposure is Rs. {{ shop_khatabook.shop_risk_share }} until the weekly due closes.
+              {% else %}
+                No live KhataBook exposure is open right now. Fresh credit orders will start appearing here automatically.
+              {% endif %}
+            </p>
+          </article>
+        </div>
+      </article>
+
+      <article class="card shop-khatabook-dashboard-card" data-appear>
+        <div class="split-row">
+          <div class="content-stack">
+            <span class="eyebrow">KhataBook</span>
+            <h2 class="section-title">Credit exposure snapshot</h2>
+            <p class="subtle">See how much storefront risk is live right now, what has defaulted, and how much the platform is carrying alongside you.</p>
+          </div>
+          <a class="button small secondary" href="{% url 'core:shop_khatabook' %}">Open KhataBook</a>
+        </div>
+
+        {% if shop_khatabook.has_warning %}
+          <div class="checkout-alert checkout-alert-error">
+            <strong>{{ shop_khatabook.warning_headline }}</strong>
+            <p>{{ shop_khatabook.warning_detail }}</p>
+          </div>
+        {% endif %}
+
+        <div class="summary-grid">
+          {% for metric in shop_khatabook.metrics %}
+            <div class="checkout-summary-card content-stack">
+              <div class="split-row">
+                <span class="metric-label">{{ metric.label }}</span>
+                <span class="status-chip {{ metric.chip }}">{{ metric.value }}</span>
+              </div>
+              <p>{{ metric.detail }}</p>
+            </div>
+          {% endfor %}
         </div>
       </article>
     </div>
