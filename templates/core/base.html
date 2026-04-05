@@ -81,6 +81,7 @@
     <style type="text/tailwindcss">
       {% include 'core/tailwind_theme.html' %}
     </style>
+    {% block extra_head %}{% endblock %}
     <script type="module" src="https://unpkg.com/@lottiefiles/dotlottie-wc@latest/dist/dotlottie-wc.js"></script>
     {% if google_client_id %}
       <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -634,6 +635,7 @@
           });
         }
       </script>
+      {% block extra_scripts %}{% endblock %}
     </body>
   {% endwith %}
 </html>
