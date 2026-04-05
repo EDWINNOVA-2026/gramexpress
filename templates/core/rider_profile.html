@@ -3,7 +3,10 @@
 {% block content %}
   <section class="feature-nav card rider-segmented-nav" data-appear>
     {% for item in page_nav %}
-      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">
+        <span class="ui-icon icon-{{ item.icon }}" aria-hidden="true"></span>
+        <span>{{ item.label }}</span>
+      </a>
     {% endfor %}
   </section>
 
@@ -29,10 +32,16 @@
         {% csrf_token %}
         {{ location_form.as_p }}
         <div class="helper-actions">
-          <button class="button secondary" type="button" data-location-trigger>Use Current Location</button>
+          <button class="button secondary" type="button" data-location-trigger>
+            <span class="ui-icon icon-locate-fixed" aria-hidden="true"></span>
+            <span>Use Current Location</span>
+          </button>
           <span class="muted tiny" data-location-status>Capture your latest dispatch location from the browser.</span>
         </div>
-        <button class="button primary" type="submit">Update Dispatch Location</button>
+        <button class="button primary" type="submit">
+          <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+          <span>Update Dispatch Location</span>
+        </button>
       </form>
     </article>
 

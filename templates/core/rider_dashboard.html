@@ -23,7 +23,10 @@
 
     <section class="feature-nav card rider-segmented-nav" data-appear>
       {% for item in page_nav %}
-        <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+        <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">
+          <span class="ui-icon icon-{{ item.icon }}" aria-hidden="true"></span>
+          <span>{{ item.label }}</span>
+        </a>
       {% endfor %}
     </section>
 
@@ -34,8 +37,8 @@
           <h2 class="section-title">Scan, accept, and go</h2>
         </div>
         <div class="hero-inline-facts">
-          <span class="soft-pill">{{ active_order_count }} active</span>
-          <span class="status-chip info">{{ new_order_count }} new</span>
+          <span class="soft-pill"><span class="ui-icon icon-bike" aria-hidden="true"></span><span>{{ active_order_count }} active</span></span>
+          <span class="status-chip info"><span class="ui-icon icon-package" aria-hidden="true"></span><span>{{ new_order_count }} new</span></span>
         </div>
       </div>
 
@@ -52,7 +55,7 @@
 
             <div class="rider-route-points">
               <div class="rider-route-point">
-                <span class="rider-route-icon rider-route-icon-pickup" aria-hidden="true">P</span>
+                <span class="rider-route-icon rider-route-icon-pickup" aria-hidden="true"><span class="ui-icon icon-store"></span></span>
                 <div class="rider-route-copy">
                   <strong>Pickup</strong>
                   <p>{{ order.shop.name }}</p>
@@ -60,7 +63,7 @@
                 </div>
               </div>
               <div class="rider-route-point">
-                <span class="rider-route-icon rider-route-icon-dropoff" aria-hidden="true">D</span>
+                <span class="rider-route-icon rider-route-icon-dropoff" aria-hidden="true"><span class="ui-icon icon-map-pinned"></span></span>
                 <div class="rider-route-copy">
                   <strong>Drop-off</strong>
                   <p>{{ order.customer.full_name }}</p>
@@ -86,8 +89,14 @@
             </div>
 
             <div class="rider-map-actions">
-              <a class="button small secondary" href="{{ order.pickup_map_url }}" target="_blank" rel="noreferrer">Pickup in Maps</a>
-              <a class="button small secondary" href="{{ order.dropoff_map_url }}" target="_blank" rel="noreferrer">Drop-off in Maps</a>
+              <a class="button small secondary" href="{{ order.pickup_map_url }}" target="_blank" rel="noreferrer">
+                <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+                <span>Pickup in Maps</span>
+              </a>
+              <a class="button small secondary" href="{{ order.dropoff_map_url }}" target="_blank" rel="noreferrer">
+                <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+                <span>Drop-off in Maps</span>
+              </a>
             </div>
 
             <details class="rider-order-items">
@@ -107,7 +116,10 @@
 
             <form method="post" action="{% url 'core:rider_accept_order' order.id %}" class="rider-job-accept">
               {% csrf_token %}
-              <button class="button primary rider-accept-button" type="submit">Accept Order</button>
+              <button class="button primary rider-accept-button" type="submit">
+                <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
+                <span>Accept Order</span>
+              </button>
             </form>
           </article>
         {% empty %}

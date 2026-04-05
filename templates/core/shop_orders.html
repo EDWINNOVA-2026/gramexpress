@@ -3,7 +3,10 @@
 {% block content %}
   <section class="feature-nav card shop-segmented-nav" data-appear>
     {% for item in page_nav %}
-      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">
+        <span class="ui-icon icon-{{ item.icon }}" aria-hidden="true"></span>
+        <span>{{ item.label }}</span>
+      </a>
     {% endfor %}
   </section>
 
@@ -68,23 +71,38 @@
             </div>
 
             <div class="action-cluster">
-              <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
-              <a class="button small secondary" href="{% url 'core:support' %}">Need Help?</a>
+              <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">
+                <span class="ui-icon icon-package" aria-hidden="true"></span>
+                <span>Order Detail</span>
+              </a>
+              <a class="button small secondary" href="{% url 'core:support' %}">
+                <span class="ui-icon icon-life-buoy" aria-hidden="true"></span>
+                <span>Need Help?</span>
+              </a>
               {% if order.can_mark_confirmed %}
                 <form method="post" action="{% url 'core:shop_update_order_status' order.id %}">
                   {% csrf_token %}
                   <input type="hidden" name="status" value="confirmed" />
-                  <button class="button small secondary" type="submit">Confirm</button>
+                  <button class="button small secondary" type="submit">
+                    <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
+                    <span>Confirm</span>
+                  </button>
                 </form>
               {% endif %}
               {% if order.can_mark_packed %}
                 <form method="post" action="{% url 'core:shop_update_order_status' order.id %}">
                   {% csrf_token %}
                   <input type="hidden" name="status" value="packed" />
-                  <button class="button small primary" type="submit">Packed</button>
+                  <button class="button small primary" type="submit">
+                    <span class="ui-icon icon-package" aria-hidden="true"></span>
+                    <span>Packed</span>
+                  </button>
                 </form>
               {% endif %}
-              <a class="button small secondary" href="{{ order.customer.google_maps_url }}" target="_blank" rel="noreferrer">Open Drop-off Pin</a>
+              <a class="button small secondary" href="{{ order.customer.google_maps_url }}" target="_blank" rel="noreferrer">
+                <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+                <span>Open Drop-off Pin</span>
+              </a>
             </div>
 
             {% if order.can_cancel_from_store %}
@@ -94,7 +112,10 @@
                 <label>Cancellation reason
                   <input type="text" name="cancellation_reason" value="Store could not fulfil this order." />
                 </label>
-                <button class="button small danger" type="submit">Cancel From Store</button>
+                <button class="button small danger" type="submit">
+                  <span class="ui-icon icon-trash-2" aria-hidden="true"></span>
+                  <span>Cancel From Store</span>
+                </button>
               </form>
             {% elif order.status == 'cancelled' and order.cancellation_reason %}
               <div class="checkout-cod-panel">
@@ -112,11 +133,14 @@
                 <label>Rate the rider (1-5)
                   <input type="number" name="store_rating" min="1" max="5" required />
                 </label>
-                <label>Review
-                  <textarea name="store_review" rows="2"></textarea>
-                </label>
-                <button class="button small primary" type="submit">Save Rider Rating</button>
-              </form>
+              <label>Review
+                <textarea name="store_review" rows="2"></textarea>
+              </label>
+              <button class="button small primary" type="submit">
+                <span class="ui-icon icon-star" aria-hidden="true"></span>
+                <span>Save Rider Rating</span>
+              </button>
+            </form>
             {% elif order.store_rating %}
               <p class="muted">You rated the rider {{ order.store_rating }}/5. {{ order.store_review }}</p>
             {% endif %}

@@ -3,7 +3,10 @@
 {% block content %}
   <section class="feature-nav card rider-segmented-nav" data-appear>
     {% for item in page_nav %}
-      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">
+        <span class="ui-icon icon-{{ item.icon }}" aria-hidden="true"></span>
+        <span>{{ item.label }}</span>
+      </a>
     {% endfor %}
   </section>
 
@@ -13,9 +16,9 @@
       <h1>Closed deliveries</h1>
       <p class="hero-lead">Review finished deliveries, confirm what you earned, and reopen the order detail screen only when you need more context.</p>
       <div class="hero-inline-facts">
-        <span class="soft-pill">{{ completed_delivery_count }} delivered</span>
-        <span class="soft-pill">Total Rs. {{ total_earnings }}</span>
-        <span class="soft-pill">Avg Rs. {{ average_earnings }}</span>
+        <span class="soft-pill"><span class="ui-icon icon-badge-check" aria-hidden="true"></span><span>{{ completed_delivery_count }} delivered</span></span>
+        <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>Total Rs. {{ total_earnings }}</span></span>
+        <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>Avg Rs. {{ average_earnings }}</span></span>
       </div>
     </article>
 
@@ -88,7 +91,10 @@
           </div>
 
           <div class="inline-actions">
-            <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
+            <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">
+              <span class="ui-icon icon-package" aria-hidden="true"></span>
+              <span>Order Detail</span>
+            </a>
           </div>
         </article>
       {% empty %}

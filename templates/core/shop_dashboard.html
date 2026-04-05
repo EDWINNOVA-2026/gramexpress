@@ -10,9 +10,9 @@
       </div>
 
       <div class="hero-inline-facts shop-dashboard-facts">
-        <span class="soft-pill">{{ shop.get_shop_type_display }}</span>
-        <span class="soft-pill">{{ shop.area }}</span>
-        <span class="soft-pill">Rating {{ shop.rating }}</span>
+        <span class="soft-pill"><span class="ui-icon icon-store" aria-hidden="true"></span><span>{{ shop.get_shop_type_display }}</span></span>
+        <span class="soft-pill"><span class="ui-icon icon-map-pin" aria-hidden="true"></span><span>{{ shop.area }}</span></span>
+        <span class="soft-pill"><span class="ui-icon icon-star" aria-hidden="true"></span><span>Rating {{ shop.rating }}</span></span>
       </div>
 
       <section class="shop-dashboard-state-card{% if shop.approval_status != 'approved' %} is-waiting{% elif shop.is_open %} is-live{% else %} is-offline{% endif %}">
@@ -36,17 +36,27 @@
               {% csrf_token %}
               <input type="hidden" name="next" value="{% url 'core:shop_dashboard' %}">
               <button class="button {% if shop.is_open %}secondary{% else %}primary{% endif %}" type="submit">
-                {% if shop.is_open %}Close Store{% else %}Open Store{% endif %}
+                <span class="ui-icon icon-store" aria-hidden="true"></span>
+                <span>{% if shop.is_open %}Close Store{% else %}Open Store{% endif %}</span>
               </button>
             </form>
           {% endif %}
-          <a class="button secondary" href="{% url 'core:shop_settings' %}">Edit Store</a>
+          <a class="button secondary" href="{% url 'core:shop_settings' %}">
+            <span class="ui-icon icon-square-pen" aria-hidden="true"></span>
+            <span>Edit Store</span>
+          </a>
         </div>
       </section>
 
       <div class="shop-dashboard-primary-actions">
-        <a class="button primary" href="{% url 'core:shop_orders' %}">Open Orders</a>
-        <a class="button secondary" href="{% url 'core:shop_products' %}">Open Catalog</a>
+        <a class="button primary" href="{% url 'core:shop_orders' %}">
+          <span class="ui-icon icon-clipboard-list" aria-hidden="true"></span>
+          <span>Open Orders</span>
+        </a>
+        <a class="button secondary" href="{% url 'core:shop_products' %}">
+          <span class="ui-icon icon-boxes" aria-hidden="true"></span>
+          <span>Open Catalog</span>
+        </a>
       </div>
 
       <section class="shop-dashboard-summary-grid" aria-label="Store overview metrics">
@@ -72,7 +82,10 @@
 
   <section class="feature-nav card shop-dashboard-nav shop-segmented-nav" data-appear>
     {% for item in page_nav %}
-      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}"{% if request.path == item.url %} aria-current="page"{% endif %}>{{ item.label }}</a>
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}"{% if request.path == item.url %} aria-current="page"{% endif %}>
+        <span class="ui-icon icon-{{ item.icon }}" aria-hidden="true"></span>
+        <span>{{ item.label }}</span>
+      </a>
     {% endfor %}
   </section>
 
@@ -141,7 +154,7 @@
         <div class="compact-list">
           {% for note in notifications %}
             <a class="list-item compact-item compact-item-notification{% if not note.is_read %} compact-item-notification-unread{% endif %}" href="{% url 'core:notification_open' note.id %}">
-              <span class="compact-glyph">{{ note.glyph }}</span>
+              <span class="compact-glyph"><span class="ui-icon icon-{{ note.icon_name }}" aria-hidden="true"></span></span>
               <div>
                 <strong>{{ note.title }}</strong>
                 <p>{{ note.body }}</p>
@@ -156,7 +169,10 @@
             </div>
           {% endfor %}
         </div>
-        <a class="button small secondary" href="{% url 'core:notifications' %}">View All Notifications</a>
+        <a class="button small secondary" href="{% url 'core:notifications' %}">
+          <span class="ui-icon icon-bell" aria-hidden="true"></span>
+          <span>View All Notifications</span>
+        </a>
       </details>
     </div>
 
@@ -180,7 +196,10 @@
             </div>
           </div>
         </div>
-        <a class="button secondary" href="{{ shop.google_maps_url }}" target="_blank" rel="noreferrer">Open Shop In Maps</a>
+        <a class="button secondary" href="{{ shop.google_maps_url }}" target="_blank" rel="noreferrer">
+          <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+          <span>Open Shop In Maps</span>
+        </a>
       </details>
 
       <article class="card shop-dashboard-empty-state" data-appear>
@@ -188,23 +207,35 @@
         {% if shop.approval_status != 'approved' %}
           <h2 class="section-title">Wait for approval and keep details ready</h2>
           <p>Use store settings if you need to correct address, catalog, or owner information before going live.</p>
-          <a class="button secondary" href="{% url 'core:shop_settings' %}">Review Store Details</a>
+          <a class="button secondary" href="{% url 'core:shop_settings' %}">
+            <span class="ui-icon icon-square-pen" aria-hidden="true"></span>
+            <span>Review Store Details</span>
+          </a>
         {% elif not shop.is_open %}
           <h2 class="section-title">Open the store when you are ready</h2>
           <p>Your storefront is offline right now. Open it to start receiving new orders.</p>
           <form method="post" action="{% url 'core:shop_toggle_store_state' %}">
             {% csrf_token %}
             <input type="hidden" name="next" value="{% url 'core:shop_dashboard' %}">
-            <button class="button primary" type="submit">Open Store</button>
+            <button class="button primary" type="submit">
+              <span class="ui-icon icon-store" aria-hidden="true"></span>
+              <span>Open Store</span>
+            </button>
           </form>
         {% elif live_product_count == 0 %}
           <h2 class="section-title">Add products before traffic arrives</h2>
           <p>A live store with an empty catalog feels incomplete. Add products so customers can order immediately.</p>
-          <a class="button primary" href="{% url 'core:shop_products' %}">Add Products</a>
+          <a class="button primary" href="{% url 'core:shop_products' %}">
+            <span class="ui-icon icon-plus" aria-hidden="true"></span>
+            <span>Add Products</span>
+          </a>
         {% else %}
           <h2 class="section-title">Keep the queue and catalog fresh</h2>
           <p>Use orders for fulfillment and catalog for stock updates so the storefront stays accurate through the day.</p>
-          <a class="button primary" href="{% url 'core:shop_orders' %}">Review Orders</a>
+          <a class="button primary" href="{% url 'core:shop_orders' %}">
+            <span class="ui-icon icon-clipboard-list" aria-hidden="true"></span>
+            <span>Review Orders</span>
+          </a>
         {% endif %}
       </article>
     </div>

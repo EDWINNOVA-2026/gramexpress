@@ -3,7 +3,10 @@
 {% block content %}
   <section class="feature-nav card rider-segmented-nav" data-appear>
     {% for item in page_nav %}
-      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">
+        <span class="ui-icon icon-{{ item.icon }}" aria-hidden="true"></span>
+        <span>{{ item.label }}</span>
+      </a>
     {% endfor %}
   </section>
 
@@ -13,9 +16,9 @@
       <h1>Pickup to drop-off</h1>
       <p class="hero-lead">This screen stays focused on the job in hand, with one clear next action, pinned map links, and the latest delivery update.</p>
       <div class="hero-inline-facts">
-        <span class="soft-pill">{{ active_order_count }} active</span>
-        <span class="soft-pill">Today Rs. {{ today_earnings }}</span>
-        <span class="soft-pill">Pinned maps only</span>
+        <span class="soft-pill"><span class="ui-icon icon-bike" aria-hidden="true"></span><span>{{ active_order_count }} active</span></span>
+        <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>Today Rs. {{ today_earnings }}</span></span>
+        <span class="soft-pill"><span class="ui-icon icon-map-pinned" aria-hidden="true"></span><span>Pinned maps only</span></span>
       </div>
     </article>
 
@@ -60,9 +63,18 @@
       </div>
 
       <div class="mission-toolbar">
-        <a class="button secondary" href="{{ priority_order.current_mission_map_url }}" target="_blank" rel="noreferrer">{{ priority_order.current_mission_map_label }}</a>
-        <a class="button small secondary" href="{% url 'core:order_detail' priority_order.id %}">Open Order Detail</a>
-        <a class="button small secondary" href="{% url 'core:support' %}">Need Help?</a>
+        <a class="button secondary" href="{{ priority_order.current_mission_map_url }}" target="_blank" rel="noreferrer">
+          <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+          <span>{{ priority_order.current_mission_map_label }}</span>
+        </a>
+        <a class="button small secondary" href="{% url 'core:order_detail' priority_order.id %}">
+          <span class="ui-icon icon-package" aria-hidden="true"></span>
+          <span>Open Order Detail</span>
+        </a>
+        <a class="button small secondary" href="{% url 'core:support' %}">
+          <span class="ui-icon icon-life-buoy" aria-hidden="true"></span>
+          <span>Need Help?</span>
+        </a>
       </div>
 
       {% if priority_order.status != 'out_for_delivery' and priority_order.status != 'delivered' %}
@@ -70,7 +82,10 @@
           {% csrf_token %}
           <input type="hidden" name="status" value="out_for_delivery" />
           <p class="utility-note">Pickup confirmation only works when you are close to the store.</p>
-          <button class="button primary" type="submit">Picked Up From Store</button>
+          <button class="button primary" type="submit">
+            <span class="ui-icon icon-package-open" aria-hidden="true"></span>
+            <span>Picked Up From Store</span>
+          </button>
         </form>
       {% elif priority_order.status == 'out_for_delivery' %}
         <div class="mission-actions">
@@ -84,13 +99,19 @@
               <form method="post" action="{% url 'core:rider_request_cod_online_payment' priority_order.id %}">
                 {% csrf_token %}
                 <input type="hidden" name="next" value="{% url 'core:rider_deliveries' %}" />
-                <button class="button secondary" type="submit">Recieve Money Online</button>
+                <button class="button secondary" type="submit">
+                  <span class="ui-icon icon-wallet" aria-hidden="true"></span>
+                  <span>Recieve Money Online</span>
+                </button>
               </form>
             {% endif %}
             <form method="post" action="{% url 'core:rider_resend_customer_otp' priority_order.id %}">
               {% csrf_token %}
               <input type="hidden" name="next" value="{% url 'core:rider_deliveries' %}" />
-              <button class="button small secondary" type="submit">Resend OTP</button>
+              <button class="button small secondary" type="submit">
+                <span class="ui-icon icon-refresh-cw" aria-hidden="true"></span>
+                <span>Resend OTP</span>
+              </button>
             </form>
           </div>
           {% if priority_order.payment_method != 'cod' or priority_order.cod_collection_mode != 'online' or priority_order.payment_status == 'paid' %}
@@ -103,7 +124,10 @@
               {% if priority_order.customer_otp_valid_until %}
                 <span class="tiny muted">Current OTP valid until {{ priority_order.customer_otp_valid_until|date:"H:i" }}</span>
               {% endif %}
-              <button class="button primary" type="submit">Delivered</button>
+              <button class="button primary" type="submit">
+                <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
+                <span>Delivered</span>
+              </button>
             </form>
           {% else %}
             <div class="compact-item content-stack">
@@ -181,7 +205,10 @@
                   <span class="status-chip warn">Move closer</span>
                 {% endif %}
               </div>
-              <a class="button small secondary" href="{{ order.pickup_map_url }}" target="_blank" rel="noreferrer">Open Pickup Pin</a>
+              <a class="button small secondary" href="{{ order.pickup_map_url }}" target="_blank" rel="noreferrer">
+                <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+                <span>Open Pickup Pin</span>
+              </a>
             </div>
             <div class="compact-item rider-stop-card">
               <strong>Drop-off</strong>
@@ -191,13 +218,22 @@
                 <span class="soft-pill">{{ order.delivery_distance_km }} km route</span>
                 <span class="soft-pill">{{ order.item_count }} item{{ order.item_count|pluralize }}</span>
               </div>
-              <a class="button small secondary" href="{{ order.dropoff_map_url }}" target="_blank" rel="noreferrer">Open Drop-off Pin</a>
+              <a class="button small secondary" href="{{ order.dropoff_map_url }}" target="_blank" rel="noreferrer">
+                <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+                <span>Open Drop-off Pin</span>
+              </a>
             </div>
           </div>
 
           <div class="action-cluster">
-            <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
-            <a class="button small secondary" href="{% url 'core:support' %}">Need Help?</a>
+            <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">
+              <span class="ui-icon icon-package" aria-hidden="true"></span>
+              <span>Order Detail</span>
+            </a>
+            <a class="button small secondary" href="{% url 'core:support' %}">
+              <span class="ui-icon icon-life-buoy" aria-hidden="true"></span>
+              <span>Need Help?</span>
+            </a>
           </div>
 
           {% if order.status != 'out_for_delivery' and order.status != 'delivered' %}
@@ -205,7 +241,10 @@
               {% csrf_token %}
               <input type="hidden" name="status" value="out_for_delivery" />
               <p class="utility-note">Pickup confirmation only works when you are close to the store.</p>
-              <button class="button primary" type="submit">Picked Up From Store</button>
+              <button class="button primary" type="submit">
+                <span class="ui-icon icon-package-open" aria-hidden="true"></span>
+                <span>Picked Up From Store</span>
+              </button>
             </form>
           {% endif %}
 
@@ -213,13 +252,19 @@
             <form method="post" action="{% url 'core:rider_resend_customer_otp' order.id %}" class="inline-actions">
               {% csrf_token %}
               <input type="hidden" name="next" value="{% url 'core:rider_deliveries' %}" />
-              <button class="button small secondary" type="submit">Resend OTP</button>
+              <button class="button small secondary" type="submit">
+                <span class="ui-icon icon-refresh-cw" aria-hidden="true"></span>
+                <span>Resend OTP</span>
+              </button>
             </form>
             {% if order.payment_method == 'cod' and order.payment_status != 'paid' %}
               <form method="post" action="{% url 'core:rider_request_cod_online_payment' order.id %}" class="inline-actions">
                 {% csrf_token %}
                 <input type="hidden" name="next" value="{% url 'core:rider_deliveries' %}" />
-                <button class="button secondary" type="submit">Recieve Money Online</button>
+                <button class="button secondary" type="submit">
+                  <span class="ui-icon icon-wallet" aria-hidden="true"></span>
+                  <span>Recieve Money Online</span>
+                </button>
               </form>
             {% endif %}
             {% if order.payment_method != 'cod' or order.cod_collection_mode != 'online' or order.payment_status == 'paid' %}
@@ -232,7 +277,10 @@
                 {% if order.customer_otp_valid_until %}
                   <span class="tiny muted">Current OTP valid until {{ order.customer_otp_valid_until|date:"H:i" }}</span>
                 {% endif %}
-                <button class="button primary" type="submit">Delivered</button>
+                <button class="button primary" type="submit">
+                  <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
+                  <span>Delivered</span>
+                </button>
               </form>
             {% else %}
               <div class="compact-item content-stack">

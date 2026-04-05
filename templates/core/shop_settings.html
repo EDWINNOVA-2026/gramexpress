@@ -3,7 +3,10 @@
 {% block content %}
   <section class="feature-nav card shop-segmented-nav" data-appear>
     {% for item in page_nav %}
-      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">
+        <span class="ui-icon icon-{{ item.icon }}" aria-hidden="true"></span>
+        <span>{{ item.label }}</span>
+      </a>
     {% endfor %}
   </section>
 
@@ -26,7 +29,10 @@
         {% csrf_token %}
         <input type="hidden" name="action" value="update_shop" />
         {{ shop_form.as_p }}
-        <button class="button primary" type="submit">Save Shop</button>
+        <button class="button primary" type="submit">
+          <span class="ui-icon icon-square-pen" aria-hidden="true"></span>
+          <span>Save Shop</span>
+        </button>
       </form>
     </article>
 

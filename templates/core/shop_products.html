@@ -3,7 +3,10 @@
 {% block content %}
   <section class="feature-nav card shop-segmented-nav" data-appear>
     {% for item in page_nav %}
-      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+      <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">
+        <span class="ui-icon icon-{{ item.icon }}" aria-hidden="true"></span>
+        <span>{{ item.label }}</span>
+      </a>
     {% endfor %}
   </section>
 
@@ -17,7 +20,10 @@
           <input type="hidden" name="product_id" value="{{ editing_product.id }}" />
         {% endif %}
         {{ product_form.as_p }}
-        <button class="button primary" type="submit">Save Product</button>
+        <button class="button primary" type="submit">
+          <span class="ui-icon icon-plus" aria-hidden="true"></span>
+          <span>Save Product</span>
+        </button>
       </form>
     </article>
 
@@ -44,10 +50,16 @@
               </div>
             </div>
             <div class="inline-actions">
-              <a class="button small secondary" href="?edit_product={{ product.id }}">Edit</a>
+              <a class="button small secondary" href="?edit_product={{ product.id }}">
+                <span class="ui-icon icon-square-pen" aria-hidden="true"></span>
+                <span>Edit</span>
+              </a>
               <form method="post" action="{% url 'core:shop_delete_product' product.id %}">
                 {% csrf_token %}
-                <button class="button small danger" type="submit">Delete</button>
+                <button class="button small danger" type="submit">
+                  <span class="ui-icon icon-trash-2" aria-hidden="true"></span>
+                  <span>Delete</span>
+                </button>
               </form>
             </div>
           </div>
