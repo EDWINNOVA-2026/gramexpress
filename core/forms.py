@@ -19,7 +19,7 @@ LANGUAGE_CHOICES = [
 ]
 REGISTRATION_ROLE_FIELDS = {
     RoleType.CUSTOMER: ['preferred_language', 'address_line_1', 'address_line_2', 'district', 'pincode', 'latitude', 'longitude'],
-    RoleType.SHOP: ['shop_name', 'shop_type', 'area', 'address_line_1', 'address_line_2', 'district', 'pincode', 'description', 'offer', 'latitude', 'longitude'],
+    RoleType.SHOP: ['shop_name', 'shop_type', 'area', 'address_line_1', 'address_line_2', 'district', 'state', 'pincode', 'description', 'offer', 'latitude', 'longitude'],
     RoleType.RIDER: ['age', 'vehicle_type', 'latitude', 'longitude'],
 }
 
@@ -122,6 +122,7 @@ class UnifiedRegistrationForm(forms.Form, BaseStyledForm):
     address_line_1 = forms.CharField(max_length=160, required=False, label='Address line 1')
     address_line_2 = forms.CharField(max_length=160, required=False, label='Address line 2')
     district = forms.CharField(max_length=80, required=False)
+    state = forms.CharField(max_length=80, required=False)
     pincode = forms.CharField(max_length=12, required=False)
     latitude = forms.DecimalField(max_digits=9, decimal_places=6, required=False)
     longitude = forms.DecimalField(max_digits=9, decimal_places=6, required=False)
@@ -173,6 +174,8 @@ class UnifiedRegistrationForm(forms.Form, BaseStyledForm):
             self.fields['address_line_2'].widget.attrs['autocomplete'] = 'address-line2'
         if 'district' in self.fields:
             self.fields['district'].widget.attrs['autocomplete'] = 'address-level2'
+        if 'state' in self.fields:
+            self.fields['state'].widget.attrs['autocomplete'] = 'address-level1'
         if 'pincode' in self.fields:
             self.fields['pincode'].widget.attrs['autocomplete'] = 'postal-code'
         if 'latitude' in self.fields:
@@ -188,7 +191,7 @@ class UnifiedRegistrationForm(forms.Form, BaseStyledForm):
 
         required_fields_by_role = {
             RoleType.CUSTOMER: ['preferred_language', 'address_line_1', 'district', 'pincode', 'latitude', 'longitude'],
-            RoleType.SHOP: ['shop_name', 'shop_type', 'area', 'address_line_1', 'district', 'pincode', 'latitude', 'longitude'],
+            RoleType.SHOP: ['shop_name', 'shop_type', 'area', 'address_line_1', 'district', 'state', 'pincode', 'latitude', 'longitude'],
             RoleType.RIDER: ['age', 'vehicle_type', 'latitude', 'longitude'],
         }
         for field_name in required_fields_by_role.get(account_type, []):
@@ -368,6 +371,7 @@ class ShopUpdateForm(forms.ModelForm, BaseStyledForm):
             'address_line_1',
             'address_line_2',
             'district',
+            'state',
             'pincode',
             'description',
             'offer',
@@ -381,6 +385,12 @@ class ShopUpdateForm(forms.ModelForm, BaseStyledForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._style_fields()
+        self.fields['name'].widget.attrs['autocomplete'] = 'organization'
+        self.fields['address_line_1'].widget.attrs['autocomplete'] = 'address-line1'
+        self.fields['address_line_2'].widget.attrs['autocomplete'] = 'address-line2'
+        self.fields['district'].widget.attrs['autocomplete'] = 'address-level2'
+        self.fields['state'].widget.attrs['autocomplete'] = 'address-level1'
+        self.fields['pincode'].widget.attrs['autocomplete'] = 'postal-code'
 
 
 class ProductForm(forms.ModelForm, BaseStyledForm):

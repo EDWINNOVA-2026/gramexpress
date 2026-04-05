@@ -123,6 +123,7 @@ SERIALIZABLE_REGISTRATION_FIELDS = [
     'address_line_1',
     'address_line_2',
     'district',
+    'state',
     'pincode',
     'latitude',
     'longitude',
@@ -645,6 +646,7 @@ def create_account_from_registration(cleaned_data: dict[str, Any]):
                 'address_line_1': cleaned_data['address_line_1'],
                 'address_line_2': cleaned_data.get('address_line_2', ''),
                 'district': cleaned_data['district'],
+                'state': cleaned_data.get('state', ''),
                 'pincode': cleaned_data['pincode'],
                 'description': cleaned_data.get('description') or 'Pending admin approval',
                 'offer': cleaned_data.get('offer') or 'Fresh local delivery',
@@ -710,6 +712,28 @@ def build_google_route_url(origin_lat: Decimal, origin_lng: Decimal, dest_lat: D
     )
 
 
+def build_google_embed_place_url(latitude: Decimal, longitude: Decimal) -> str:
+    api_key = getattr(settings, 'GOOGLE_MAPS_EMBED_API_KEY', '')
+    if not api_key:
+        return ''
+    return (
+        'https://www.google.com/maps/embed/v1/place'
+        f'?key={urllib_parse.quote(api_key)}'
+        f'&q={latitude},{longitude}'
+        '&zoom=18'
+    )
+
+
+def shop_location_is_configured(shop: Shop) -> bool:
+    return bool(
+        (shop.address_line_1 or '').strip()
+        and (shop.district or '').strip()
+        and (shop.pincode or '').strip()
+        and shop.latitude is not None
+        and shop.longitude is not None
+    )
+
+
 def reverse_geocode_location(latitude: Decimal, longitude: Decimal) -> dict[str, str]:
     api_key = getattr(settings, 'GOOGLE_MAPS_BROWSER_API_KEY', '')
     language = 'en'
@@ -763,6 +787,7 @@ def reverse_geocode_location(latitude: Decimal, longitude: Decimal) -> dict[str,
                     or ''
                 )[:80],
                 'district': district[:80],
+                'state': component_map.get('administrative_area_level_1', '')[:80],
                 'pincode': component_map.get('postal_code', '')[:12],
             }
 
@@ -826,6 +851,7 @@ def reverse_geocode_location(latitude: Decimal, longitude: Decimal) -> dict[str,
             or ''
         )[:80],
         'district': district[:80],
+        'state': (address.get('state') or address.get('region') or '')[:80],
         'pincode': address.get('postcode', '')[:12],
     }
 
@@ -3082,6 +3108,337 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
         key=lambda order: (order.delivered_at or order.updated_at),
         reverse=True,
     )
+    products = list(shop.products.all())
+    notifications = list(user_notifications(request.user))
+    today = timezone.localdate()
+    live_product_count = len(products)
+    active_order_count = sum(
+        1 for order in orders if order.status not in [OrderStatus.DELIVERED, OrderStatus.CANCELLED]
+    )
+    delivered_order_count = sum(1 for order in orders if order.status == OrderStatus.DELIVERED)
+    pending_orders_count = sum(1 for order in orders if order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED])
+    out_of_stock_count = sum(1 for product in products if product.stock <= 0)
+    pending_deliveries_count = active_order_count
+    orders_today = [
+        order
+        for order in orders
+        if order.status != OrderStatus.CANCELLED and timezone.localtime(order.created_at).date() == today
+    ]
+    orders_today_count = len(orders_today)
+    revenue_today = sum((order.total_amount for order in orders_today), Decimal('0.00'))
+    total_revenue = sum(
+        (order.total_amount for order in orders if order.status != OrderStatus.CANCELLED),
+        Decimal('0.00'),
+    )
+    new_credit_orders_count = sum(1 for order in orders_today if order.payment_method == PaymentMethod.KHATABOOK)
+    customers_count = len({order.customer_id for order in orders if order.status != OrderStatus.CANCELLED})
+    rating_snapshot = shop.orders.filter(customer_rating__isnull=False).aggregate(
+        avg=Avg('customer_rating'),
+        count=Count('customer_rating'),
+    )
+    shop.display_rating = round(float(rating_snapshot['avg']), 1) if rating_snapshot['avg'] is not None else float(shop.rating)
+    shop.rating_count = rating_snapshot['count'] or 0
+    store_public_url = request.build_absolute_uri(reverse('core:customer_store_detail', args=[shop.slug]))
+    profile_completion_checks = [
+        {
+            'label': 'Store details',
+            'is_complete': bool(shop.name and shop.area and shop.get_shop_type_display()),
+            'detail': 'Name, category, and local area are visible to customers.',
+        },
+        {
+            'label': 'Store address',
+            'is_complete': bool(shop.address_line_1 and shop.district and shop.pincode),
+            'detail': 'Delivery routing uses the saved address and pincode.',
+        },
+        {
+            'label': 'Store state',
+            'is_complete': bool((shop.state or '').strip()),
+            'detail': 'State helps address autofill stay more accurate for customers and riders.',
+        },
+        {
+            'label': 'Store photo',
+            'is_complete': bool(shop.image_source),
+            'detail': 'A storefront photo builds trust before the first order arrives.',
+        },
+        {
+            'label': 'Phone number',
+            'is_complete': bool(owner.phone),
+            'detail': 'Customers and operations can reach the shop owner when needed.',
+        },
+        {
+            'label': 'Store description',
+            'is_complete': bool((shop.description or '').strip()),
+            'detail': 'Your shop summary helps customers understand what you sell.',
+        },
+    ]
+    profile_incomplete_count = sum(1 for item in profile_completion_checks if not item['is_complete'])
+    profile_completion_percent = int(
+        round(((len(profile_completion_checks) - profile_incomplete_count) / len(profile_completion_checks)) * 100)
+    )
+    setup_checklist = [
+        {
+            'label': 'Owner approval',
+            'is_complete': owner.approval_status == ApprovalStatus.APPROVED,
+            'detail': 'Admin approval for the store owner account.',
+        },
+        {
+            'label': 'Storefront approval',
+            'is_complete': shop.approval_status == ApprovalStatus.APPROVED,
+            'detail': 'Approval for the listing customers can browse and order from.',
+        },
+        {
+            'label': 'Add products',
+            'is_complete': live_product_count > 0,
+            'detail': 'At least one product should be live before you promote the store.',
+        },
+        {
+            'label': 'Finish storefront profile',
+            'is_complete': profile_incomplete_count == 0,
+            'detail': f'{profile_completion_percent}% of the core storefront profile is complete.',
+        },
+        {
+            'label': 'Open the store',
+            'is_complete': shop.is_open,
+            'detail': 'Turn the storefront on to start receiving new customer orders.',
+        },
+    ]
+    setup_progress_complete = sum(1 for item in setup_checklist if item['is_complete'])
+    setup_progress_total = len(setup_checklist)
+    setup_progress_percent = int(round((setup_progress_complete / setup_progress_total) * 100))
+    approval_timeline = [
+        {
+            'label': 'Store submitted',
+            'value': 'Completed',
+            'detail': 'The store workspace exists and is ready for operational review.',
+            'chip': 'success',
+        },
+        {
+            'label': 'Owner approval',
+            'value': owner.get_approval_status_display(),
+            'detail': 'This governs the store owner account attached to the workspace.',
+            'chip': 'success' if owner.approval_status == ApprovalStatus.APPROVED else 'warn',
+        },
+        {
+            'label': 'Storefront approval',
+            'value': shop.get_approval_status_display(),
+            'detail': 'This controls whether customers can find and order from the store.',
+            'chip': 'success' if shop.approval_status == ApprovalStatus.APPROVED else 'warn',
+        },
+        {
+            'label': 'Go Live status',
+            'value': 'Live' if shop.approval_status == ApprovalStatus.APPROVED and shop.is_open else 'Not live',
+            'detail': (
+                'Customers can browse and place orders right now.'
+                if shop.approval_status == ApprovalStatus.APPROVED and shop.is_open
+                else 'The workspace is still waiting on approval, catalog setup, or the open-store toggle.'
+            ),
+            'chip': 'success' if shop.approval_status == ApprovalStatus.APPROVED and shop.is_open else 'info',
+        },
+    ]
+    pending_approvals_count = sum(1 for card in approval_cards if not card['is_approved'])
+    if shop.approval_status != ApprovalStatus.APPROVED or owner.approval_status != ApprovalStatus.APPROVED:
+        go_live_status = {
+            'title': 'Approval in progress',
+            'detail': 'Use store settings to keep your details accurate while the review finishes.',
+            'chip': 'warn',
+            'action_label': 'Edit Store',
+            'action_url': reverse('core:shop_settings'),
+        }
+    elif live_product_count == 0:
+        go_live_status = {
+            'title': 'Add products to go live confidently',
+            'detail': 'Your store can open now, but adding products first will make the first customer visit useful.',
+            'chip': 'info',
+            'action_label': 'Add Product',
+            'action_url': reverse('core:shop_products'),
+        }
+    elif shop.is_open:
+        go_live_status = {
+            'title': 'Store is live',
+            'detail': f'Customers can order now and {live_product_count} product{"s" if live_product_count != 1 else ""} are visible.',
+            'chip': 'success',
+            'action_label': 'Open Orders',
+            'action_url': reverse('core:shop_orders'),
+        }
+    else:
+        go_live_status = {
+            'title': 'Ready to go live',
+            'detail': 'Approvals are done and products are ready. Turn the store on when the team is ready for orders.',
+            'chip': 'info',
+            'action_label': 'Open Store',
+            'action_url': reverse('core:shop_dashboard'),
+        }
+    quick_actions = [
+        {
+            'label': 'Add Product',
+            'detail': 'Add new items, prices, stock, and tags to the live catalog.',
+            'url': reverse('core:shop_products'),
+            'icon': 'plus',
+        },
+        {
+            'label': 'Open Orders',
+            'detail': 'Review new requests, packing flow, and rider handoff in one queue.',
+            'url': reverse('core:shop_orders'),
+            'icon': 'clipboard-list',
+        },
+        {
+            'label': 'Share Store Link',
+            'detail': 'Copy a direct store link that signed-in customers can open immediately.',
+            'url': reverse('core:customer_store_detail', args=[shop.slug]),
+            'icon': 'store',
+            'copy_text': store_public_url,
+            'copy_label': 'Copy Link',
+        },
+        {
+            'label': 'Add Credit Customer',
+            'detail': 'Jump into KhataBook to monitor credit orders and recovery progress.',
+            'url': reverse('core:shop_khatabook'),
+            'icon': 'wallet',
+        },
+        {
+            'label': 'Update Store Details',
+            'detail': 'Refresh address, photos, description, and storefront readiness.',
+            'url': reverse('core:shop_settings'),
+            'icon': 'square-pen',
+        },
+    ]
+    today_summary = [
+        {
+            'label': 'Orders Today',
+            'value': orders_today_count,
+            'detail': (
+                'No orders yet. Share your store link to start receiving orders.'
+                if orders_today_count == 0
+                else 'Orders placed today across all payment methods.'
+            ),
+            'chip': 'info' if orders_today_count == 0 else 'success',
+        },
+        {
+            'label': 'Revenue Today',
+            'value': f'Rs. {revenue_today}',
+            'detail': 'Today\'s revenue from non-cancelled orders.',
+            'chip': 'success' if revenue_today > Decimal('0.00') else 'info',
+        },
+        {
+            'label': 'Pending Deliveries',
+            'value': pending_deliveries_count,
+            'detail': 'All active orders that still need packing, pickup, or final delivery.',
+            'chip': 'warn' if pending_deliveries_count else 'success',
+        },
+        {
+            'label': 'New Credit Orders',
+            'value': new_credit_orders_count,
+            'detail': (
+                'No credit orders yet. Credit activity will appear here.'
+                if new_credit_orders_count == 0
+                else 'KhataBook orders created today.'
+            ),
+            'chip': 'warn' if new_credit_orders_count else 'info',
+        },
+    ]
+    business_overview = [
+        {
+            'label': 'Total Orders',
+            'value': len(orders),
+            'detail': 'All orders received so far in this storefront.',
+        },
+        {
+            'label': 'Total Revenue',
+            'value': f'Rs. {total_revenue}',
+            'detail': 'Gross order value excluding cancelled orders.',
+        },
+        {
+            'label': 'Products Live',
+            'value': live_product_count,
+            'detail': (
+                'No products added. Add your first product to go live.'
+                if live_product_count == 0
+                else 'Products currently listed in the storefront catalog.'
+            ),
+        },
+        {
+            'label': 'Store Rating',
+            'value': f'{shop.display_rating:.1f}',
+            'detail': (
+                f'Based on {shop.rating_count} customer rating{"s" if shop.rating_count != 1 else ""}.'
+                if shop.rating_count
+                else 'No customer ratings yet. The default score is showing for now.'
+            ),
+        },
+        {
+            'label': 'Customers',
+            'value': customers_count,
+            'detail': 'Unique customers who have placed at least one non-cancelled order.',
+        },
+    ]
+    attention_cards = [
+        {
+            'label': 'Pending Orders',
+            'value': pending_orders_count,
+            'detail': (
+                'Orders are waiting for confirmation or packing.'
+                if pending_orders_count
+                else 'No pending orders are waiting on the store right now.'
+            ),
+            'chip': 'warn' if pending_orders_count else 'success',
+            'url': reverse('core:shop_orders'),
+        },
+        {
+            'label': 'Products Out of Stock',
+            'value': out_of_stock_count,
+            'detail': (
+                'Some products need stock updates before customers hit a dead end.'
+                if out_of_stock_count
+                else 'Catalog stock looks healthy right now.'
+            ),
+            'chip': 'danger' if out_of_stock_count else 'success',
+            'url': reverse('core:shop_products'),
+        },
+        {
+            'label': 'Profile Incomplete',
+            'value': profile_incomplete_count,
+            'detail': (
+                f'{profile_completion_percent}% of the storefront profile is complete.'
+                if profile_incomplete_count
+                else 'Storefront profile is complete and customer-facing.'
+            ),
+            'chip': 'warn' if profile_incomplete_count else 'success',
+            'url': reverse('core:shop_settings'),
+        },
+        {
+            'label': 'Pending Approvals',
+            'value': pending_approvals_count,
+            'detail': (
+                'One or more approval steps are still in review.'
+                if pending_approvals_count
+                else 'Owner and storefront approvals are complete.'
+            ),
+            'chip': 'warn' if pending_approvals_count else 'success',
+            'url': reverse('core:shop_settings'),
+        },
+    ]
+    notification_groups = [
+        {
+            'label': 'Recent Activities',
+            'items': notifications[:4],
+            'empty_message': 'Recent store activity will appear here.',
+        },
+        {
+            'label': 'Approval Updates',
+            'items': [note for note in notifications if note.notification_type in [NotificationType.STORE, NotificationType.SYSTEM]][:3],
+            'empty_message': 'Approval updates will appear here once review activity happens.',
+        },
+        {
+            'label': 'Order Notifications',
+            'items': [note for note in notifications if note.notification_type in [NotificationType.ORDER, NotificationType.RIDER]][:3],
+            'empty_message': 'Order alerts will appear here when customers place or update orders.',
+        },
+        {
+            'label': 'Payment Notifications',
+            'items': [note for note in notifications if note.notification_type == NotificationType.PAYMENT][:3],
+            'empty_message': 'Payment and KhataBook updates will appear here.',
+        },
+    ]
     return {
         'shop': shop,
         'orders': orders,
@@ -3112,14 +3469,28 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
             },
         ],
         'editing_product': editing_product,
-        'notifications': user_notifications(request.user),
-        'live_product_count': shop.products.count(),
+        'notifications': notifications,
+        'notification_groups': notification_groups,
+        'live_product_count': live_product_count,
         'approval_cards': approval_cards,
+        'approval_timeline': approval_timeline,
+        'setup_checklist': setup_checklist,
+        'setup_progress_complete': setup_progress_complete,
+        'setup_progress_total': setup_progress_total,
+        'setup_progress_percent': setup_progress_percent,
+        'go_live_status': go_live_status,
+        'quick_actions': quick_actions,
+        'today_summary': today_summary,
+        'business_overview': business_overview,
+        'attention_cards': attention_cards,
+        'store_public_url': store_public_url,
+        'profile_completion_checks': profile_completion_checks,
+        'profile_completion_percent': profile_completion_percent,
+        'profile_incomplete_count': profile_incomplete_count,
+        'location_ready_for_go_live': shop_location_is_configured(shop),
         'shop_khatabook': shop_khatabook,
-        'active_order_count': sum(
-            1 for order in orders if order.status not in [OrderStatus.DELIVERED, OrderStatus.CANCELLED]
-        ),
-        'delivered_order_count': sum(1 for order in orders if order.status == OrderStatus.DELIVERED),
+        'active_order_count': active_order_count,
+        'delivered_order_count': delivered_order_count,
         'dashboard_role': RoleType.SHOP,
         'page_nav': shop_page_nav(),
     }
@@ -4020,6 +4391,7 @@ def register_details_view(request: HttpRequest) -> HttpResponse:
                 'selected_role': selected_role,
                 'selected_role_label': role_label(selected_role),
                 'selected_role_copy': REGISTRATION_ROLE_ONBOARDING_COPY.get(selected_role, ''),
+                'google_maps_browser_api_key': getattr(settings, 'GOOGLE_MAPS_BROWSER_API_KEY', ''),
             },
         )
     )
@@ -4421,6 +4793,7 @@ def shop_start(request: HttpRequest) -> HttpResponse:
                 {
                     'form': form,
                     'shop_owner': profile,
+                    'google_maps_browser_api_key': getattr(settings, 'GOOGLE_MAPS_BROWSER_API_KEY', ''),
                 },
             )
         )
@@ -5425,6 +5798,10 @@ def shop_toggle_store_state(request: HttpRequest) -> HttpResponse:
         messages.error(request, 'Your store can go live only after admin approval.')
         return redirect(redirect_to)
 
+    if not shop.is_open and not shop_location_is_configured(shop):
+        messages.error(request, 'Set your exact store location in Storefront Settings before going live.')
+        return redirect('core:shop_settings')
+
     shop.is_open = not shop.is_open
     shop.save(update_fields=['is_open', 'updated_at'])
 
@@ -5498,11 +5875,14 @@ def shop_settings_view(request: HttpRequest) -> HttpResponse:
         return redirect_missing_shop_setup(request)
     shop = context['shop']
     if request.method == 'POST' and request.POST.get('action') == 'update_shop':
+        was_approved = shop.approval_status == ApprovalStatus.APPROVED
         shop_form = ShopUpdateForm(request.POST, request.FILES, instance=shop)
         if shop_form.is_valid():
             updated_shop = shop_form.save(commit=False)
             if updated_shop.approval_status != ApprovalStatus.APPROVED:
                 updated_shop.approval_status = ApprovalStatus.PENDING
+                updated_shop.is_open = False
+            elif not shop_location_is_configured(updated_shop):
                 updated_shop.is_open = False
             updated_shop.save()
             create_notification(
@@ -5511,11 +5891,16 @@ def shop_settings_view(request: HttpRequest) -> HttpResponse:
                 body='Your store details changed and may need a fresh approval review.',
                 notification_type=NotificationType.STORE,
             )
+            if was_approved and not shop_location_is_configured(updated_shop):
+                messages.error(request, 'Store details were saved, but the store stayed closed until location is fully set.')
             messages.success(request, 'Shop details updated.')
             return redirect('core:shop_settings')
     else:
         shop_form = ShopUpdateForm(instance=shop)
     context['shop_form'] = shop_form
+    context['google_maps_browser_api_key'] = getattr(settings, 'GOOGLE_MAPS_BROWSER_API_KEY', '')
+    context['shop_location_preview_url'] = build_google_embed_place_url(shop.latitude, shop.longitude)
+    context['location_ready_for_go_live'] = shop_location_is_configured(shop)
     return render(request, 'core/shop_settings.html', context)
 
 
