@@ -10,3 +10,6 @@ staticfiles/
 *.aux
 *.out
 *.toc
+node_modules/
+android
+.idea/
