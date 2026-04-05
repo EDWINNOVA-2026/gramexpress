@@ -1072,11 +1072,25 @@
 
   .shop-dashboard-top,
   .shop-dashboard-layout,
+  .shop-dashboard-hero-grid,
+  .shop-dashboard-hero-main,
+  .shop-dashboard-hero-side,
   .shop-dashboard-heading,
+  .shop-dashboard-storefront-card,
+  .shop-dashboard-storefront-head,
+  .shop-dashboard-storefront-body,
+  .shop-dashboard-storefront-actions,
+  .shop-dashboard-notification-grid,
   .shop-dashboard-state-copy,
   .shop-dashboard-ops-list,
+  .shop-dashboard-quick-links,
   .shop-dashboard-op-row,
-  .shop-dashboard-empty-state {
+  .shop-dashboard-empty-state,
+  .shop-khatabook-shell,
+  .shop-khatabook-order-list,
+  .shop-khatabook-order-card,
+  .shop-khatabook-lower,
+  .shop-khatabook-dashboard-card {
     @apply grid gap-4;
   }
 
@@ -1114,6 +1128,26 @@
     @apply text-sm leading-6 text-slate-600;
   }
 
+  .shop-dashboard-photo-shell {
+    @apply overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-soft;
+    width: min(100%, 12rem);
+    aspect-ratio: 1 / 1;
+  }
+
+  .shop-dashboard-photo-shell-large {
+    width: min(100%, 15rem);
+  }
+
+  .shop-dashboard-photo {
+    @apply h-full w-full object-cover;
+  }
+
+  .shop-dashboard-storefront-fallback {
+    @apply grid place-items-center rounded-2xl border border-slate-200 bg-slate-50;
+    width: min(100%, 15rem);
+    aspect-ratio: 1 / 1;
+  }
+
   .shop-dashboard-state-actions,
   .shop-dashboard-primary-actions {
     @apply grid gap-3;
@@ -1140,8 +1174,69 @@
     @apply text-lg font-bold text-slate-950;
   }
 
+  .shop-dashboard-quick-links {
+    @apply gap-3;
+  }
+
+  .shop-dashboard-quick-link {
+    @apply grid gap-2 rounded-2xl border border-slate-200 bg-white/85 px-4 py-4 text-left shadow-soft transition;
+  }
+
+  .shop-dashboard-quick-link strong {
+    @apply text-base font-semibold text-slate-950;
+  }
+
+  .shop-dashboard-quick-link p {
+    @apply text-sm leading-6 text-slate-600;
+  }
+
+  .shop-dashboard-quick-link:hover {
+    @apply border-slate-300 bg-white;
+    transform: translateY(-1px);
+  }
+
+  .shop-dashboard-storefront-head {
+    @apply flex items-start justify-between gap-3;
+  }
+
+  .shop-dashboard-storefront-body {
+    @apply gap-4;
+  }
+
+  .shop-dashboard-storefront-actions {
+    @apply flex flex-wrap gap-3;
+  }
+
+  .shop-dashboard-notification-grid {
+    @apply gap-4;
+  }
+
+  .shop-approval-visibility-grid {
+    @apply grid gap-3 md:grid-cols-2;
+  }
+
+  .shop-approval-visibility-card {
+    @apply grid gap-2 rounded-2xl border px-4 py-4 shadow-soft;
+  }
+
+  .shop-approval-visibility-card strong {
+    @apply text-xl font-bold text-slate-950;
+  }
+
+  .shop-approval-visibility-card p {
+    @apply text-sm leading-6 text-slate-600;
+  }
+
+  .shop-approval-visibility-card.is-approved {
+    @apply border-emerald-200 bg-emerald-50;
+  }
+
+  .shop-approval-visibility-card.is-review {
+    @apply border-amber-200 bg-amber-50;
+  }
+
   .shop-dashboard-nav {
-    @apply sticky z-20 grid grid-cols-4 gap-1 p-2;
+    @apply sticky z-20 grid grid-cols-5 gap-1 p-2;
     top: calc(env(safe-area-inset-top) + 5.1rem);
   }
 
@@ -1177,6 +1272,10 @@
     @apply gap-4;
   }
 
+  .shop-dashboard-panel-wide {
+    @apply w-full;
+  }
+
   .shop-dashboard-panel summary {
     @apply flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-slate-950;
   }
@@ -1200,6 +1299,14 @@
 
   .shop-dashboard-panel[open] summary::after {
     content: "−";
+  }
+
+  .shop-khatabook-order-card {
+    @apply gap-5;
+  }
+
+  .shop-khatabook-order-list {
+    @apply gap-5;
   }
 
   .quick-card,
@@ -1519,6 +1626,23 @@
 
   .store-grid-catalog {
     @apply items-start;
+  }
+
+  .shop-catalog-layout {
+    @apply items-start;
+  }
+
+  .shop-catalog-composer,
+  .shop-catalog-panel {
+    @apply self-start;
+  }
+
+  .shop-catalog-grid {
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  }
+
+  .shop-catalog-card {
+    @apply h-full;
   }
 
   .timeline-list {
@@ -1843,12 +1967,73 @@
     grid-template-columns: minmax(0, 1.35fr) minmax(20rem, 0.65fr);
   }
 
+  .shop-dashboard-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .layout-two {
     grid-template-columns: minmax(0, 1.2fr) minmax(20rem, 0.8fr);
   }
 
+  .shop-catalog-layout {
+    grid-template-columns: minmax(20rem, 24rem) minmax(0, 1fr);
+  }
+
   .shop-dashboard-layout {
-    grid-template-columns: minmax(0, 1.15fr) minmax(20rem, 0.85fr);
+    grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr);
+    @apply items-start gap-5;
+  }
+
+  .shop-dashboard-hero-grid {
+    grid-template-columns: minmax(0, 1.3fr) minmax(22rem, 0.9fr);
+    @apply items-start gap-6;
+  }
+
+  .shop-dashboard-hero-main,
+  .shop-dashboard-hero-side {
+    @apply gap-5;
+  }
+
+  .shop-dashboard-state-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    @apply items-center gap-5;
+  }
+
+  .shop-dashboard-state-actions {
+    @apply min-w-[11rem];
+  }
+
+  .shop-dashboard-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .shop-dashboard-quick-links {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .shop-dashboard-storefront-body {
+    grid-template-columns: minmax(13rem, 15rem) minmax(0, 1fr);
+    @apply items-start gap-5;
+  }
+
+  .shop-dashboard-notification-grid {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+
+  .shop-dashboard-notification-grid > .compact-item-notification,
+  .shop-dashboard-notification-grid > .shop-dashboard-empty-state {
+    flex: 1 1 calc(50% - 0.5rem);
+    min-width: 0;
+  }
+
+  .shop-dashboard-layout > .stack {
+    @apply content-start gap-5 self-start;
+  }
+
+  .shop-dashboard-panel-wide {
+    grid-column: 1 / -1;
   }
 
   .quick-grid,
@@ -1937,6 +2122,27 @@
 
   .store-grid.store-grid-catalog {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .shop-catalog-grid {
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  }
+
+  .shop-dashboard-layout {
+    grid-template-columns: minmax(0, 1.25fr) minmax(22rem, 0.8fr);
+  }
+
+  .shop-dashboard-hero-grid {
+    grid-template-columns: minmax(0, 1.45fr) minmax(24rem, 0.85fr);
+  }
+
+  .shop-dashboard-quick-links {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .shop-dashboard-notification-grid > .compact-item-notification,
+  .shop-dashboard-notification-grid > .shop-dashboard-empty-state {
+    flex-basis: calc(50% - 0.5rem);
   }
 
   .site-main {

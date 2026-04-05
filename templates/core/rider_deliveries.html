@@ -12,13 +12,13 @@
 
   <section class="dashboard-top" id="top">
     <article class="hero-card glass-card hero-card-rider" data-appear>
-      <span class="eyebrow">Active Orders</span>
-      <h1>Pickup to drop-off</h1>
-      <p class="hero-lead">This screen stays focused on the job in hand, with one clear next action, pinned map links, and the latest delivery update.</p>
+      <span class="eyebrow">Active Work</span>
+      <h1>Pickup, drop-off, and KhataBook collection</h1>
+      <p class="hero-lead">Keep delivery handoffs and KhataBook repayment collections in one focused rider workspace, with clear signals on which jobs need money and which do not.</p>
       <div class="hero-inline-facts">
         <span class="soft-pill"><span class="ui-icon icon-bike" aria-hidden="true"></span><span>{{ active_order_count }} active</span></span>
-        <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>Today Rs. {{ today_earnings }}</span></span>
-        <span class="soft-pill"><span class="ui-icon icon-map-pinned" aria-hidden="true"></span><span>Pinned maps only</span></span>
+        <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>{{ active_khatabook_collection_count }} collections</span></span>
+        <span class="soft-pill"><span class="ui-icon icon-indian-rupee" aria-hidden="true"></span><span>Today Rs. {{ today_earnings }}</span></span>
       </div>
     </article>
 
@@ -26,12 +26,12 @@
       <article class="metric-card">
         <span class="metric-label">Completed</span>
         <strong class="metric-value">{{ completed_delivery_count }}</strong>
-        <p>{{ rider.full_name }} can finish pickup and drop-off from here without leaving the flow.</p>
+        <p>{{ rider.full_name }} can finish both deliveries and KhataBook collections from here.</p>
       </article>
       <article class="card quick-card">
-        <span class="eyebrow">Map Actions</span>
-        <h2 class="section-title">Pinned locations only</h2>
-        <p>Use exact pickup and drop-off pins for navigation. Live tracking has been removed from the current version.</p>
+        <span class="eyebrow">KhataBook Split</span>
+        <h2 class="section-title">{{ completed_credit_delivery_count }} credit / {{ completed_direct_payment_delivery_count }} direct</h2>
+        <p>Use this split to know which completed jobs were delivered on platform credit and which involved direct payment.</p>
       </article>
     </aside>
   </section>
@@ -47,6 +47,7 @@
         <div class="action-cluster">
           <span class="status-chip {{ priority_order.status_chip }}">{{ priority_order.get_status_display }}</span>
           <span class="soft-pill">{{ priority_order.display_id }}</span>
+          <span class="soft-pill">{{ priority_order.payment_mode_badge }}</span>
         </div>
       </div>
 
@@ -54,11 +55,14 @@
         <div class="compact-item">
           <strong>{{ priority_order.shop.name }} to {{ priority_order.customer.full_name }}</strong>
           <p>{{ priority_order.current_mission_meta }}</p>
-          <span class="tiny muted">Last update {{ priority_order.last_update_label }}{% if priority_order.last_update_timestamp_label %} • {{ priority_order.last_update_timestamp_label }}{% endif %}</span>
+          <span class="tiny muted">Last update {{ priority_order.last_update_label }}{% if priority_order.last_update_timestamp_label %} | {{ priority_order.last_update_timestamp_label }}{% endif %}</span>
         </div>
         <div class="compact-item">
           <strong>Latest customer update sent</strong>
           <p>{{ priority_order.latest_rider_update }}</p>
+          {% if priority_order.is_khatabook_order %}
+            <p class="utility-note">KhataBook credit order: do not collect money at drop-off.</p>
+          {% endif %}
         </div>
       </div>
 
@@ -140,19 +144,66 @@
     </section>
   {% endif %}
 
+  {% if priority_khatabook_request %}
+    <section class="card mission-card" data-appear>
+      <div class="split-row">
+        <div class="content-stack">
+          <span class="eyebrow">Current KhataBook collection</span>
+          <h2 class="section-title">{{ priority_khatabook_request.flow_headline }}</h2>
+          <p class="subtle">{{ priority_khatabook_request.flow_detail }}</p>
+        </div>
+        <div class="action-cluster">
+          <span class="status-chip {{ priority_khatabook_request.status_chip }}">{{ priority_khatabook_request.get_status_display }}</span>
+          <span class="soft-pill">{{ priority_khatabook_request.display_id }}</span>
+        </div>
+      </div>
+
+      <div class="mission-grid">
+        <div class="compact-item">
+          <strong>{{ priority_khatabook_request.customer.full_name }}</strong>
+          <p>Collect Rs. {{ priority_khatabook_request.amount }}</p>
+          <span class="tiny muted">{{ priority_khatabook_request.collection_address }}</span>
+        </div>
+        <div class="compact-item">
+          <strong>Collection rule</strong>
+          <p>Collect only the KhataBook weekly due for this request, not any separate storefront order payment.</p>
+          <span class="tiny muted">Distance {{ priority_khatabook_request.distance_km }} km</span>
+        </div>
+      </div>
+
+      <div class="mission-toolbar">
+        <a class="button secondary" href="{{ priority_khatabook_request.map_url }}" target="_blank" rel="noreferrer">Open Collection Pin</a>
+      </div>
+
+      <form method="post" action="{% url 'core:rider_complete_khatabook_collection' priority_khatabook_request.id %}" class="stack small-gap rider-action-form top-gap-sm">
+        {% csrf_token %}
+        <label>Collection OTP
+          <input type="text" name="collection_otp" placeholder="Enter customer KhataBook OTP" required />
+        </label>
+        <p class="utility-note">Ask the customer for the repayment OTP sent to their registered contact. Completion works only when you are close to the customer location.</p>
+        <div class="inline-actions">
+          <button class="button primary" type="submit">Collected And Closed</button>
+        </div>
+      </form>
+      <form method="post" action="{% url 'core:rider_resend_khatabook_collection_otp' priority_khatabook_request.id %}" class="inline-actions">
+        {% csrf_token %}
+        <button class="button small secondary" type="submit">Resend KhataBook OTP</button>
+      </form>
+    </section>
+  {% endif %}
+
   <section class="card section-stack" data-appear>
     <div class="split-row">
       <div class="content-stack">
-        <span class="eyebrow">Active Queue</span>
+        <span class="eyebrow">Active Deliveries</span>
         <h2 class="section-title">Everything else you are handling</h2>
-        <p class="subtle">The list below keeps the same order flow visible, but the current mission above stays the main focus.</p>
+        <p class="subtle">KhataBook credit orders stay visible here so you always know when not to ask the customer for money.</p>
       </div>
       <span class="status-chip info">{{ active_order_count }} active</span>
     </div>
 
     <div class="stack">
       {% for order in active_orders %}
-        {% if not forloop.first or active_orders|length == 1 %}
         <article class="nested-panel order-card rider-order-card roomy-card">
           <div class="split-row">
             <div class="content-stack">
@@ -162,6 +213,7 @@
             </div>
             <div class="action-cluster">
               <span class="status-chip {{ order.status_chip }}">{{ order.get_status_display }}</span>
+              <span class="soft-pill">{{ order.payment_mode_badge }}</span>
               <span class="soft-pill">Earn Rs. {{ order.delivery_fee }}</span>
             </div>
           </div>
@@ -173,23 +225,26 @@
           </div>
 
           <div class="summary-grid">
-          <div class="compact-item content-stack">
-            <strong>{{ order.flow_headline }}</strong>
-            <p>{{ order.flow_detail }}</p>
-            <span class="tiny muted">Last update {{ order.last_update_label }}{% if order.last_update_timestamp_label %} • {{ order.last_update_timestamp_label }}{% endif %}</span>
-          </div>
-          <div class="compact-item content-stack">
-            <strong>Latest customer update sent</strong>
-            <p>{{ order.latest_rider_update }}</p>
-            {% if order.latest_rider_notification %}
-              <span class="tiny muted">{{ order.latest_rider_notification.created_at|date:"M d, H:i" }}</span>
-            {% endif %}
-          </div>
-          <div class="compact-item content-stack">
-            <strong>{{ order.payment_summary.label }}</strong>
-            <p>{{ order.payment_summary.detail }}</p>
-            <span class="status-chip {{ order.payment_summary.chip_class }}">{{ order.payment_summary.status_label }}</span>
-          </div>
+            <div class="compact-item content-stack">
+              <strong>{{ order.flow_headline }}</strong>
+              <p>{{ order.flow_detail }}</p>
+              {% if order.is_khatabook_order %}
+                <p class="utility-note">KhataBook credit order: deliver against OTP only and do not collect money.</p>
+              {% endif %}
+              <span class="tiny muted">Last update {{ order.last_update_label }}{% if order.last_update_timestamp_label %} | {{ order.last_update_timestamp_label }}{% endif %}</span>
+            </div>
+            <div class="compact-item content-stack">
+              <strong>Latest customer update sent</strong>
+              <p>{{ order.latest_rider_update }}</p>
+              {% if order.latest_rider_notification %}
+                <span class="tiny muted">{{ order.latest_rider_notification.created_at|date:"M d, H:i" }}</span>
+              {% endif %}
+            </div>
+            <div class="compact-item content-stack">
+              <strong>{{ order.payment_summary.label }}</strong>
+              <p>{{ order.payment_summary.detail }}</p>
+              <span class="status-chip {{ order.payment_summary.chip_class }}">{{ order.payment_summary.status_label }}</span>
+            </div>
           </div>
 
           <div class="rider-stop-grid">
@@ -290,11 +345,72 @@
             {% endif %}
           {% endif %}
         </article>
-        {% endif %}
       {% empty %}
         <div class="nested-panel">
-          <strong>No active orders</strong>
+          <strong>No active deliveries</strong>
           <p>Accept a new order to move it here immediately and start the pickup flow.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card section-stack" data-appear>
+    <div class="split-row">
+      <div class="content-stack">
+        <span class="eyebrow">KhataBook Collections</span>
+        <h2 class="section-title">Credit repayments you already accepted</h2>
+      </div>
+      <span class="status-chip warn">{{ active_khatabook_collection_count }} active</span>
+    </div>
+
+    <div class="stack">
+      {% for collection_request in active_khatabook_requests %}
+        <article class="nested-panel order-card rider-order-card roomy-card">
+          <div class="split-row">
+            <div class="content-stack">
+              <strong>{{ collection_request.display_id }}</strong>
+              <p>{{ collection_request.customer.full_name }}</p>
+              <p class="utility-note">{{ collection_request.collection_address }}</p>
+            </div>
+            <div class="action-cluster">
+              <span class="status-chip {{ collection_request.status_chip }}">{{ collection_request.get_status_display }}</span>
+              <span class="soft-pill">Rs. {{ collection_request.amount }}</span>
+            </div>
+          </div>
+
+          <div class="summary-grid">
+            <div class="compact-item content-stack">
+              <strong>{{ collection_request.flow_headline }}</strong>
+              <p>{{ collection_request.flow_detail }}</p>
+            </div>
+            <div class="compact-item content-stack">
+              <strong>Location</strong>
+              <p>{{ collection_request.distance_km }} km from you</p>
+              <p class="utility-note">Use the customer location pin before marking the collection as complete.</p>
+            </div>
+          </div>
+
+          <div class="action-cluster">
+            <a class="button small secondary" href="{{ collection_request.map_url }}" target="_blank" rel="noreferrer">Open Collection Pin</a>
+          </div>
+
+          <form method="post" action="{% url 'core:rider_complete_khatabook_collection' collection_request.id %}" class="stack small-gap rider-action-form">
+            {% csrf_token %}
+            <label>Collection OTP
+              <input type="text" name="collection_otp" placeholder="Enter customer KhataBook OTP" required />
+            </label>
+            <p class="utility-note">The customer should share the KhataBook collection OTP sent to their registered contact only at the repayment handoff.</p>
+            <button class="button primary" type="submit">Collected And Closed</button>
+          </form>
+          <form method="post" action="{% url 'core:rider_resend_khatabook_collection_otp' collection_request.id %}" class="inline-actions">
+            {% csrf_token %}
+            <button class="button small secondary" type="submit">Resend KhataBook OTP</button>
+          </form>
+        </article>
+      {% empty %}
+        <div class="nested-panel">
+          <strong>No active KhataBook collections</strong>
+          <p>Accepted credit-collection tasks will appear here until you complete them.</p>
         </div>
       {% endfor %}
     </div>

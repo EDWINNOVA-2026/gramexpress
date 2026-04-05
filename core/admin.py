@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    ApprovalStatus,
     CustomerProfile,
     EmailOtpToken,
     Notification,
@@ -53,6 +54,13 @@ class ShopOwnerProfileAdmin(admin.ModelAdmin):
     search_fields = ('full_name', 'phone', 'email')
     list_editable = ('approval_status',)
 
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        obj.shops.update(
+            approval_status=obj.approval_status,
+            **({'is_open': False} if obj.approval_status != ApprovalStatus.APPROVED else {}),
+        )
+
 
 @admin.register(RiderProfile)
 class RiderProfileAdmin(admin.ModelAdmin):
@@ -71,6 +79,12 @@ class ShopAdmin(admin.ModelAdmin):
     search_fields = ('name', 'owner__full_name', 'district')
     list_editable = ('approval_status', 'is_open')
     actions = [approve_stores, reject_stores]
+
+    def save_model(self, request, obj, form, change):
+        if obj.approval_status != ApprovalStatus.APPROVED:
+            obj.is_open = False
+        super().save_model(request, obj, form, change)
+        ShopOwnerProfile.objects.filter(pk=obj.owner_id).update(approval_status=obj.approval_status)
 
 
 @admin.register(Product)

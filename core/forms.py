@@ -414,6 +414,7 @@ class CustomerOrderMetaForm(forms.Form, BaseStyledForm):
             self.fields['payment_method'].choices = [
                 choice for choice in PaymentMethod.choices if choice[0] != PaymentMethod.RAZORPAY
             ]
+        self.fields['payment_method'].initial = self.initial.get('payment_method', PaymentMethod.COD)
         self._style_fields()
 
 

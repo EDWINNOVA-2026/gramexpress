@@ -3,80 +3,109 @@
 {% block content %}
   <section class="dashboard-top shop-dashboard-top" id="top">
     <article class="hero-card glass-card hero-card-store shop-dashboard-hero" data-appear>
-      <div class="shop-dashboard-heading">
-        <span class="eyebrow">Store workspace</span>
-        <h1>{{ shop.name }}</h1>
-        <p class="hero-lead">Check status, handle orders, and keep your catalog ready from one clear workspace.</p>
-      </div>
+      <div class="shop-dashboard-hero-grid">
+        <div class="shop-dashboard-hero-main">
+          <div class="shop-dashboard-heading">
+            <span class="eyebrow">Store workspace</span>
+            <h1>{{ shop.name }}</h1>
+            <p class="hero-lead">Check status, handle orders, and keep your catalog ready from one clear workspace.</p>
+          </div>
 
-      <div class="hero-inline-facts shop-dashboard-facts">
-        <span class="soft-pill"><span class="ui-icon icon-store" aria-hidden="true"></span><span>{{ shop.get_shop_type_display }}</span></span>
-        <span class="soft-pill"><span class="ui-icon icon-map-pin" aria-hidden="true"></span><span>{{ shop.area }}</span></span>
-        <span class="soft-pill"><span class="ui-icon icon-star" aria-hidden="true"></span><span>Rating {{ shop.rating }}</span></span>
-      </div>
+          <div class="hero-inline-facts shop-dashboard-facts">
+            <span class="soft-pill"><span class="ui-icon icon-store" aria-hidden="true"></span><span>{{ shop.get_shop_type_display }}</span></span>
+            <span class="soft-pill"><span class="ui-icon icon-map-pin" aria-hidden="true"></span><span>{{ shop.area }}</span></span>
+            <span class="soft-pill"><span class="ui-icon icon-star" aria-hidden="true"></span><span>Rating {{ shop.rating }}</span></span>
+          </div>
 
-      <section class="shop-dashboard-state-card{% if shop.approval_status != 'approved' %} is-waiting{% elif shop.is_open %} is-live{% else %} is-offline{% endif %}">
-        <div class="shop-dashboard-state-copy">
-          <span class="metric-label">Store status</span>
-          {% if shop.approval_status != 'approved' %}
-            <strong class="shop-dashboard-state-title">Pending approval</strong>
-            <p>Customers cannot order yet. Review your store details while approval is still in progress.</p>
-          {% elif shop.is_open %}
-            <strong class="shop-dashboard-state-title">Store is live</strong>
-            <p>Your storefront is visible now with {{ live_product_count }} live product{{ live_product_count|pluralize }} ready for browsing.</p>
-          {% else %}
-            <strong class="shop-dashboard-state-title">Store is closed</strong>
-            <p>Customers cannot place new orders until you open the store again.</p>
-          {% endif %}
+          <section class="shop-dashboard-state-card{% if shop.approval_status != 'approved' %} is-waiting{% elif shop.is_open %} is-live{% else %} is-offline{% endif %}">
+            <div class="shop-dashboard-state-copy">
+              <span class="metric-label">Store status</span>
+              {% if shop.approval_status != 'approved' %}
+                <strong class="shop-dashboard-state-title">Pending approval</strong>
+                <p>Customers cannot order yet. Review your store details while approval is still in progress.</p>
+              {% elif shop.is_open %}
+                <strong class="shop-dashboard-state-title">Store is live</strong>
+                <p>Your storefront is visible now with {{ live_product_count }} live product{{ live_product_count|pluralize }} ready for browsing.</p>
+              {% else %}
+                <strong class="shop-dashboard-state-title">Store is closed</strong>
+                <p>Customers cannot place new orders until you open the store again.</p>
+              {% endif %}
+            </div>
+
+            <div class="shop-dashboard-state-actions">
+              {% if shop.approval_status == 'approved' %}
+                <form method="post" action="{% url 'core:shop_toggle_store_state' %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{% url 'core:shop_dashboard' %}">
+                  <button class="button {% if shop.is_open %}secondary{% else %}primary{% endif %}" type="submit">
+                    {% if shop.is_open %}Close Store{% else %}Open Store{% endif %}
+                  </button>
+                </form>
+              {% endif %}
+              <a class="button secondary" href="{% url 'core:shop_settings' %}">Edit Store</a>
+            </div>
+          </section>
+
+          <div class="shop-dashboard-primary-actions">
+            <a class="button primary" href="{% url 'core:shop_orders' %}">Open Orders</a>
+            <a class="button secondary" href="{% url 'core:shop_products' %}">Open Catalog</a>
+          </div>
+
+          <section class="shop-dashboard-quick-links" aria-label="Desktop quick links">
+            <a class="shop-dashboard-quick-link" href="{% url 'core:shop_orders' %}">
+              <span class="metric-label">Queue</span>
+              <strong>{{ active_order_count }} active order{{ active_order_count|pluralize }}</strong>
+              <p>Jump straight into confirmations, packing, and rider handoff.</p>
+            </a>
+            <a class="shop-dashboard-quick-link" href="{% url 'core:shop_khatabook' %}">
+              <span class="metric-label">KhataBook</span>
+              <strong>Rs. {{ shop_khatabook.active_credit_exposure }} exposure</strong>
+              <p>Track live credit risk, defaulted money, and weekly recovery visibility without opening every order.</p>
+            </a>
+            <a class="shop-dashboard-quick-link" href="{% url 'core:shop_products' %}">
+              <span class="metric-label">Catalog</span>
+              <strong>{{ live_product_count }} product{{ live_product_count|pluralize }} live</strong>
+              <p>Update stock, pricing, and shelf readiness without leaving the dashboard flow.</p>
+            </a>
+            <a class="shop-dashboard-quick-link" href="{% url 'core:shop_settings' %}">
+              <span class="metric-label">Store settings</span>
+              <strong>Review storefront details</strong>
+              <p>Keep address, photos, and store identity polished for desktop and mobile customers.</p>
+            </a>
+          </section>
         </div>
 
-        <div class="shop-dashboard-state-actions">
-          {% if shop.approval_status == 'approved' %}
-            <form method="post" action="{% url 'core:shop_toggle_store_state' %}">
-              {% csrf_token %}
-              <input type="hidden" name="next" value="{% url 'core:shop_dashboard' %}">
-              <button class="button {% if shop.is_open %}secondary{% else %}primary{% endif %}" type="submit">
-                <span class="ui-icon icon-store" aria-hidden="true"></span>
-                <span>{% if shop.is_open %}Close Store{% else %}Open Store{% endif %}</span>
-              </button>
-            </form>
-          {% endif %}
-          <a class="button secondary" href="{% url 'core:shop_settings' %}">
-            <span class="ui-icon icon-square-pen" aria-hidden="true"></span>
-            <span>Edit Store</span>
-          </a>
+        <div class="shop-dashboard-hero-side">
+          <section class="shop-dashboard-summary-grid" aria-label="Store overview metrics">
+            <article class="shop-dashboard-summary-item">
+              <span class="metric-label">Approval</span>
+              <strong>{{ shop.get_approval_status_display }}</strong>
+            </article>
+            <article class="shop-dashboard-summary-item">
+              <span class="metric-label">Products</span>
+              <strong>{{ live_product_count }}</strong>
+            </article>
+            <article class="shop-dashboard-summary-item">
+              <span class="metric-label">Active orders</span>
+              <strong>{{ active_order_count }}</strong>
+            </article>
+            <article class="shop-dashboard-summary-item">
+              <span class="metric-label">Delivered</span>
+              <strong>{{ delivered_order_count }}</strong>
+            </article>
+          </section>
+
+          <section class="shop-approval-visibility-grid" aria-label="Approval visibility">
+            {% for card in approval_cards %}
+              <article class="shop-approval-visibility-card{% if card.is_approved %} is-approved{% else %} is-review{% endif %}">
+                <span class="metric-label">{{ card.label }}</span>
+                <strong>{{ card.value }}</strong>
+                <p>{{ card.detail }}</p>
+              </article>
+            {% endfor %}
+          </section>
         </div>
-      </section>
-
-      <div class="shop-dashboard-primary-actions">
-        <a class="button primary" href="{% url 'core:shop_orders' %}">
-          <span class="ui-icon icon-clipboard-list" aria-hidden="true"></span>
-          <span>Open Orders</span>
-        </a>
-        <a class="button secondary" href="{% url 'core:shop_products' %}">
-          <span class="ui-icon icon-boxes" aria-hidden="true"></span>
-          <span>Open Catalog</span>
-        </a>
       </div>
-
-      <section class="shop-dashboard-summary-grid" aria-label="Store overview metrics">
-        <article class="shop-dashboard-summary-item">
-          <span class="metric-label">Approval</span>
-          <strong>{{ shop.get_approval_status_display }}</strong>
-        </article>
-        <article class="shop-dashboard-summary-item">
-          <span class="metric-label">Products</span>
-          <strong>{{ live_product_count }}</strong>
-        </article>
-        <article class="shop-dashboard-summary-item">
-          <span class="metric-label">Active orders</span>
-          <strong>{{ active_order_count }}</strong>
-        </article>
-        <article class="shop-dashboard-summary-item">
-          <span class="metric-label">Delivered</span>
-          <strong>{{ delivered_order_count }}</strong>
-        </article>
-      </section>
     </article>
   </section>
 
@@ -134,59 +163,76 @@
               {% endif %}
             </p>
           </article>
+          <article class="shop-dashboard-op-row">
+            <div class="shop-dashboard-op-head">
+              <strong>KhataBook</strong>
+              <span class="status-chip {% if shop_khatabook.defaulted_amount %}danger{% elif shop_khatabook.active_credit_exposure %}warn{% else %}success{% endif %}">Rs. {{ shop_khatabook.active_credit_exposure }}</span>
+            </div>
+            <p>
+              {% if shop_khatabook.defaulted_amount %}
+                Rs. {{ shop_khatabook.defaulted_amount }} is already overdue. Your current defaulted risk share is Rs. {{ shop_khatabook.defaulted_shop_risk_share }}.
+              {% elif shop_khatabook.active_credit_exposure %}
+                Live customer credit is open. Your temporary shop-side exposure is Rs. {{ shop_khatabook.shop_risk_share }} until the weekly due closes.
+              {% else %}
+                No live KhataBook exposure is open right now. Fresh credit orders will start appearing here automatically.
+              {% endif %}
+            </p>
+          </article>
         </div>
       </article>
 
-      <details class="card shop-dashboard-panel" data-appear open>
-        <summary>
-          <span>
-            <span class="eyebrow">Notifications</span>
-            <strong>Store activity</strong>
-          </span>
-          <span class="tiny muted">
-            {% if notifications %}
-              {{ notifications|length }} update{{ notifications|length|pluralize }}
-            {% else %}
-              Empty
-            {% endif %}
-          </span>
-        </summary>
-        <div class="compact-list">
-          {% for note in notifications %}
-            <a class="list-item compact-item compact-item-notification{% if not note.is_read %} compact-item-notification-unread{% endif %}" href="{% url 'core:notification_open' note.id %}">
-              <span class="compact-glyph"><span class="ui-icon icon-{{ note.icon_name }}" aria-hidden="true"></span></span>
-              <div>
-                <strong>{{ note.title }}</strong>
-                <p>{{ note.body }}</p>
-                <span class="tiny muted">{{ note.get_notification_type_display }}</span>
+      <article class="card shop-khatabook-dashboard-card" data-appear>
+        <div class="split-row">
+          <div class="content-stack">
+            <span class="eyebrow">KhataBook</span>
+            <h2 class="section-title">Credit exposure snapshot</h2>
+            <p class="subtle">See how much storefront risk is live right now, what has defaulted, and how much the platform is carrying alongside you.</p>
+          </div>
+          <a class="button small secondary" href="{% url 'core:shop_khatabook' %}">Open KhataBook</a>
+        </div>
+
+        {% if shop_khatabook.has_warning %}
+          <div class="checkout-alert checkout-alert-error">
+            <strong>{{ shop_khatabook.warning_headline }}</strong>
+            <p>{{ shop_khatabook.warning_detail }}</p>
+          </div>
+        {% endif %}
+
+        <div class="summary-grid">
+          {% for metric in shop_khatabook.metrics %}
+            <div class="checkout-summary-card content-stack">
+              <div class="split-row">
+                <span class="metric-label">{{ metric.label }}</span>
+                <span class="status-chip {{ metric.chip }}">{{ metric.value }}</span>
               </div>
-              <span class="tiny muted">{{ note.created_at|date:"M d, H:i" }}</span>
-            </a>
-          {% empty %}
-            <div class="shop-dashboard-empty-state">
-              <strong>No store notifications yet</strong>
-              <p>Approval updates, order changes, and store alerts will appear here.</p>
+              <p>{{ metric.detail }}</p>
             </div>
           {% endfor %}
         </div>
-        <a class="button small secondary" href="{% url 'core:notifications' %}">
-          <span class="ui-icon icon-bell" aria-hidden="true"></span>
-          <span>View All Notifications</span>
-        </a>
-      </details>
+      </article>
     </div>
 
     <div class="stack">
-      <details class="card shop-dashboard-panel" data-appear>
-        <summary>
-          <span>
+      <article class="card shop-dashboard-storefront-card" data-appear>
+        <div class="shop-dashboard-storefront-head">
+          <div>
             <span class="eyebrow">Storefront</span>
-            <strong>Current details</strong>
-          </span>
-          <span class="tiny muted">{{ shop.district }}</span>
-        </summary>
-        <div class="profile-summary">
-          <div class="avatar-badge">{{ shop.name|first|upper }}</div>
+            <h2 class="section-title">Current details</h2>
+          </div>
+          <span class="soft-pill">{{ shop.district }}</span>
+        </div>
+
+        <div class="shop-dashboard-storefront-body">
+          {% if shop.image_source %}
+            <div class="shop-dashboard-photo-shell shop-dashboard-photo-shell-large">
+              <img class="shop-dashboard-photo" src="{{ shop.image_source }}" alt="{{ shop.name }} storefront photo" />
+            </div>
+          {% else %}
+            <div class="shop-dashboard-storefront-fallback">
+              <div class="avatar-badge">{{ shop.name|first|upper }}</div>
+            </div>
+          {% endif %}
+
           <div class="profile-copy">
             <strong>{{ shop.name }}</strong>
             <p>{{ shop.address_line_1 }}{% if shop.address_line_2 %}, {{ shop.address_line_2 }}{% endif %}, {{ shop.district }} {{ shop.pincode }}</p>
@@ -196,11 +242,17 @@
             </div>
           </div>
         </div>
-        <a class="button secondary" href="{{ shop.google_maps_url }}" target="_blank" rel="noreferrer">
-          <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
-          <span>Open Shop In Maps</span>
-        </a>
-      </details>
+        <div class="shop-dashboard-storefront-actions">
+          <a class="button secondary" href="{{ shop.google_maps_url }}" target="_blank" rel="noreferrer">
+            <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+            <span>Open Shop In Maps</span>
+          </a>
+          <a class="button secondary" href="{% url 'core:shop_settings' %}">
+            <span class="ui-icon icon-square-pen" aria-hidden="true"></span>
+            <span>Update Storefront</span>
+          </a>
+        </div>
+      </article>
 
       <article class="card shop-dashboard-empty-state" data-appear>
         <span class="eyebrow">Next step</span>
@@ -239,5 +291,43 @@
         {% endif %}
       </article>
     </div>
+
+    <details class="card shop-dashboard-panel shop-dashboard-panel-wide" data-appear open>
+      <summary>
+        <span>
+          <span class="eyebrow">Notifications</span>
+          <strong>Store activity</strong>
+        </span>
+        <span class="tiny muted">
+          {% if notifications %}
+            {{ notifications|length }} update{{ notifications|length|pluralize }}
+          {% else %}
+            Empty
+          {% endif %}
+        </span>
+      </summary>
+      <div class="compact-list shop-dashboard-notification-grid">
+        {% for note in notifications %}
+          <a class="list-item compact-item compact-item-notification{% if not note.is_read %} compact-item-notification-unread{% endif %}" href="{% url 'core:notification_open' note.id %}">
+            <span class="compact-glyph"><span class="ui-icon icon-{{ note.icon_name }}" aria-hidden="true"></span></span>
+            <div>
+              <strong>{{ note.title }}</strong>
+              <p>{{ note.body }}</p>
+              <span class="tiny muted">{{ note.get_notification_type_display }}</span>
+            </div>
+            <span class="tiny muted">{{ note.created_at|date:"M d, H:i" }}</span>
+          </a>
+        {% empty %}
+          <div class="shop-dashboard-empty-state">
+            <strong>No store notifications yet</strong>
+            <p>Approval updates, order changes, and store alerts will appear here.</p>
+          </div>
+        {% endfor %}
+      </div>
+      <a class="button small secondary" href="{% url 'core:notifications' %}">
+        <span class="ui-icon icon-bell" aria-hidden="true"></span>
+        <span>View All Notifications</span>
+      </a>
+    </details>
   </section>
 {% endblock %}

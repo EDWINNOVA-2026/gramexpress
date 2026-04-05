@@ -167,6 +167,15 @@
                 </form>
               {% endif %}
               {% if order.status == 'out_for_delivery' %}
+                {% if order.payment_method == 'khata' %}
+                  <div class="compact-item content-stack">
+                    <strong>KhataBook credit order</strong>
+                    <p>This order is on platform credit. Complete the OTP handoff normally and do not collect money from the customer.</p>
+                    {% if order.credit_due_date %}
+                      <span class="status-chip warn">Customer due {{ order.credit_due_date|date:"M d" }}</span>
+                    {% endif %}
+                  </div>
+                {% endif %}
                 {% if order.payment_method == 'cod' %}
                   <div class="compact-item content-stack">
                     <strong>COD collection</strong>
@@ -305,6 +314,16 @@
                 </div>
               {% endif %}
 
+              {% if order.payment_method == 'khata' and order.payment_status != 'paid' %}
+                <div class="checkout-cod-panel">
+                  <strong>KhataBook repayment</strong>
+                  <p>This order sits inside your weekly KhataBook due. Open the section to repay through COD / UPI collection or Razorpay UPI.</p>
+                  <div class="inline-actions">
+                    <a class="button small secondary" href="{% url 'core:customer_khatabook' %}">Open KhataBook</a>
+                  </div>
+                </div>
+              {% endif %}
+
               {% if order.can_be_cancelled_by_customer %}
                 <form method="post" action="{% url 'core:customer_cancel_order' order.id %}" class="stack small-gap lifecycle-form">
                   {% csrf_token %}
@@ -360,6 +379,12 @@
       <div class="bill-grid">
         <div class="bill-row"><span>Item total</span><strong>Rs. {{ order.subtotal_amount|floatformat:2 }}</strong></div>
         <div class="bill-row"><span>Delivery fee</span><strong>Rs. {{ order.delivery_fee|floatformat:2 }}</strong></div>
+        {% if order.shopkeeper_commission_fee %}
+          <div class="bill-row"><span>Shopkeeper commission fee</span><strong>Rs. {{ order.shopkeeper_commission_fee|floatformat:2 }}</strong></div>
+        {% endif %}
+        {% if order.platform_fee %}
+          <div class="bill-row"><span>GramExpress platform fee</span><strong>Rs. {{ order.platform_fee|floatformat:2 }}</strong></div>
+        {% endif %}
         <div class="bill-row"><span>Total</span><strong>Rs. {{ order.total_amount|floatformat:2 }}</strong></div>
         <div class="bill-row"><span>Payment status</span><strong>{{ payment_summary.status_label }}</strong></div>
       </div>

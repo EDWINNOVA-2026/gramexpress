@@ -1,23 +1,30 @@
 from decimal import Decimal
+from datetime import timedelta
 import hashlib
 import hmac
 import json
 from unittest.mock import MagicMock, patch
 
+from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.core import mail
-from django.test import Client, TestCase
+from django.test import Client, RequestFactory, TestCase
 from django.test.utils import override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .admin import approve_riders, approve_stores
+from .admin import ShopOwnerProfileAdmin, approve_riders, approve_stores
 from .models import (
     ApprovalStatus,
     AuthOtpToken,
     CodCollectionMode,
     CheckoutSession,
     CustomerProfile,
+    KhataBookCollectionRequest,
+    KhataBookCollectionStatus,
+    KhataBookCycle,
+    KhataBookCycleStatus,
+    KhataBookSettlementMethod,
     Notification,
     NotificationType,
     Order,
@@ -144,6 +151,7 @@ class CoreFlowTests(TestCase):
 
     def setUp(self):
         self.client = Client()
+        self.request_factory = RequestFactory()
 
     def test_login_route_renders(self):
         response = self.client.get(reverse('core:login'))
@@ -398,6 +406,65 @@ class CoreFlowTests(TestCase):
         self.rider.refresh_from_db()
         self.assertTrue(self.rider.is_available)
 
+    def test_customer_can_checkout_with_khatabook_credit(self):
+        self.client.force_login(self.customer_user)
+        self.client.post(reverse('core:cart_add', args=[self.product.id]), {'quantity': '1'})
+
+        review_response = self.client.post(
+            reverse('core:customer_checkout'),
+            {'action': 'review', 'payment_method': 'khata', 'customer_notes': 'Add to weekly credit'},
+            follow=True,
+        )
+        self.assertEqual(review_response.status_code, 200)
+        self.assertContains(review_response, 'Added to KhataBook')
+
+        checkout_response = self.client.post(
+            reverse('core:customer_checkout'),
+            {'action': 'confirm'},
+            follow=True,
+        )
+        self.assertEqual(checkout_response.status_code, 200)
+        self.assertContains(checkout_response, 'Added to KhataBook')
+
+        order = Order.objects.latest('id')
+        cycle = KhataBookCycle.objects.latest('id')
+        self.assertEqual(order.payment_method, PaymentMethod.KHATABOOK)
+        self.assertEqual(order.payment_status, PaymentStatus.PENDING)
+        self.assertEqual(order.khata_cycle, cycle)
+        self.assertEqual(order.credit_due_date, cycle.due_date)
+        self.assertEqual(cycle.total_amount, order.total_amount)
+        self.assertEqual(cycle.status, KhataBookCycleStatus.OPEN)
+
+    def test_customer_can_request_khatabook_collection(self):
+        cycle = KhataBookCycle.objects.create(
+            customer=self.customer,
+            week_start=timezone.localdate(),
+            due_date=timezone.localdate() + timedelta(days=7),
+            total_amount=Decimal('53.00'),
+        )
+        khata_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            khata_cycle=cycle,
+            status=OrderStatus.CONFIRMED,
+            payment_method=PaymentMethod.KHATABOOK,
+            payment_status=PaymentStatus.PENDING,
+            total_amount=Decimal('53.00'),
+            delivery_fee=Decimal('15.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            credit_due_date=cycle.due_date,
+        )
+        OrderItem.objects.create(order=khata_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+
+        self.client.force_login(self.customer_user)
+        response = self.client.post(reverse('core:customer_khatabook_request_collection'), follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        cycle.refresh_from_db()
+        self.assertEqual(cycle.status, KhataBookCycleStatus.COLLECTION_REQUESTED)
+        self.assertEqual(cycle.settlement_method, KhataBookSettlementMethod.COD_UPI)
+        self.assertContains(response, 'delivery agent might take time to arrive')
+
     def test_new_checkout_order_stays_in_rider_new_tab_until_acceptance(self):
         pending_order = Order.objects.create(
             customer=self.customer,
@@ -440,6 +507,7 @@ class CoreFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'RazorPay')
+        self.assertContains(response, 'KhataBook')
         self.assertContains(response, 'Cash/UPI on delivery')
 
     def test_customer_can_update_cart_quantity_inline(self):
@@ -1037,7 +1105,161 @@ class CoreFlowTests(TestCase):
         self.assertEqual(completed_response.status_code, 200)
         self.assertEqual(earnings_response.status_code, 200)
         self.assertContains(completed_response, 'Completed Orders')
-        self.assertContains(earnings_response, 'Delivery earnings summary')
+        self.assertContains(earnings_response, 'Commission, fixed support, and payout tracker')
+
+    def test_rider_sees_khatabook_delivery_as_credit_order(self):
+        khata_cycle = KhataBookCycle.objects.create(
+            customer=self.customer,
+            week_start=timezone.localdate(),
+            due_date=timezone.localdate() + timedelta(days=7),
+            total_amount=Decimal('53.00'),
+        )
+        khata_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            khata_cycle=khata_cycle,
+            status=OrderStatus.OUT_FOR_DELIVERY,
+            payment_method=PaymentMethod.KHATABOOK,
+            payment_status=PaymentStatus.PENDING,
+            total_amount=Decimal('53.00'),
+            delivery_fee=Decimal('15.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            customer_otp='555666',
+            credit_due_date=khata_cycle.due_date,
+        )
+        OrderItem.objects.create(order=khata_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+
+        self.client.force_login(self.rider_user)
+        response = self.client.get(reverse('core:rider_deliveries'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'KhataBook credit order')
+        self.assertContains(response, 'do not collect money')
+        self.assertContains(response, khata_order.display_id)
+
+    def test_customer_collection_request_creates_rider_khatabook_job(self):
+        khata_cycle = KhataBookCycle.objects.create(
+            customer=self.customer,
+            week_start=timezone.localdate(),
+            due_date=timezone.localdate() + timedelta(days=7),
+            total_amount=Decimal('53.00'),
+        )
+        khata_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            khata_cycle=khata_cycle,
+            status=OrderStatus.DELIVERED,
+            payment_method=PaymentMethod.KHATABOOK,
+            payment_status=PaymentStatus.PENDING,
+            total_amount=Decimal('53.00'),
+            delivery_fee=Decimal('15.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            credit_due_date=khata_cycle.due_date,
+        )
+        OrderItem.objects.create(order=khata_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+
+        self.client.force_login(self.customer_user)
+        request_response = self.client.post(reverse('core:customer_khatabook_request_collection'), follow=True)
+        self.assertEqual(request_response.status_code, 200)
+
+        collection_request = KhataBookCollectionRequest.objects.latest('id')
+        self.assertEqual(collection_request.status, KhataBookCollectionStatus.REQUESTED)
+
+        self.client.force_login(self.rider_user)
+        dashboard_response = self.client.get(reverse('core:rider_dashboard'))
+        self.assertEqual(dashboard_response.status_code, 200)
+        self.assertContains(dashboard_response, collection_request.display_id)
+        self.assertContains(dashboard_response, 'Accept KhataBook Collection')
+
+    def test_rider_can_accept_and_complete_khatabook_collection(self):
+        khata_cycle = KhataBookCycle.objects.create(
+            customer=self.customer,
+            week_start=timezone.localdate(),
+            due_date=timezone.localdate() + timedelta(days=7),
+            total_amount=Decimal('53.00'),
+        )
+        khata_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            khata_cycle=khata_cycle,
+            status=OrderStatus.DELIVERED,
+            payment_method=PaymentMethod.KHATABOOK,
+            payment_status=PaymentStatus.PENDING,
+            total_amount=Decimal('53.00'),
+            delivery_fee=Decimal('15.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            credit_due_date=khata_cycle.due_date,
+        )
+        OrderItem.objects.create(order=khata_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+        collection_request = KhataBookCollectionRequest.objects.create(
+            customer=self.customer,
+            khata_cycle=khata_cycle,
+            status=KhataBookCollectionStatus.REQUESTED,
+            amount=Decimal('53.00'),
+            collection_address='1 MG Road, Mandya 571401',
+            collection_otp='112233',
+            latitude=self.customer.latitude,
+            longitude=self.customer.longitude,
+        )
+
+        self.client.force_login(self.rider_user)
+        accept_response = self.client.post(
+            reverse('core:rider_accept_khatabook_collection', args=[collection_request.id]),
+            follow=True,
+        )
+        self.assertEqual(accept_response.status_code, 200)
+        collection_request.refresh_from_db()
+        self.rider.refresh_from_db()
+        self.assertEqual(collection_request.status, KhataBookCollectionStatus.ACCEPTED)
+        self.assertEqual(collection_request.rider, self.rider)
+        self.assertEqual(len(collection_request.collection_otp), 6)
+        self.assertFalse(self.rider.is_available)
+
+        complete_response = self.client.post(
+            reverse('core:rider_complete_khatabook_collection', args=[collection_request.id]),
+            {'collection_otp': collection_request.collection_otp},
+            follow=True,
+        )
+        self.assertEqual(complete_response.status_code, 200)
+        collection_request.refresh_from_db()
+        khata_cycle.refresh_from_db()
+        khata_order.refresh_from_db()
+        self.rider.refresh_from_db()
+        self.assertEqual(collection_request.status, KhataBookCollectionStatus.COMPLETED)
+        self.assertEqual(khata_cycle.status, KhataBookCycleStatus.PAID)
+        self.assertEqual(khata_order.payment_status, PaymentStatus.PAID)
+        self.assertTrue(self.rider.is_available)
+
+    def test_rider_deliveries_self_heal_missing_khatabook_collection_otp(self):
+        khata_cycle = KhataBookCycle.objects.create(
+            customer=self.customer,
+            week_start=timezone.localdate(),
+            due_date=timezone.localdate() + timedelta(days=7),
+            total_amount=Decimal('53.00'),
+        )
+        collection_request = KhataBookCollectionRequest.objects.create(
+            customer=self.customer,
+            khata_cycle=khata_cycle,
+            rider=self.rider,
+            status=KhataBookCollectionStatus.ACCEPTED,
+            amount=Decimal('53.00'),
+            collection_address='1 MG Road, Mandya 571401',
+            collection_otp='',
+            latitude=self.customer.latitude,
+            longitude=self.customer.longitude,
+        )
+        self.rider.is_available = False
+        self.rider.save(update_fields=['is_available', 'updated_at'])
+
+        self.client.force_login(self.rider_user)
+        response = self.client.get(reverse('core:rider_deliveries'))
+
+        self.assertEqual(response.status_code, 200)
+        collection_request.refresh_from_db()
+        self.assertEqual(collection_request.status, KhataBookCollectionStatus.ACCEPTED)
+        self.assertEqual(len(collection_request.collection_otp), 6)
+        self.assertContains(response, 'Resend KhataBook OTP')
 
     def test_rider_deliveries_highlight_current_mission(self):
         pickup_order = Order.objects.create(
@@ -1235,6 +1457,130 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, reverse('core:support'))
         self.assertEqual(response['Cache-Control'], 'no-store, no-cache, must-revalidate, max-age=0')
 
+    def test_customer_khatabook_page_renders_weekly_due_section(self):
+        cycle = KhataBookCycle.objects.create(
+            customer=self.customer,
+            week_start=timezone.localdate(),
+            due_date=timezone.localdate() + timedelta(days=7),
+            total_amount=Decimal('53.00'),
+        )
+        khata_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            khata_cycle=cycle,
+            status=OrderStatus.CONFIRMED,
+            payment_method=PaymentMethod.KHATABOOK,
+            payment_status=PaymentStatus.PENDING,
+            total_amount=Decimal('53.00'),
+            delivery_fee=Decimal('15.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            credit_due_date=cycle.due_date,
+        )
+        OrderItem.objects.create(order=khata_order, product=self.product, quantity=1, unit_price=Decimal('28.00'))
+
+        self.client.force_login(self.customer_user)
+        response = self.client.get(reverse('core:customer_khatabook'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Your weekly credit line')
+        self.assertContains(response, khata_order.display_id)
+        self.assertContains(response, 'Request COD / UPI Collection')
+
+    def test_customer_dashboard_shows_khatabook_default_warning(self):
+        overdue_cycle = KhataBookCycle.objects.create(
+            customer=self.customer,
+            week_start=timezone.localdate() - timedelta(days=7),
+            due_date=timezone.localdate() - timedelta(days=1),
+            total_amount=Decimal('110.00'),
+        )
+        overdue_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            khata_cycle=overdue_cycle,
+            status=OrderStatus.DELIVERED,
+            payment_method=PaymentMethod.KHATABOOK,
+            payment_status=PaymentStatus.PENDING,
+            total_amount=Decimal('110.00'),
+            delivery_fee=Decimal('15.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            credit_due_date=overdue_cycle.due_date,
+        )
+        OrderItem.objects.create(order=overdue_order, product=self.product, quantity=1, unit_price=Decimal('85.00'))
+
+        self.client.force_login(self.customer_user)
+        response = self.client.get(reverse('core:customer_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'KhataBook default alert')
+        self.assertContains(response, 'Rs. 110.00 is already overdue')
+        self.assertTrue(
+            Notification.objects.filter(
+                customer=self.customer,
+                title='KhataBook due overdue',
+                notification_type=NotificationType.PAYMENT,
+            ).exists()
+        )
+
+    def test_shop_khatabook_page_shows_exposure_and_defaulted_credit(self):
+        open_cycle = KhataBookCycle.objects.create(
+            customer=self.customer,
+            week_start=timezone.localdate(),
+            due_date=timezone.localdate() + timedelta(days=4),
+            total_amount=Decimal('70.00'),
+        )
+        overdue_cycle = KhataBookCycle.objects.create(
+            customer=self.customer,
+            week_start=timezone.localdate() - timedelta(days=7),
+            due_date=timezone.localdate() - timedelta(days=1),
+            total_amount=Decimal('110.00'),
+        )
+        open_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            rider=self.rider,
+            khata_cycle=open_cycle,
+            status=OrderStatus.PACKED,
+            payment_method=PaymentMethod.KHATABOOK,
+            payment_status=PaymentStatus.PENDING,
+            total_amount=Decimal('70.00'),
+            delivery_fee=Decimal('15.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            credit_due_date=open_cycle.due_date,
+        )
+        overdue_order = Order.objects.create(
+            customer=self.customer,
+            shop=self.shop,
+            khata_cycle=overdue_cycle,
+            status=OrderStatus.DELIVERED,
+            payment_method=PaymentMethod.KHATABOOK,
+            payment_status=PaymentStatus.PENDING,
+            total_amount=Decimal('110.00'),
+            delivery_fee=Decimal('15.00'),
+            delivery_address='1 MG Road, Mandya 571401',
+            credit_due_date=overdue_cycle.due_date,
+        )
+        OrderItem.objects.create(order=open_order, product=self.product, quantity=1, unit_price=Decimal('45.00'))
+        OrderItem.objects.create(order=overdue_order, product=self.product, quantity=1, unit_price=Decimal('85.00'))
+
+        self.client.force_login(self.shop_user)
+        response = self.client.get(reverse('core:shop_khatabook'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Credit risk desk for Fresh Basket')
+        self.assertContains(response, 'Rs. 140.00 live exposure')
+        self.assertContains(response, 'Rs. 70.00')
+        self.assertContains(response, 'Rs. 110.00')
+        self.assertContains(response, self.rider.full_name)
+        self.assertContains(response, 'Current stock left 20')
+        self.assertNotContains(response, self.customer.full_name)
+        self.assertTrue(
+            Notification.objects.filter(
+                shop_owner=self.owner,
+                title='KhataBook default alert',
+                notification_type=NotificationType.PAYMENT,
+            ).exists()
+        )
+
     def test_order_detail_disables_html_cache(self):
         self.client.force_login(self.customer_user)
 
@@ -1325,9 +1671,9 @@ class CoreFlowTests(TestCase):
             hashlib.sha256,
         ).hexdigest()
 
-        with patch('core.views.fetch_razorpay_payment', return_value={'id': 'pay_test_123', 'order_id': 'order_test_123', 'amount': 7600, 'status': 'captured'}), patch(
+        with patch('core.views.fetch_razorpay_payment', return_value={'id': 'pay_test_123', 'order_id': 'order_test_123', 'amount': 8100, 'status': 'captured'}), patch(
             'core.views.fetch_razorpay_order',
-            return_value={'id': 'order_test_123', 'amount': 7600},
+            return_value={'id': 'order_test_123', 'amount': 8100},
         ):
             complete_response = self.client.post(
                 reverse('core:customer_razorpay_complete'),
@@ -1360,9 +1706,12 @@ class CoreFlowTests(TestCase):
             'groups': [
                 {
                     'shop_id': self.shop.id,
-                    'delivery_fee': '20.00',
+                    'delivery_fee': '15.00',
+                    'shopkeeper_commission_fee': '5.00',
+                    'platform_fee': '5.00',
                     'subtotal': '28.00',
-                    'total': '48.00',
+                    'shop_credit_exposure': '33.00',
+                    'total': '53.00',
                     'items': [
                         {
                             'product_id': self.product.id,
@@ -1378,7 +1727,7 @@ class CoreFlowTests(TestCase):
             customer=self.customer,
             payment_method=PaymentMethod.RAZORPAY,
             payment_status=PaymentStatus.PENDING,
-            amount=Decimal('48.00'),
+            amount=Decimal('53.00'),
             delivery_address='1 MG Road, Mandya 571401',
             customer_notes='',
             cart_snapshot=snapshot,
@@ -1564,3 +1913,73 @@ class CoreFlowTests(TestCase):
         self.assertEqual(pending_owner.approval_status, ApprovalStatus.APPROVED)
         self.assertEqual(pending_rider.approval_status, ApprovalStatus.APPROVED)
         self.assertTrue(pending_rider.is_available)
+
+    def test_shop_owner_admin_save_syncs_linked_shop_status(self):
+        pending_user = get_user_model().objects.create_user(
+            username=f'{RoleType.SHOP}:4444444444',
+            password='demo12345',
+        )
+        pending_owner = ShopOwnerProfile.objects.create(
+            user=pending_user,
+            full_name='Pending Owner Save',
+            phone='4444444444',
+            email='pending-save@example.com',
+            approval_status=ApprovalStatus.PENDING,
+        )
+        pending_shop = Shop.objects.create(
+            owner=pending_owner,
+            name='Pending Save Store',
+            shop_type='kirana',
+            area='Market Road',
+            address_line_1='99 Market Road',
+            district='Mandya',
+            pincode='571401',
+            latitude=Decimal('12.915300'),
+            longitude=Decimal('76.643800'),
+            approval_status=ApprovalStatus.PENDING,
+        )
+        request = self.request_factory.post('/admin/core/shopownerprofile/')
+        request.user = self.admin_user
+        admin_instance = ShopOwnerProfileAdmin(ShopOwnerProfile, AdminSite())
+
+        pending_owner.approval_status = ApprovalStatus.APPROVED
+        admin_instance.save_model(request, pending_owner, form=None, change=True)
+
+        pending_shop.refresh_from_db()
+        self.assertEqual(pending_shop.approval_status, ApprovalStatus.APPROVED)
+
+    def test_shop_dashboard_heals_owner_shop_approval_mismatch(self):
+        self.client.force_login(self.shop_user)
+        self.owner.approval_status = ApprovalStatus.APPROVED
+        self.owner.save(update_fields=['approval_status', 'updated_at'])
+        self.shop.approval_status = ApprovalStatus.PENDING
+        self.shop.save(update_fields=['approval_status', 'updated_at'])
+
+        response = self.client.get(reverse('core:shop_dashboard'))
+
+        self.shop.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.shop.approval_status, ApprovalStatus.APPROVED)
+        self.assertContains(response, 'Owner approval')
+        self.assertContains(response, 'Storefront approval')
+        self.assertContains(response, 'Approved')
+
+    def test_shop_dashboard_shows_uploaded_store_photo(self):
+        self.client.force_login(self.shop_user)
+        self.shop.image = 'shops/storefront.jpg'
+        self.shop.save(update_fields=['image', 'updated_at'])
+
+        response = self.client.get(reverse('core:shop_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'storefront photo')
+        self.assertContains(response, '/media/shops/storefront.jpg')
+
+    def test_shop_dashboard_notifications_panel_spans_full_desktop_row(self):
+        self.client.force_login(self.shop_user)
+
+        response = self.client.get(reverse('core:shop_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'shop-dashboard-panel-wide')
+        self.assertContains(response, 'shop-dashboard-notification-grid')

@@ -15,7 +15,7 @@
           <div class="rider-avatar">{{ rider.full_name|first|upper }}</div>
           <div class="rider-account-copy">
             <strong>{{ rider.full_name }}</strong>
-            <span>{{ rider.get_vehicle_type_display }} • {{ dispatch_radius }} km radius</span>
+            <span>{{ rider.get_vehicle_type_display }} | {{ dispatch_radius }} km radius</span>
           </div>
         </div>
       </div>
@@ -39,6 +39,7 @@
         <div class="hero-inline-facts">
           <span class="soft-pill"><span class="ui-icon icon-bike" aria-hidden="true"></span><span>{{ active_order_count }} active</span></span>
           <span class="status-chip info"><span class="ui-icon icon-package" aria-hidden="true"></span><span>{{ new_order_count }} new</span></span>
+          <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>{{ new_khatabook_collection_count }} KhataBook collections</span></span>
         </div>
       </div>
 
@@ -48,9 +49,12 @@
             <div class="rider-job-head">
               <div>
                 <strong>{{ order.display_id }}</strong>
-                <p class="rider-job-meta">{{ order.item_count }} item{{ order.item_count|pluralize }} • Earn Rs. {{ order.delivery_fee }}</p>
+                <p class="rider-job-meta">{{ order.item_count }} item{{ order.item_count|pluralize }} | Earn Rs. {{ order.delivery_fee }}</p>
               </div>
-              <span class="pill">{{ order.pickup_distance_km }} km away</span>
+              <div class="hero-inline-facts">
+                <span class="pill">{{ order.pickup_distance_km }} km away</span>
+                <span class="soft-pill">{{ order.payment_mode_badge }}</span>
+              </div>
             </div>
 
             <div class="rider-route-points">
@@ -86,6 +90,9 @@
             <div class="compact-item">
               <strong>{{ order.flow_headline }}</strong>
               <p>{{ order.flow_detail }}</p>
+              {% if order.is_khatabook_order %}
+                <p class="utility-note">KhataBook credit order: do not collect money from the customer during delivery handoff.</p>
+              {% endif %}
             </div>
 
             <div class="rider-map-actions">
@@ -126,6 +133,64 @@
           <div class="nested-panel rider-empty-state">
             <strong>No nearby orders yet</strong>
             <p>Stay online and keep your dispatch location updated to see fresh delivery requests here.</p>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="card rider-order-stream" data-appear>
+      <div class="rider-section-head">
+        <div>
+          <span class="eyebrow">KhataBook</span>
+          <h2 class="section-title">Nearby repayment requests</h2>
+        </div>
+        <div class="hero-inline-facts">
+          <span class="soft-pill">{{ new_khatabook_collection_count }} nearby</span>
+          <span class="status-chip warn">Credit collection</span>
+        </div>
+      </div>
+
+      <div class="stack rider-order-list">
+        {% for collection_request in available_khatabook_requests %}
+          <article class="nested-panel order-card rider-job-card">
+            <div class="rider-job-head">
+              <div>
+                <strong>{{ collection_request.display_id }}</strong>
+                <p class="rider-job-meta">Collect Rs. {{ collection_request.amount }} from {{ collection_request.customer.full_name }}</p>
+              </div>
+              <div class="hero-inline-facts">
+                <span class="pill">{{ collection_request.distance_km }} km away</span>
+                <span class="soft-pill">KhataBook COD</span>
+              </div>
+            </div>
+
+            <div class="compact-item">
+              <strong>{{ collection_request.flow_headline }}</strong>
+              <p>{{ collection_request.flow_detail }}</p>
+            </div>
+
+            <div class="rider-route-point">
+              <span class="rider-route-icon rider-route-icon-dropoff" aria-hidden="true">K</span>
+              <div class="rider-route-copy">
+                <strong>Collection point</strong>
+                <p>{{ collection_request.customer.full_name }}</p>
+                <span>{{ collection_request.collection_address }}</span>
+              </div>
+            </div>
+
+            <div class="rider-map-actions">
+              <a class="button small secondary" href="{{ collection_request.map_url }}" target="_blank" rel="noreferrer">Open Collection Pin</a>
+            </div>
+
+            <form method="post" action="{% url 'core:rider_accept_khatabook_collection' collection_request.id %}" class="rider-job-accept">
+              {% csrf_token %}
+              <button class="button primary rider-accept-button" type="submit">Accept KhataBook Collection</button>
+            </form>
+          </article>
+        {% empty %}
+          <div class="nested-panel rider-empty-state">
+            <strong>No nearby KhataBook collections yet</strong>
+            <p>When customers request COD / UPI repayment and you are close enough, those credit-collection jobs will appear here.</p>
           </div>
         {% endfor %}
       </div>

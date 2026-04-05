@@ -12,6 +12,10 @@
           <span class="customer-home-badge-icon"><span class="ui-icon icon-store" aria-hidden="true"></span></span>
           <span>Stores {{ shops|length }}</span>
         </span>
+        <span class="customer-home-badge">
+          <span class="customer-home-badge-icon">K</span>
+          <span>KhataBook Rs. {{ khatabook_summary.outstanding_amount }}</span>
+        </span>
       </div>
 
       <form method="get" class="customer-home-search">
@@ -60,6 +64,43 @@
         </span>
       </div>
     </section>
+
+    <section class="customer-home-section card" data-appear>
+      <div class="customer-home-section-head">
+        <div>
+          <span class="eyebrow">KhataBook</span>
+          <h2 class="section-title">7-day credit for local orders</h2>
+        </div>
+        <span class="status-chip {{ khatabook_summary.badge_class }}">{{ khatabook_summary.status_label }}</span>
+      </div>
+      <div class="summary-grid">
+        <div class="focus-card content-stack">
+          <strong>This week</strong>
+          <p>{{ khatabook_summary.headline }}</p>
+          <span class="tiny muted">{{ khatabook_summary.detail }}</span>
+        </div>
+        <div class="focus-card content-stack">
+          <strong>Repayment</strong>
+          <p>Due on {{ khatabook_summary.due_date|date:"M d, Y" }}</p>
+          <span class="tiny muted">Repay later through COD / UPI collection request or direct Razorpay UPI.</span>
+          <div class="inline-actions">
+            <a class="button small secondary" href="{% url 'core:customer_khatabook' %}">Open KhataBook</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {% if customer_khatabook_warning %}
+      <section class="customer-home-section card" data-appear>
+        <div class="checkout-alert checkout-alert-error">
+          <strong>{{ customer_khatabook_warning.title }}</strong>
+          <p>{{ customer_khatabook_warning.detail }}</p>
+          <div class="inline-actions">
+            <a class="button small primary" href="{% url 'core:customer_khatabook' %}">Clear KhataBook Due</a>
+          </div>
+        </div>
+      </section>
+    {% endif %}
 
     {% if location_required %}
       <section class="customer-home-section card" data-appear>

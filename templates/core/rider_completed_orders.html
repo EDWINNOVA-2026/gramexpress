@@ -12,13 +12,13 @@
 
   <section class="dashboard-top" id="top">
     <article class="hero-card glass-card hero-card-rider" data-appear>
-      <span class="eyebrow">Completed Orders</span>
-      <h1>Closed deliveries</h1>
-      <p class="hero-lead">Review finished deliveries, confirm what you earned, and reopen the order detail screen only when you need more context.</p>
+      <span class="eyebrow">Completed Work</span>
+      <h1>Closed deliveries and KhataBook collections</h1>
+      <p class="hero-lead">Review finished deliveries, credit-order history, and every KhataBook repayment collection you completed as a rider service.</p>
       <div class="hero-inline-facts">
         <span class="soft-pill"><span class="ui-icon icon-badge-check" aria-hidden="true"></span><span>{{ completed_delivery_count }} delivered</span></span>
-        <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>Total Rs. {{ total_earnings }}</span></span>
-        <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>Avg Rs. {{ average_earnings }}</span></span>
+        <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>{{ completed_khatabook_collection_count }} collections</span></span>
+        <span class="soft-pill"><span class="ui-icon icon-indian-rupee" aria-hidden="true"></span><span>Total Rs. {{ total_earnings }}</span></span>
       </div>
     </article>
 
@@ -34,7 +34,7 @@
   <section class="card" data-appear>
     <div class="split-row">
       <div>
-        <span class="eyebrow">History</span>
+        <span class="eyebrow">Delivery History</span>
         <h2 class="section-title">Recently completed deliveries</h2>
       </div>
       <span class="status-chip info">{{ completed_delivery_count }} total</span>
@@ -53,6 +53,7 @@
             </div>
             <div class="hero-inline-facts">
               <span class="status-chip success">Delivered</span>
+              <span class="soft-pill">{{ order.payment_mode_badge }}</span>
               <span class="soft-pill">Earned Rs. {{ order.delivery_fee }}</span>
             </div>
           </div>
@@ -74,6 +75,9 @@
             <strong>{{ order.payment_summary.label }}</strong>
             <p>{{ order.payment_summary.detail }}</p>
             <span class="status-chip {{ order.payment_summary.chip_class }}">{{ order.payment_summary.status_label }}</span>
+            {% if order.is_khatabook_order %}
+              <p class="utility-note">This delivery was completed on credit, not through direct customer payment at handoff.</p>
+            {% endif %}
             {% if order.settlement_qr_ready %}
               <p class="utility-note">Pay GramExpress from your account to settle this COD cash collection.</p>
               {% if order.settlement_qr_image_url %}
@@ -101,6 +105,49 @@
         <div class="nested-panel">
           <strong>No completed deliveries yet</strong>
           <p>Your finished drop-offs will land here automatically as you complete them.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card" data-appear>
+    <div class="split-row">
+      <div>
+        <span class="eyebrow">KhataBook Collections</span>
+        <h2 class="section-title">Completed credit repayments</h2>
+      </div>
+      <span class="status-chip warn">{{ completed_khatabook_collection_count }} total</span>
+    </div>
+
+    <div class="stack">
+      {% for collection_request in completed_khatabook_requests %}
+        <article class="nested-panel order-card rider-order-card">
+          <div class="split-row">
+            <div>
+              <strong>{{ collection_request.display_id }}</strong>
+              <p>{{ collection_request.customer.full_name }}</p>
+              {% if collection_request.completed_at %}
+                <p class="utility-note">Collected {{ collection_request.completed_at|date:"M d, H:i" }}</p>
+              {% endif %}
+            </div>
+            <div class="hero-inline-facts">
+              <span class="status-chip success">Collected</span>
+              <span class="soft-pill">Rs. {{ collection_request.amount }}</span>
+            </div>
+          </div>
+
+          <div class="compact-item content-stack">
+            <strong>{{ collection_request.flow_headline }}</strong>
+            <p>{{ collection_request.flow_detail }}</p>
+            {% if collection_request.payment_reference %}
+              <p class="utility-note">Reference: {{ collection_request.payment_reference }}</p>
+            {% endif %}
+          </div>
+        </article>
+      {% empty %}
+        <div class="nested-panel">
+          <strong>No completed KhataBook collections yet</strong>
+          <p>Rider-assisted KhataBook repayments will appear here after you collect and close them.</p>
         </div>
       {% endfor %}
     </div>
