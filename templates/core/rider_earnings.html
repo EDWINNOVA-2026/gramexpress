@@ -13,13 +13,13 @@
   <section class="page-stack" id="top">
     <article class="card" data-appear>
       <span class="eyebrow">Earnings</span>
-      <h1 class="page-title">Commission, fixed support, and payout tracker</h1>
-      <p>This screen now shows exactly how your earnings are being built: per-order commission at Rs. {{ delivery_fee_per_order }}, fixed-pay support eligibility, the Rs. {{ earnings_goal }} milestone gap, and how your delivery performance compares with other riders.</p>
+      <h1 class="page-title">Commission-based rider payout</h1>
+      <p>This payout model is now fully variable: riders earn through delivery commission, bonuses, incentives, and penalties only. Fixed support has been removed from the system.</p>
       <div class="hero-inline-facts top-gap">
         <span class="soft-pill">Commission Rs. {{ commission_earnings }}</span>
-        <span class="soft-pill">Fixed pay Rs. {{ fixed_pay_amount }}</span>
-        <span class="soft-pill">Net Rs. {{ net_earnings }}</span>
-        <span class="soft-pill">{{ completed_credit_delivery_count }} credit / {{ completed_direct_payment_delivery_count }} direct</span>
+        <span class="soft-pill">Bonus Rs. {{ bonus_earned }}</span>
+        <span class="soft-pill">Incentives Rs. {{ incentive_earned }}</span>
+        <span class="soft-pill">Penalty Rs. {{ penalty_amount }}</span>
         <span class="status-chip {{ payout_status_tone }}">{{ payout_status_label }}</span>
       </div>
       <p class="utility-note">{{ payout_status_detail }}</p>
@@ -27,29 +27,39 @@
 
     <section class="card-grid" data-appear>
       <article class="metric-card">
-        <span class="metric-label">Commission earned</span>
+        <span class="metric-label">Commission Earnings</span>
         <strong class="metric-value">Rs. {{ commission_earnings }}</strong>
         <p>{{ completed_delivery_count }} completed delivery{{ completed_delivery_count|pluralize }} at Rs. {{ delivery_fee_per_order }} each.</p>
       </article>
       <article class="metric-card">
-        <span class="metric-label">Fixed pay top-up</span>
-        <strong class="metric-value">Rs. {{ fixed_pay_amount }}</strong>
-        <p>Support can cover up to Rs. {{ fixed_pay_cap }} once you clear the 20% completion-share gate.</p>
+        <span class="metric-label">Performance Bonus</span>
+        <strong class="metric-value">Rs. {{ bonus_earned }}</strong>
+        <p>High completion bonus based on your finished delivery volume.</p>
       </article>
       <article class="metric-card">
-        <span class="metric-label">Goodwill bonus</span>
-        <strong class="metric-value">Rs. {{ goodwill_bonus }}</strong>
-        <p>Unlocked only when commission alone reaches Rs. {{ earnings_goal }} or more.</p>
+        <span class="metric-label">Incentives</span>
+        <strong class="metric-value">Rs. {{ incentive_earned }}</strong>
+        <p>Distance, peak-hour, and KhataBook recovery incentive total.</p>
       </article>
       <article class="metric-card">
-        <span class="metric-label">Net payout</span>
-        <strong class="metric-value">Rs. {{ net_earnings }}</strong>
-        <p>Commission + fixed pay + goodwill bonus.</p>
+        <span class="metric-label">Penalty</span>
+        <strong class="metric-value">Rs. {{ penalty_amount }}</strong>
+        <p>Any deductions applied to this rider payout cycle.</p>
       </article>
       <article class="metric-card">
-        <span class="metric-label">Gap to Rs. {{ earnings_goal }}</span>
-        <strong class="metric-value">Rs. {{ remaining_gap_after_support }}</strong>
-        <p>How far your current net payout still is from the Rs. {{ earnings_goal }} target.</p>
+        <span class="metric-label">Final Payout</span>
+        <strong class="metric-value">Rs. {{ final_payout }}</strong>
+        <p>Commission + bonus + incentives - penalties.</p>
+      </article>
+      <article class="metric-card">
+        <span class="metric-label">Today</span>
+        <strong class="metric-value">Rs. {{ today_earnings }}</strong>
+        <p>Today's commission and incentives from completed rider work.</p>
+      </article>
+      <article class="metric-card">
+        <span class="metric-label">KhataBook Collections</span>
+        <strong class="metric-value">{{ completed_khatabook_collection_count }}</strong>
+        <p>Recovery tasks that added a KhataBook collection incentive.</p>
       </article>
       <article class="metric-card">
         <span class="metric-label">Peer earnings position</span>
@@ -62,66 +72,50 @@
         </strong>
         <p>Compared with the average rider commission of Rs. {{ peer_average_commission }}.</p>
       </article>
-      <article class="metric-card">
-        <span class="metric-label">Credit deliveries completed</span>
-        <strong class="metric-value">{{ completed_credit_delivery_count }}</strong>
-        <p>Orders delivered on KhataBook credit where the rider should not collect money at handoff.</p>
-      </article>
-      <article class="metric-card">
-        <span class="metric-label">Direct-payment deliveries</span>
-        <strong class="metric-value">{{ completed_direct_payment_delivery_count }}</strong>
-        <p>Orders completed under COD or online payment workflows.</p>
-      </article>
-      <article class="metric-card">
-        <span class="metric-label">KhataBook collections</span>
-        <strong class="metric-value">{{ completed_khatabook_collection_count }}</strong>
-        <p>Separate rider visits completed for customer KhataBook repayment requests. These do not add extra rider commission.</p>
-      </article>
     </section>
 
     <section class="card" data-appear>
       <div class="split-row">
         <div>
-          <span class="eyebrow">Breakup</span>
-          <h2 class="section-title">Detailed payout breakup</h2>
+          <span class="eyebrow">Breakdown</span>
+          <h2 class="section-title">Earnings breakdown</h2>
         </div>
         <div class="hero-inline-facts">
           <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>Average Rs. {{ average_earnings }}</span></span>
-          <span class="soft-pill">Fixed income {{ fixed_income_percent }}%</span>
-          <span class="soft-pill">Cap used {{ fixed_pay_cap_usage_percent }}%</span>
+          <span class="soft-pill">{{ completed_credit_delivery_count }} credit / {{ completed_direct_payment_delivery_count }} direct</span>
         </div>
       </div>
 
       <div class="card-grid">
         <article class="nested-panel">
-          <strong>1. Rider commission</strong>
+          <strong>Delivery commission</strong>
           <p>Rs. {{ commission_earnings }}</p>
-          <p class="utility-note">This is your direct earnings pool from completed delivery commissions only.</p>
+          <p class="utility-note">Base rider payout from completed deliveries only.</p>
         </article>
         <article class="nested-panel">
-          <strong>2. Fixed pay support</strong>
-          <p>Rs. {{ fixed_pay_amount }}</p>
-          <p class="utility-note">Computed as the smaller of your commission shortfall to Rs. {{ earnings_goal }} and the Rs. {{ fixed_pay_cap }} support cap.</p>
+          <strong>Distance incentive</strong>
+          <p>Rs. {{ distance_incentive_earned }}</p>
+          <p class="utility-note">Added on longer completed routes.</p>
         </article>
         <article class="nested-panel">
-          <strong>3. Goodwill bonus</strong>
-          <p>Rs. {{ goodwill_bonus }}</p>
-          <p class="utility-note">This is added only when your commission itself crosses the Rs. {{ earnings_goal }} milestone.</p>
+          <strong>Peak time bonus</strong>
+          <p>Rs. {{ peak_time_bonus_earned }}</p>
+          <p class="utility-note">Added for completed deliveries during high-demand peak hours.</p>
         </article>
         <article class="nested-panel">
-          <strong>4. Final net earnings</strong>
-          <p>Rs. {{ net_earnings }}</p>
-          <p class="utility-note">This is the final take-home number currently visible to the rider.</p>
+          <strong>KhataBook collection incentive</strong>
+          <p>Rs. {{ khatabook_collection_incentive_earned }}</p>
+          <p class="utility-note">Added for completed KhataBook recovery visits.</p>
         </article>
         <article class="nested-panel">
-          <strong>5. Fixed-income share</strong>
-          <p>{{ fixed_income_percent }}%</p>
-          <p class="utility-note">The share of your current net payout that is coming from fixed-pay support.</p>
+          <strong>Penalty</strong>
+          <p>Rs. {{ penalty_amount }}</p>
+          <p class="utility-note">This stays at zero unless a deduction is applied.</p>
         </article>
         <article class="nested-panel">
-          <strong>6. Support-cap usage</strong>
-          <p>{{ fixed_pay_cap_usage_percent }}%</p>
-          <p class="utility-note">How much of the Rs. {{ fixed_pay_cap }} support ceiling has been used for you so far.</p>
+          <strong>Final payout</strong>
+          <p>Rs. {{ final_payout }}</p>
+          <p class="utility-note">The final rider payout after bonus, incentives, and any penalty adjustments.</p>
         </article>
       </div>
     </section>
@@ -129,96 +123,32 @@
     <section class="card" data-appear>
       <div class="split-row">
         <div>
-          <span class="eyebrow">Milestone</span>
-          <h2 class="section-title">Rs. {{ earnings_goal }} tracker</h2>
+          <span class="eyebrow">Today's Mix</span>
+          <h2 class="section-title">How today is building</h2>
         </div>
-        <span class="soft-pill">{{ commission_progress_percent }}% commission progress</span>
-      </div>
-
-      <div class="stack">
-        <div class="earnings-progress-group">
-          <div class="split-row">
-            <strong>Commission-only progress</strong>
-            <span class="tiny">{{ commission_progress_percent }}%</span>
-          </div>
-          <div class="earnings-progress-track" aria-hidden="true">
-            <span class="earnings-progress-fill" style="width: {{ commission_progress_percent }}%;"></span>
-          </div>
-          <p class="utility-note">Without fixed support, you are Rs. {{ commission_gap_to_goal }} away from Rs. {{ earnings_goal }} and need about {{ orders_needed_for_goal }} more delivery{{ orders_needed_for_goal|pluralize }} at Rs. {{ delivery_fee_per_order }} each.</p>
-        </div>
-
-        <div class="earnings-progress-group">
-          <div class="split-row">
-            <strong>Final payout progress</strong>
-            <span class="tiny">{{ net_progress_percent }}%</span>
-          </div>
-          <div class="earnings-progress-track" aria-hidden="true">
-            <span class="earnings-progress-fill earnings-progress-fill-accent" style="width: {{ net_progress_percent }}%;"></span>
-          </div>
-          <p class="utility-note">After adding support and bonus logic, your remaining gap is Rs. {{ remaining_gap_after_support }} and the shortfall is about {{ orders_needed_after_support }} delivery{{ orders_needed_after_support|pluralize }} if you want to close it through commission momentum.</p>
-        </div>
-      </div>
-
-      <div class="card-grid top-gap">
-        <article class="nested-panel">
-          <strong>Completion share</strong>
-          <p>{{ completion_share_percent }}%</p>
-          <p class="utility-note">You have completed {{ completed_delivery_count }} of {{ platform_completed_order_count }} delivered platform order{{ platform_completed_order_count|pluralize }} in this tracked pool.</p>
-        </article>
-        <article class="nested-panel">
-          <strong>Threshold to unlock fixed pay</strong>
-          <p>{{ completion_share_threshold }}%</p>
-          <p class="utility-note">You need at least {{ minimum_orders_for_fixed_pay }} completed order{{ minimum_orders_for_fixed_pay|pluralize }} in the current pool to clear the support gate.</p>
-        </article>
-        <article class="nested-panel">
-          <strong>Distance from eligibility</strong>
-          <p>
-            {% if fixed_pay_eligible %}
-              Unlocked
-            {% else %}
-              {{ completion_share_gap_percent }}% / {{ completion_share_gap_orders }} order{{ completion_share_gap_orders|pluralize }} short
-            {% endif %}
-          </p>
-          <p class="utility-note">The fixed-pay workflow activates only after this threshold is met.</p>
-        </article>
-      </div>
-
-      <div class="earnings-progress-group top-gap">
-        <div class="split-row">
-          <strong>Fixed-pay eligibility progress</strong>
-          <span class="tiny">{{ completion_threshold_progress_percent }}%</span>
-        </div>
-        <div class="earnings-progress-track" aria-hidden="true">
-          <span class="earnings-progress-fill earnings-progress-fill-warm" style="width: {{ completion_threshold_progress_percent }}%;"></span>
-        </div>
-      </div>
-    </section>
-
-    <section class="card" data-appear>
-      <div class="split-row">
-        <div>
-          <span class="eyebrow">Workflow</span>
-          <h2 class="section-title">How this earnings model works</h2>
-        </div>
-        <span class="status-chip info">{{ peer_rider_count }} approved rider{{ peer_rider_count|pluralize }} in benchmark</span>
+        <span class="soft-pill">Distance travelled {{ today_distance_travelled_km }} km</span>
       </div>
 
       <div class="card-grid">
         <article class="nested-panel">
-          <strong>Step 1. Earn commission first</strong>
-          <p>Every completed delivery adds Rs. {{ delivery_fee_per_order }} to your rider commission total.</p>
+          <strong>Today commission</strong>
+          <p>Rs. {{ today_commission_earnings }}</p>
+          <p class="utility-note">{{ today_completed_delivery_count }} completed delivery{{ today_completed_delivery_count|pluralize }} today.</p>
         </article>
         <article class="nested-panel">
-          <strong>Step 2. Clear the 20% gate</strong>
-          <p>Once your delivered-order share reaches {{ completion_share_threshold }}% of the tracked platform pool, fixed-pay support becomes available.</p>
+          <strong>Today distance incentive</strong>
+          <p>Rs. {{ today_distance_incentive }}</p>
+          <p class="utility-note">Long-route rider incentives earned today.</p>
         </article>
         <article class="nested-panel">
-          <strong>Step 3. Support fills the gap</strong>
-          <p>If your commission is below Rs. {{ earnings_goal }}, the app adds a top-up capped at Rs. {{ fixed_pay_cap }}.</p>
+          <strong>Today peak time bonus</strong>
+          <p>Rs. {{ today_peak_time_bonus }}</p>
+          <p class="utility-note">Peak-hour rider bonuses earned today.</p>
         </article>
         <article class="nested-panel">
-          <strong>Step 4. Bonus rewards over-performance</strong>
-          <p>If your commission itself crosses Rs. {{ earnings_goal }}, the top-up is skipped and the goodwill bonus of Rs. 1000 is shown instead.</p>
+          <strong>Today KhataBook incentive</strong>
+          <p>Rs. {{ today_khatabook_collection_incentive }}</p>
+          <p class="utility-note">{{ today_khatabook_collection_count }} collection{{ today_khatabook_collection_count|pluralize }} closed today.</p>
         </article>
       </div>
     </section>
@@ -227,7 +157,7 @@
       <div class="split-row">
         <div>
           <span class="eyebrow">Peers</span>
-          <h2 class="section-title">How your earnings compare</h2>
+          <h2 class="section-title">How your commission compares</h2>
         </div>
         <span class="soft-pill">Rank #{{ rider_peer_rank }} by commission</span>
       </div>
@@ -236,7 +166,7 @@
         <article class="nested-panel">
           <strong>Average rider commission</strong>
           <p>Rs. {{ peer_average_commission }}</p>
-          <p class="utility-note">This average includes the current approved rider pool.</p>
+          <p class="utility-note">Average delivery commission in the approved rider pool.</p>
         </article>
         <article class="nested-panel">
           <strong>Your commission vs average</strong>
@@ -247,12 +177,12 @@
               Rs. {{ peer_commission_delta_abs }} behind
             {% endif %}
           </p>
-          <p class="utility-note">A strong positive gap is a direct signal that your completed delivery output is outperforming peers.</p>
+          <p class="utility-note">A quick view of whether your rider commission is outperforming the fleet average.</p>
         </article>
         <article class="nested-panel">
           <strong>Average completed deliveries</strong>
           <p>{{ peer_average_completed_deliveries }}</p>
-          <p class="utility-note">Average closed deliveries per approved rider in the same benchmark set.</p>
+          <p class="utility-note">Average closed deliveries per approved rider.</p>
         </article>
         <article class="nested-panel">
           <strong>Your delivery count vs average</strong>
@@ -263,7 +193,7 @@
               {{ peer_completed_delta_abs }} behind
             {% endif %}
           </p>
-          <p class="utility-note">This helps the rider see whether the earnings gap is coming from volume, not just payout support.</p>
+          <p class="utility-note">This helps explain whether the payout gap is driven by delivery volume.</p>
         </article>
       </div>
     </section>
@@ -272,7 +202,7 @@
       <div class="split-row">
         <div>
           <span class="eyebrow">Recent Earnings</span>
-          <h2 class="section-title">Completed delivery commission history</h2>
+          <h2 class="section-title">Completed rider payout history</h2>
         </div>
         <span class="soft-pill">Average Rs. {{ average_earnings }} per completed order</span>
       </div>
@@ -289,14 +219,14 @@
               {% endif %}
             </div>
             <div>
-              <span class="pill">Commission Rs. {{ order.delivery_fee }}</span>
-              <p class="tiny">Per-order fee now fixed at Rs. {{ delivery_fee_per_order }}</p>
+              <span class="pill">Payout Rs. {{ order.rider_payout_total }}</span>
+              <p class="tiny">Commission Rs. {{ order.rider_commission }}{% if order.rider_distance_incentive > 0 %} + distance Rs. {{ order.rider_distance_incentive }}{% endif %}{% if order.rider_peak_time_bonus > 0 %} + peak Rs. {{ order.rider_peak_time_bonus }}{% endif %}</p>
             </div>
           </div>
         {% empty %}
           <div class="nested-panel">
             <strong>No earnings yet</strong>
-            <p>Complete your first delivery to start building your commission history and fixed-pay eligibility.</p>
+            <p>Complete your first delivery to start building your rider commission history.</p>
           </div>
         {% endfor %}
       </div>
