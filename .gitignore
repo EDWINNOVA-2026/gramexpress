@@ -14,3 +14,4 @@ staticfiles/
 node_modules/
 android
 .idea/
+winVenv
