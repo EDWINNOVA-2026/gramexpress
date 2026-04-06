@@ -59,15 +59,17 @@
       <article class="card border-slate-200 bg-white/95 p-4 sm:p-5">
         <form method="get" class="grid gap-3" role="search" aria-label="Search products in store">
           <label for="product-search" class="tiny muted">Search inside {{ shop.name }}</label>
-          <div class="flex flex-col gap-3 rounded-[1.15rem] border border-slate-200 bg-slate-50/90 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:flex-row sm:items-center sm:gap-3 sm:p-2">
-            <span class="inline-grid h-5 w-5 shrink-0 place-items-center text-slate-400 sm:ml-2" aria-hidden="true">
-              <span class="ui-icon icon-search"></span>
-            </span>
-            <input id="product-search" class="min-w-0 flex-1 border-0 bg-transparent p-0 text-[0.98rem] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-0" type="search" name="q" value="{{ product_query }}" placeholder="Search by product, category, or tag" />
+          <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+            <div class="relative">
+              <span class="pointer-events-none absolute left-4 top-1/2 inline-grid h-5 w-5 -translate-y-1/2 place-items-center text-slate-400" aria-hidden="true">
+                <span class="ui-icon icon-search"></span>
+              </span>
+              <input id="product-search" class="w-full rounded-[1rem] border border-slate-200 bg-white py-3 pl-12 pr-4 text-[0.98rem] text-slate-800 placeholder:text-slate-400 shadow-[0_8px_24px_rgba(15,23,42,0.05)] focus:border-emerald-400 focus:outline-none focus:ring-0" type="search" name="q" value="{{ product_query }}" placeholder="Search by product, category, or tag" />
+            </div>
             {% if selected_category and selected_category != 'All' %}
               <input type="hidden" name="category" value="{{ selected_category }}" />
             {% endif %}
-            <button class="button small primary shrink-0 !justify-center sm:min-w-[104px]" type="submit">
+            <button class="button small primary !justify-center sm:min-w-[104px]" type="submit">
               <span>Search</span>
             </button>
           </div>
@@ -105,9 +107,9 @@
       </div>
 
       {% if products %}
-        <div class="grid gap-4 top-gap-sm md:grid-cols-2">
-                {% for product in products|slice:":12" %}
-            <div class="rounded-[1.65rem] border border-slate-200 bg-slate-50/70 p-4 shadow-soft">
+        <div class="customer-home-slider customer-home-strip-compact top-gap-sm">
+          {% for product in products|slice:":12" %}
+            <div class="w-[310px] shrink-0 rounded-[1.65rem] border border-slate-200 bg-slate-50/70 p-4 shadow-soft sm:w-[340px]">
               <div class="grid gap-4 sm:grid-cols-[108px_minmax(0,1fr)]">
                 <div class="customer-product-media relative min-h-[7rem] rounded-[1.25rem]" style="background: linear-gradient(135deg, {{ product.color }}, #fff4ee);">
                   {% if product.image_source %}

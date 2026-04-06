@@ -180,9 +180,9 @@
                 </div>
                 <span class="soft-pill">{{ category_tiles|slice:":4"|length }} quick picks</span>
               </div>
-              <div class="customer-home-strip customer-home-strip-compact top-gap-sm">
+              <div class="customer-home-strip customer-home-strip-compact customer-home-slider top-gap-sm">
                 {% for category in category_tiles|slice:":4" %}
-                  <a class="customer-home-category" href="?q={{ category.label|urlencode }}">
+                  <a class="customer-home-category customer-home-slider-card" href="?q={{ category.label|urlencode }}">
                     <span class="customer-home-category-icon"><span class="ui-icon ui-icon-xl icon-{{ category.icon }}" aria-hidden="true"></span></span>
                     <strong>{{ category.label }}</strong>
                   </a>
