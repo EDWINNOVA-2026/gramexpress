@@ -13,8 +13,8 @@
   <section class="dashboard-top" id="top">
     <article class="hero-card glass-card hero-card-rider" data-appear>
       <span class="eyebrow">Completed Work</span>
-      <h1>Closed deliveries and KhataBook collections</h1>
-      <p class="hero-lead">Review finished deliveries, credit-order history, and every KhataBook repayment collection you completed as a rider service.</p>
+      <h1>Closed deliveries and Khata collections</h1>
+      <p class="hero-lead">Review finished deliveries, credit-order history, and every Khata repayment collection you completed as a rider service.</p>
       <div class="hero-inline-facts">
         <span class="soft-pill"><span class="ui-icon icon-badge-check" aria-hidden="true"></span><span>{{ completed_delivery_count }} delivered</span></span>
         <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>{{ completed_khatabook_collection_count }} collections</span></span>
@@ -113,7 +113,7 @@
   <section class="card" data-appear>
     <div class="split-row">
       <div>
-        <span class="eyebrow">KhataBook Collections</span>
+        <span class="eyebrow">Khata Collections</span>
         <h2 class="section-title">Completed credit repayments</h2>
       </div>
       <span class="status-chip warn">{{ completed_khatabook_collection_count }} total</span>
@@ -146,8 +146,8 @@
         </article>
       {% empty %}
         <div class="nested-panel">
-          <strong>No completed KhataBook collections yet</strong>
-          <p>Rider-assisted KhataBook repayments will appear here after you collect and close them.</p>
+          <strong>No completed Khata collections yet</strong>
+          <p>Rider-assisted Khata repayments will appear here after you collect and close them.</p>
         </div>
       {% endfor %}
     </div>

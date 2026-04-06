@@ -51,7 +51,7 @@ def shell_navigation(request):
             role_links = [
                 nav_link('Home', reverse('core:customer_dashboard'), 'house'),
                 nav_link('Cart', reverse('core:customer_cart'), 'shopping-cart'),
-                nav_link('KhataBook', reverse('core:customer_khatabook'), 'wallet'),
+                nav_link('Khata', reverse('core:customer_khatabook'), 'wallet'),
                 nav_link('Orders', reverse('core:customer_orders'), 'package'),
                 nav_link('Profile', reverse('core:customer_profile'), 'user'),
             ]
@@ -60,11 +60,11 @@ def shell_navigation(request):
                 nav_link('Home', reverse('core:customer_dashboard'), 'house'),
                 nav_link('Cart', reverse('core:customer_cart'), 'shopping-cart'),
                 nav_link('Orders', reverse('core:customer_orders'), 'package'),
-                nav_link('KhataBook', reverse('core:customer_khatabook'), 'wallet'),
+                nav_link('Khata', reverse('core:customer_khatabook'), 'wallet'),
                 nav_link('Profile', reverse('core:customer_profile'), 'user'),
             ]
             menu_links = [
-                nav_link('KhataBook', reverse('core:customer_khatabook'), 'wallet'),
+                nav_link('Khata', reverse('core:customer_khatabook'), 'wallet'),
                 nav_link('Edit Profile', reverse('core:customer_profile'), 'square-pen'),
                 nav_link('Previous Orders', f"{reverse('core:customer_orders')}#history", 'history'),
                 nav_link('Customer Support', reverse('core:support'), 'life-buoy'),
@@ -80,7 +80,7 @@ def shell_navigation(request):
                 role_links = [
                     nav_link('Overview', reverse('core:shop_dashboard'), 'layout-dashboard'),
                     nav_link('Orders', reverse('core:shop_orders'), 'clipboard-list'),
-                    nav_link('KhataBook', reverse('core:shop_khatabook'), 'wallet'),
+                    nav_link('Khata', reverse('core:shop_khatabook'), 'wallet'),
                     nav_link('Catalog', reverse('core:shop_products'), 'boxes'),
                     nav_link('Settings', reverse('core:shop_settings'), 'settings'),
                 ]

@@ -748,7 +748,7 @@ class CoreFlowTests(TestCase):
             follow=True,
         )
         self.assertEqual(checkout_response.status_code, 200)
-        self.assertContains(checkout_response, 'Added to KhataBook')
+        self.assertContains(checkout_response, 'Added to Khata')
 
         order = Order.objects.latest('id')
         cycle = KhataBookCycle.objects.latest('id')
@@ -803,7 +803,7 @@ class CoreFlowTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'KhataBook limit is Rs. 1000.00.')
+        self.assertContains(response, 'Khata limit is Rs. 1000.00.')
         self.assertEqual(Order.objects.filter(payment_method=PaymentMethod.KHATABOOK).count(), existing_khata_orders)
 
     def test_customer_order_create_api_blocks_khatabook_when_credit_limit_is_exhausted(self):
@@ -840,7 +840,7 @@ class CoreFlowTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn('KhataBook limit is Rs. 1000.00.', response.json()['error'])
+        self.assertIn('Khata limit is Rs. 1000.00.', response.json()['error'])
 
     def test_customer_cart_shows_delivery_slot_options(self):
         self.client.force_login(self.customer_user)
@@ -1086,7 +1086,7 @@ class CoreFlowTests(TestCase):
         self.assertEqual(checkout_response.status_code, 200)
         self.assertContains(checkout_response, 'Address, notes, and payment')
         self.assertContains(checkout_response, 'Razorpay')
-        self.assertContains(checkout_response, 'KhataBook')
+        self.assertContains(checkout_response, 'Khata')
         self.assertContains(checkout_response, 'Cash / UPI on delivery')
         self.assertContains(checkout_response, 'Delivery address')
 
@@ -1332,7 +1332,7 @@ class CoreFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         mobile_labels = [link['label'] for link in response.context['shell_mobile_links']]
-        self.assertEqual(mobile_labels, ['Home', 'Search', 'Orders', 'KhataBook', 'Profile'])
+        self.assertEqual(mobile_labels, ['Home', 'Search', 'Orders', 'Khata', 'Profile'])
 
     @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
     def test_rider_can_accept_available_order_and_email_customer(self):
@@ -1809,7 +1809,7 @@ class CoreFlowTests(TestCase):
         response = self.client.get(reverse('core:rider_deliveries'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'KhataBook credit order')
+        self.assertContains(response, 'Khata credit order')
         self.assertContains(response, 'do not collect money')
         self.assertContains(response, khata_order.display_id)
 
@@ -1934,7 +1934,7 @@ class CoreFlowTests(TestCase):
         collection_request.refresh_from_db()
         self.assertEqual(collection_request.status, KhataBookCollectionStatus.ACCEPTED)
         self.assertEqual(len(collection_request.collection_otp), 6)
-        self.assertContains(response, 'Resend KhataBook OTP')
+        self.assertContains(response, 'Resend Khata OTP')
 
     def test_rider_deliveries_highlight_current_mission(self):
         pickup_order = Order.objects.create(
@@ -2306,7 +2306,7 @@ class CoreFlowTests(TestCase):
             response = self.client.get(reverse('core:customer_khatabook'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Increase your KhataBook line')
+        self.assertContains(response, 'Increase your Khata line')
         self.assertContains(response, 'Credit up to Rs. 3000.00 | Fee Rs. 60.00')
         self.assertContains(response, 'Credit up to Rs. 5000.00 | Fee Rs. 80.00')
         self.assertContains(response, 'Razorpay only. COD is not available for plan activation.')
@@ -2347,7 +2347,7 @@ class CoreFlowTests(TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'KhataBook credit boost activated.')
+        self.assertContains(response, 'Khata credit boost activated.')
         purchase.refresh_from_db()
         self.customer.refresh_from_db()
         self.assertEqual(purchase.status, KhataBookSubscriptionStatus.ACTIVE)
@@ -2356,7 +2356,7 @@ class CoreFlowTests(TestCase):
         self.assertTrue(
             Notification.objects.filter(
                 customer=self.customer,
-                title='KhataBook credit boost active',
+                title='Khata credit boost active',
                 notification_type=NotificationType.PAYMENT,
             ).exists()
         )
@@ -2386,12 +2386,12 @@ class CoreFlowTests(TestCase):
         response = self.client.get(reverse('core:customer_dashboard'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'KhataBook default alert')
+        self.assertContains(response, 'Khata default alert')
         self.assertContains(response, 'Rs. 110.00 is already overdue')
         self.assertTrue(
             Notification.objects.filter(
                 customer=self.customer,
-                title='KhataBook due overdue',
+                title='Khata due overdue',
                 notification_type=NotificationType.PAYMENT,
             ).exists()
         )
@@ -2456,7 +2456,7 @@ class CoreFlowTests(TestCase):
         self.assertTrue(
             Notification.objects.filter(
                 shop_owner=self.owner,
-                title='KhataBook default alert',
+                title='Khata default alert',
                 notification_type=NotificationType.PAYMENT,
             ).exists()
         )
@@ -2490,7 +2490,7 @@ class CoreFlowTests(TestCase):
             Notification.objects.filter(
                 customer=self.customer,
                 order=order,
-                title='KhataBook payment reminder',
+                title='Khata payment reminder',
                 notification_type=NotificationType.PAYMENT,
             ).exists()
         )
@@ -2523,7 +2523,7 @@ class CoreFlowTests(TestCase):
         order.refresh_from_db()
         cycle.refresh_from_db()
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, f'The KhataBook cycle for {order.display_id} was marked as paid.')
+        self.assertContains(response, f'The Khata cycle for {order.display_id} was marked as paid.')
         self.assertEqual(order.payment_status, PaymentStatus.PAID)
         self.assertIsNotNone(order.credit_paid_at)
         self.assertEqual(cycle.status, KhataBookCycleStatus.PAID)
@@ -2531,7 +2531,7 @@ class CoreFlowTests(TestCase):
             Notification.objects.filter(
                 customer=self.customer,
                 order=order,
-                title='KhataBook payment recorded',
+                title='Khata payment recorded',
                 notification_type=NotificationType.PAYMENT,
             ).exists()
         )
@@ -3332,7 +3332,7 @@ class CoreFlowTests(TestCase):
         self.assertContains(response, "Today's Summary")
         self.assertContains(response, 'Business Overview')
         self.assertContains(response, 'What Needs Attention')
-        self.assertContains(response, 'KhataBook / Credit Dashboard')
+        self.assertContains(response, 'Khata / Credit Dashboard')
         self.assertContains(response, 'Storefront Details')
         self.assertContains(response, 'Share Store Link')
 

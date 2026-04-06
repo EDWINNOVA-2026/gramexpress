@@ -10,7 +10,7 @@
         <div class="flex flex-wrap gap-2">
           <span class="soft-pill">{{ active_orders|length }} active</span>
           <span class="soft-pill">{{ previous_orders|length }} previous</span>
-          <span class="soft-pill">KhataBook Rs. {{ khatabook_summary.outstanding_amount }}</span>
+          <span class="soft-pill">Khata Rs. {{ khatabook_summary.outstanding_amount }}</span>
         </div>
       </article>
 
@@ -113,7 +113,7 @@
                 <strong>{{ order.payment_summary.label }}</strong>
                 <p>{{ order.payment_summary.status_label }}</p>
                 {% if order.payment_method == 'khata' and order.credit_due_date %}
-                  <p class="utility-note">KhataBook due on {{ order.credit_due_date|date:"M d, Y" }}</p>
+                  <p class="utility-note">Khata due on {{ order.credit_due_date|date:"M d, Y" }}</p>
                 {% endif %}
                 {% if order.payment_summary.reference %}
                   <p class="utility-note">Reference: {{ order.payment_summary.reference }}</p>
@@ -151,7 +151,7 @@
                 </form>
               {% endif %}
               {% if order.payment_method == 'khata' and order.payment_status != 'paid' %}
-                <a class="button small secondary" href="{% url 'core:customer_khatabook' %}">Open KhataBook</a>
+                <a class="button small secondary" href="{% url 'core:customer_khatabook' %}">Open Khata</a>
               {% endif %}
               {% if order.cod_online_link_ready and order.payment_status != 'paid' %}
                 <a class="button small secondary" href="{{ order.cod_payment_link_url }}" target="_blank" rel="noreferrer">Open Payment Link</a>
@@ -247,7 +247,7 @@
             <div class="flex flex-wrap gap-3">
               <a class="button small secondary" href="{% url 'core:order_detail' order.id %}">Order Detail</a>
               {% if order.payment_method == 'khata' and order.payment_status != 'paid' %}
-                <a class="button small secondary" href="{% url 'core:customer_khatabook' %}">Open KhataBook</a>
+                <a class="button small secondary" href="{% url 'core:customer_khatabook' %}">Open Khata</a>
               {% endif %}
               {% if order.can_be_reordered %}
                 <form method="post" action="{% url 'core:customer_reorder' order.id %}">

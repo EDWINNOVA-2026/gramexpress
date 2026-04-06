@@ -14,7 +14,7 @@
     <article class="card shop-khatabook-hero-v2" data-appear>
       <div class="shop-khatabook-hero-grid">
         <div class="shop-khatabook-hero-copy">
-          <span class="eyebrow">KhataBook Risk Desk</span>
+          <span class="eyebrow">Khata Risk Desk</span>
           <h1 class="page-title">Credit risk dashboard for {{ shop.name }}</h1>
           <p>Track live customer credit, spot risky exposure in seconds, and act on recovery before overdue amounts start hurting your cash flow.</p>
           <div class="shop-khatabook-hero-pills">
@@ -179,7 +179,7 @@
                       </form>
                       <form method="post" action="{% url 'core:shop_mark_khatabook_order_paid' order.id %}">
                         {% csrf_token %}
-                        <button class="button small primary" type="submit" title="Marks the weekly KhataBook cycle as recovered when this order is part of a shared credit batch.">
+                        <button class="button small primary" type="submit" title="Marks the weekly Khata cycle as recovered when this order is part of a shared credit batch.">
                           <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
                           <span>Mark as Paid</span>
                         </button>
@@ -195,7 +195,7 @@
         <div class="empty-card">
           <span class="eyebrow">No active credit orders</span>
           <h2 class="section-title">No active credit orders right now</h2>
-          <p>Fresh KhataBook orders will appear here with risk color coding and recovery shortcuts.</p>
+          <p>Fresh Khata orders will appear here with risk color coding and recovery shortcuts.</p>
         </div>
       {% endif %}
     </article>
@@ -314,7 +314,7 @@
           {% empty %}
             <div class="checkout-cod-panel">
               <strong>No customer scorecards yet</strong>
-              <p>Credit scores will appear after the first KhataBook repayment cycles complete.</p>
+              <p>Credit scores will appear after the first Khata repayment cycles complete.</p>
             </div>
           {% endfor %}
         </div>

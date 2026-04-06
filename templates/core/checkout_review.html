@@ -79,7 +79,7 @@
               <div class="flex items-start justify-between gap-4">
                 <div class="content-stack">
                   <div class="flex flex-wrap items-center gap-2">
-                    <strong>KhataBook</strong>
+                    <strong>Khata</strong>
                     <span class="status-chip warn">Pay Later</span>
                   </div>
                   <p class="subtle">Add this order to your 7-day credit cycle.</p>
@@ -116,8 +116,8 @@
               <strong>What happens with Razorpay</strong>
               <p>You will move to a secure payment step next. Your order will continue only after the online payment is confirmed.</p>
             {% elif checkout_data.payment_method == 'khata' %}
-              <strong>What happens with KhataBook</strong>
-              <p>This order joins your weekly credit cycle. Repayment stays visible in KhataBook with the due date clearly shown.</p>
+              <strong>What happens with Khata</strong>
+              <p>This order joins your weekly credit cycle. Repayment stays visible in Khata with the due date clearly shown.</p>
             {% else %}
               <strong>What happens with Cash / UPI on delivery</strong>
               <p>Keep cash or UPI ready for the rider at handoff. You only pay once the order reaches you.</p>
@@ -177,7 +177,7 @@
               <p class="tiny muted">Your checkout details are saved. Continue to the dedicated Razorpay step to finish the online payment.</p>
             {% else %}
               <button class="button primary !justify-center" type="submit" name="action" value="confirm" {% if cart.has_blocking_issues %}disabled{% endif %}>
-                {% if checkout_data.payment_method == 'razorpay' %}Continue To Payment{% elif is_khatabook %}Place Order On KhataBook{% else %}Place Order{% endif %}
+                {% if checkout_data.payment_method == 'razorpay' %}Continue To Payment{% elif is_khatabook %}Place Order On Khata{% else %}Place Order{% endif %}
               </button>
             {% endif %}
 

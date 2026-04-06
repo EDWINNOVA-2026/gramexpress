@@ -486,16 +486,16 @@ def send_customer_khatabook_collection_otp_email(
 ) -> tuple[bool, str]:
     recipient = (collection_request.customer.email or '').strip()
     if not recipient:
-        return False, 'No customer email is available for this KhataBook collection.'
+        return False, 'No customer email is available for this Khata collection.'
 
     try:
         send_branded_email(
-            subject=f'KhataBook repayment OTP for {collection_request.display_id}',
+            subject=f'Khata repayment OTP for {collection_request.display_id}',
             recipient_list=[recipient],
             preview=f'Repayment OTP {collection_request.collection_otp} for {collection_request.display_id}.',
             headline='Your repayment rider is on the way',
-            intro='Keep this OTP ready and share it only when the GramExpress rider reaches you for KhataBook collection.',
-            badge='KhataBook OTP',
+            intro='Keep this OTP ready and share it only when the GramExpress rider reaches you for Khata collection.',
+            badge='Khata OTP',
             highlights=[
                 {'label': 'Request', 'value': collection_request.display_id},
                 {'label': 'Rider', 'value': rider.full_name},
@@ -508,11 +508,11 @@ def send_customer_khatabook_collection_otp_email(
                     'lines': ['Please confirm the rider has arrived before you share this OTP.'],
                 }
             ],
-            footer_note='This email was generated from your GramExpress KhataBook repayment request.',
+            footer_note='This email was generated from your GramExpress Khata repayment request.',
         )
-        return True, 'KhataBook collection OTP email sent successfully.'
+        return True, 'Khata collection OTP email sent successfully.'
     except Exception:
-        return False, 'KhataBook collection OTP email could not be sent with the current mail settings.'
+        return False, 'Khata collection OTP email could not be sent with the current mail settings.'
 
 
 def send_welcome_email(*, user, role: str) -> tuple[bool, str]:
@@ -613,7 +613,7 @@ def ensure_khatabook_collection_otp_ready(
 
     customer_email = (collection_request.customer.email or '').strip() or 'Unavailable'
     print(
-        '[GramExpress KhataBook OTP] '
+        '[GramExpress Khata OTP] '
         f'{collection_request.display_id}: '
         f'Rider {rider.full_name} | '
         f'Customer email {customer_email} | '
@@ -626,20 +626,20 @@ def ensure_khatabook_collection_otp_ready(
     )
     otp_sms_sent, _ = send_customer_khatabook_collection_otp_sms(
         collection_request=collection_request,
-        intro='Your GramExpress rider is ready for KhataBook repayment collection.',
+        intro='Your GramExpress rider is ready for Khata repayment collection.',
     )
     create_notification(
         customer=collection_request.customer,
-        title='KhataBook repayment OTP sent',
+        title='Khata repayment OTP sent',
         body=(
             f'A 6-digit repayment OTP was sent for {collection_request.display_id}. '
-            'Share it only when the rider arrives to collect the KhataBook due.'
+            'Share it only when the rider arrives to collect the Khata due.'
         ),
         notification_type=NotificationType.PAYMENT,
     )
     create_notification(
         rider=rider,
-        title='KhataBook OTP ready',
+        title='Khata OTP ready',
         body=f'Ask the customer for the repayment OTP sent for {collection_request.display_id} before closing the collection.',
         notification_type=NotificationType.PAYMENT,
     )
@@ -1358,7 +1358,7 @@ def customer_page_nav() -> list[dict[str, str]]:
     return [
         {'label': 'Home', 'url': reverse('core:customer_dashboard'), 'icon': 'house'},
         {'label': 'Cart', 'url': reverse('core:customer_cart'), 'icon': 'shopping-cart'},
-        {'label': 'KhataBook', 'url': reverse('core:customer_khatabook'), 'icon': 'wallet'},
+        {'label': 'Khata', 'url': reverse('core:customer_khatabook'), 'icon': 'wallet'},
         {'label': 'Orders', 'url': reverse('core:customer_orders'), 'icon': 'package'},
         {'label': 'Profile', 'url': reverse('core:customer_profile'), 'icon': 'user'},
     ]
@@ -1368,7 +1368,7 @@ def shop_page_nav() -> list[dict[str, str]]:
     return [
         {'label': 'Overview', 'url': reverse('core:shop_dashboard'), 'icon': 'layout-dashboard'},
         {'label': 'Orders', 'url': reverse('core:shop_orders'), 'icon': 'clipboard-list'},
-        {'label': 'KhataBook', 'url': reverse('core:shop_khatabook'), 'icon': 'wallet'},
+        {'label': 'Khata', 'url': reverse('core:shop_khatabook'), 'icon': 'wallet'},
         {'label': 'Catalog', 'url': reverse('core:shop_products'), 'icon': 'boxes'},
         {'label': 'Settings', 'url': reverse('core:shop_settings'), 'icon': 'settings'},
     ]
@@ -1787,7 +1787,7 @@ def rider_status_chip(order: Order) -> str:
 def rider_status_hint(order: Order, *, pickup_gate_open: bool) -> str:
     if order.status == OrderStatus.OUT_FOR_DELIVERY:
         if order.payment_method == PaymentMethod.KHATABOOK:
-            return 'This is a KhataBook credit order. Complete the handoff with OTP only and do not collect money from the customer.'
+            return 'This is a Khata credit order. Complete the handoff with OTP only and do not collect money from the customer.'
         if order.cod_collection_mode == CodCollectionMode.ONLINE and not order_customer_payment_complete(order):
             return 'The Razorpay payment link was sent. Wait for the customer payment, then finish handoff with the OTP.'
         return 'Pickup confirmed. Head to the customer and complete handoff with the OTP.'
@@ -1828,9 +1828,9 @@ def enrich_rider_order(order: Order, rider: RiderProfile) -> Order:
     )
     order.is_khatabook_order = order.payment_method == PaymentMethod.KHATABOOK
     order.is_direct_payment_order = order.payment_method in [PaymentMethod.COD, PaymentMethod.RAZORPAY]
-    order.payment_mode_badge = 'KhataBook credit' if order.is_khatabook_order else 'Direct payment'
+    order.payment_mode_badge = 'Khata credit' if order.is_khatabook_order else 'Direct payment'
     if order.payment_method == PaymentMethod.KHATABOOK:
-        order.dashboard_payment_label = 'KhataBook'
+        order.dashboard_payment_label = 'Khata'
         order.dashboard_payment_chip = 'rider-payment-chip-khata'
     elif order.payment_status == PaymentStatus.PAID:
         order.dashboard_payment_label = 'Paid'
@@ -1857,11 +1857,11 @@ def enrich_rider_order(order: Order, rider: RiderProfile) -> Order:
         order.current_mission_map_label = 'Open Drop-off Pin'
         order.current_mission_meta = f'Rs. {order.total_amount} waiting online payment'
     elif order.status == OrderStatus.OUT_FOR_DELIVERY and order.payment_method == PaymentMethod.KHATABOOK:
-        order.current_mission_title = 'Complete KhataBook handoff'
+        order.current_mission_title = 'Complete Khata handoff'
         order.current_mission_detail = 'This order is on credit. Deliver normally, verify the OTP, and do not collect money from the customer during handoff.'
         order.current_mission_map_url = order.dropoff_map_url
         order.current_mission_map_label = 'Open Drop-off Pin'
-        order.current_mission_meta = f'KhataBook due by {order.credit_due_date.strftime("%b %d") if order.credit_due_date else "next Monday"}'
+        order.current_mission_meta = f'Khata due by {order.credit_due_date.strftime("%b %d") if order.credit_due_date else "next Monday"}'
     elif order.status == OrderStatus.OUT_FOR_DELIVERY:
         order.current_mission_title = 'Finish the customer handoff'
         order.current_mission_detail = 'Navigate to the drop-off pin, verify the OTP, and complete delivery.'
@@ -2371,11 +2371,11 @@ def customer_khatabook_balance_state(customer: CustomerProfile) -> dict[str, Any
 def validate_customer_khatabook_checkout(*, customer: CustomerProfile, projected_amount: Decimal) -> dict[str, Any]:
     balance = customer_khatabook_balance_state(customer)
     if balance['has_overdue']:
-        raise CheckoutValidationError('Clear your overdue KhataBook due before using more credit.')
+        raise CheckoutValidationError('Clear your overdue Khata due before using more credit.')
     projected_balance = quantize_money(balance['open_balance'] + projected_amount)
     if projected_balance > balance['plan']['credit_limit']:
         raise CheckoutValidationError(
-            f'KhataBook limit is Rs. {balance["plan"]["credit_limit"]}. '
+            f'Khata limit is Rs. {balance["plan"]["credit_limit"]}. '
             f'Available credit is Rs. {balance["available_credit"]}. Pay pending due or upgrade the credit plan first.'
         )
     balance['projected_balance'] = projected_balance
@@ -2434,7 +2434,7 @@ def mark_khatabook_cycle_paid(
         create_notification(
             shop_owner=order.shop.owner,
             order=order,
-            title='KhataBook payment recovered',
+            title='Khata payment recovered',
             body=(
                 f'{order.display_id} was cleared by the customer. '
                 'This credit cycle is settled and the storefront payout can now move forward.'
@@ -2458,7 +2458,7 @@ def build_khatabook_cycle_summary(cycle: KhataBookCycle | None) -> dict[str, Any
             'paid_amount': Decimal('0.00'),
             'due_date': upcoming_due,
             'days_left': (upcoming_due - today).days,
-            'headline': 'Start a KhataBook order to unlock 7-day platform credit.',
+            'headline': 'Start a Khata order to unlock 7-day platform credit.',
             'detail': f'Orders placed this week will stay on credit and become due on {upcoming_due.strftime("%b %d")}.',
             'collection_requested': False,
             'is_paid': False,
@@ -2480,7 +2480,7 @@ def build_khatabook_cycle_summary(cycle: KhataBookCycle | None) -> dict[str, Any
             'paid_amount': cycle.paid_amount,
             'due_date': cycle.due_date,
             'days_left': days_left,
-            'headline': 'This KhataBook cycle is fully settled.',
+            'headline': 'This Khata cycle is fully settled.',
             'detail': 'You have cleared the weekly credit line for this cycle.',
             'collection_requested': False,
             'is_paid': True,
@@ -2520,7 +2520,7 @@ def build_khatabook_cycle_summary(cycle: KhataBookCycle | None) -> dict[str, Any
             'due_date': cycle.due_date,
             'days_left': days_left,
             'headline': 'A COD / UPI collection request is already logged.',
-            'detail': 'A delivery agent may take time to arrive for the KhataBook repayment handoff.',
+            'detail': 'A delivery agent may take time to arrive for the Khata repayment handoff.',
             'collection_requested': True,
             'is_paid': False,
             'is_overdue': False,
@@ -2646,9 +2646,9 @@ def maybe_create_customer_khatabook_default_notification(customer: CustomerProfi
             continue
         create_notification_once(
             customer=customer,
-            title='KhataBook due overdue',
+            title='Khata due overdue',
             body=(
-                f'Your KhataBook due of Rs. {cycle_summary["outstanding_amount"]} for the week starting '
+                f'Your Khata due of Rs. {cycle_summary["outstanding_amount"]} for the week starting '
                 f'{cycle.week_start.strftime("%b %d")} is overdue. Clear it now to close the default.'
             ),
             notification_type=NotificationType.PAYMENT,
@@ -2737,7 +2737,7 @@ def build_shop_khatabook_context(shop: Shop) -> dict[str, Any]:
                 f'Customer paid on {timezone.localtime(order.credit_paid_at).strftime("%b %d, %H:%M")}. '
                 'Platform can move this storefront payout next.'
                 if order.credit_paid_at
-                else 'This KhataBook order has already been settled.'
+                else 'This Khata order has already been settled.'
             )
         elif order.is_defaulted:
             order.credit_state_label = 'Defaulted'
@@ -2832,9 +2832,9 @@ def build_shop_khatabook_context(shop: Shop) -> dict[str, Any]:
     for order in defaulted_orders:
         create_notification_once(
             shop_owner=shop.owner,
-            title='KhataBook default alert',
+            title='Khata default alert',
             body=(
-                f'{order.display_id} is overdue under KhataBook. Rs. {order.total_amount} remains unpaid, '
+                f'{order.display_id} is overdue under Khata. Rs. {order.total_amount} remains unpaid, '
                 f'with Rs. {order.credit_exposure_amount} counted as storefront credit exposure, '
                 f'and your temporary shop risk share is Rs. {order.shop_exposure_share}.'
             ),
@@ -2845,7 +2845,7 @@ def build_shop_khatabook_context(shop: Shop) -> dict[str, Any]:
         {
             'label': 'Active exposure',
             'value': f'Rs. {active_credit_exposure}',
-            'detail': 'All unpaid KhataBook orders that are still sitting on the store ledger.',
+            'detail': 'All unpaid Khata orders that are still sitting on the store ledger.',
             'chip': 'warn' if active_credit_exposure else 'info',
         },
         {
@@ -2994,7 +2994,7 @@ def build_shop_khatabook_context(shop: Shop) -> dict[str, Any]:
         insights.append(
             {
                 'title': 'Stop credit for the riskiest customer',
-                'detail': f'{customer_scores[0]["customer_name"]} has the weakest repayment score right now. Consider manual approval before the next KhataBook order.',
+                'detail': f'{customer_scores[0]["customer_name"]} has the weakest repayment score right now. Consider manual approval before the next Khata order.',
                 'chip': 'danger',
                 'icon': 'user',
             }
@@ -3022,7 +3022,7 @@ def build_shop_khatabook_context(shop: Shop) -> dict[str, Any]:
         {
             'label': 'Total Credit Sales',
             'value': f'Rs. {total_credit_sales}',
-            'detail': 'All KhataBook exposure created by this storefront so far.',
+            'detail': 'All Khata exposure created by this storefront so far.',
         },
         {
             'label': 'Total Recovered',
@@ -3072,7 +3072,7 @@ def build_shop_khatabook_context(shop: Shop) -> dict[str, Any]:
         'suggested_credit_limit': suggested_credit_limit,
         'has_warning': defaulted_amount > Decimal('0.00'),
         'warning_headline': (
-            f'Rs. {defaulted_amount} is already overdue across {len(defaulted_orders)} KhataBook order'
+            f'Rs. {defaulted_amount} is already overdue across {len(defaulted_orders)} Khata order'
             f'{"s" if len(defaulted_orders) != 1 else ""}.'
             if defaulted_amount > Decimal('0.00')
             else 'No customer default is open right now.'
@@ -3145,14 +3145,14 @@ def enrich_khatabook_collection_request(
         else 'warn'
     )
     if collection_request.status == KhataBookCollectionStatus.ACCEPTED:
-        collection_request.flow_headline = 'KhataBook collection assigned'
-        collection_request.flow_detail = 'Do not ask for payment on the original order. Collect the weekly KhataBook due only for this repayment request.'
+        collection_request.flow_headline = 'Khata collection assigned'
+        collection_request.flow_detail = 'Do not ask for payment on the original order. Collect the weekly Khata due only for this repayment request.'
     elif collection_request.status == KhataBookCollectionStatus.COMPLETED:
-        collection_request.flow_headline = 'KhataBook collection completed'
+        collection_request.flow_headline = 'Khata collection completed'
         collection_request.flow_detail = 'The weekly credit due was collected and the customer ledger is now closed.'
     else:
-        collection_request.flow_headline = 'KhataBook collection requested'
-        collection_request.flow_detail = 'A customer nearby wants to clear the weekly KhataBook due through rider-assisted COD / UPI collection.'
+        collection_request.flow_headline = 'Khata collection requested'
+        collection_request.flow_detail = 'A customer nearby wants to clear the weekly Khata due through rider-assisted COD / UPI collection.'
     return collection_request
 
 
@@ -3293,7 +3293,7 @@ def create_razorpay_order_for_checkout(checkout_session: CheckoutSession) -> dic
 def create_razorpay_order_for_khatabook_cycle(cycle: KhataBookCycle) -> dict[str, Any]:
     cycle = refresh_khatabook_cycle(cycle)
     if cycle.outstanding_amount <= Decimal('0.00'):
-        raise CheckoutValidationError('This KhataBook cycle does not have any outstanding balance to pay.')
+        raise CheckoutValidationError('This Khata cycle does not have any outstanding balance to pay.')
     payload = {
         'amount': int((cycle.outstanding_amount * 100).quantize(Decimal('1'))),
         'currency': 'INR',
@@ -3343,7 +3343,7 @@ def create_razorpay_order_for_khatabook_subscription_purchase(
     purchase: KhataBookSubscriptionPurchase,
 ) -> dict[str, Any]:
     if purchase.subscription_fee <= Decimal('0.00'):
-        raise CheckoutValidationError('This KhataBook plan does not need a Razorpay payment.')
+        raise CheckoutValidationError('This Khata plan does not need a Razorpay payment.')
     payload = {
         'amount': int((purchase.subscription_fee * 100).quantize(Decimal('1'))),
         'currency': 'INR',
@@ -3650,7 +3650,7 @@ def build_khatabook_razorpay_context(cycle: KhataBookCycle, customer: CustomerPr
         'amount': int((cycle.outstanding_amount * 100).quantize(Decimal('1'))),
         'currency': 'INR',
         'name': getattr(settings, 'GRAMEXPRESS_APP_NAME', 'GramExpress'),
-        'description': f'KhataBook due for week starting {cycle.week_start.strftime("%b %d")}',
+        'description': f'Khata due for week starting {cycle.week_start.strftime("%b %d")}',
         'order_id': cycle.razorpay_order_id,
         'prefill': {
             'name': customer.full_name,
@@ -3678,7 +3678,7 @@ def build_khatabook_subscription_razorpay_context(
         'amount': int((purchase.subscription_fee * 100).quantize(Decimal('1'))),
         'currency': 'INR',
         'name': getattr(settings, 'GRAMEXPRESS_APP_NAME', 'GramExpress'),
-        'description': f'{plan["name"]} KhataBook subscription',
+        'description': f'{plan["name"]} Khata subscription',
         'order_id': purchase.razorpay_order_id,
         'prefill': {
             'name': customer.full_name,
@@ -3889,9 +3889,9 @@ def notify_checkout_orders(*, checkout_session: CheckoutSession, created_orders:
             order_bill_breakup = build_order_bill_breakup(order)
             create_notification(
                 shop_owner=order.shop.owner,
-                title='KhataBook credit order added',
+                title='Khata credit order added',
                 body=(
-                    f'{order.display_id} entered KhataBook with Rs. {order_bill_breakup["shop_credit_exposure"]} '
+                    f'{order.display_id} entered Khata with Rs. {order_bill_breakup["shop_credit_exposure"]} '
                     'counted as storefront credit exposure. '
                     f'This credit stays open until {order.credit_due_date.strftime("%b %d") if order.credit_due_date else "next Monday"}.'
                 ),
@@ -3902,7 +3902,7 @@ def notify_checkout_orders(*, checkout_session: CheckoutSession, created_orders:
             order=order,
             title='Order confirmed',
             body=(
-                f'Order #{order.id} from {order.shop.name} was added to KhataBook with repayment due by '
+                f'Order #{order.id} from {order.shop.name} was added to Khata with repayment due by '
                 f'{order.credit_due_date.strftime("%b %d")}.'
                 if payment_method == PaymentMethod.KHATABOOK and order.credit_due_date
                 else f'Order #{order.id} from {order.shop.name} was created successfully.'
@@ -4151,7 +4151,7 @@ def customer_workspace_context(request: HttpRequest) -> dict[str, Any]:
         'khatabook_summary': khatabook_summary,
         'customer_khatabook_warning': (
             {
-                'title': 'KhataBook default alert',
+                'title': 'Khata default alert',
                 'detail': (
                     f'Rs. {khatabook_summary["outstanding_amount"]} is already overdue from '
                     f'{khatabook_summary["due_date"].strftime("%b %d, %Y")}.'
@@ -4465,7 +4465,7 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
         },
         {
             'label': 'Add Credit Customer',
-            'detail': 'Jump into KhataBook to monitor credit orders and recovery progress.',
+            'detail': 'Jump into Khata to monitor credit orders and recovery progress.',
             'url': reverse('core:shop_khatabook'),
             'icon': 'wallet',
         },
@@ -4505,7 +4505,7 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
             'detail': (
                 'No credit orders yet. Credit activity will appear here.'
                 if new_credit_orders_count == 0
-                else 'KhataBook orders created today.'
+                else 'Khata orders created today.'
             ),
             'chip': 'warn' if new_credit_orders_count else 'info',
         },
@@ -4610,7 +4610,7 @@ def shop_workspace_context(request: HttpRequest, *, editing_product_id: str | No
         {
             'label': 'Payment Notifications',
             'items': [note for note in notifications if note.notification_type == NotificationType.PAYMENT][:3],
-            'empty_message': 'Payment and KhataBook updates will appear here.',
+            'empty_message': 'Payment and Khata updates will appear here.',
         },
     ]
     return {
@@ -4869,7 +4869,7 @@ def rider_workspace_context(request: HttpRequest) -> dict[str, Any]:
         payout_status_tone = 'success'
     elif incentive_earned > 0:
         payout_status_label = 'Incentives active'
-        payout_status_detail = 'This payout includes variable incentives from distance, peak-hour, or KhataBook recovery work.'
+        payout_status_detail = 'This payout includes variable incentives from distance, peak-hour, or Khata recovery work.'
         payout_status_tone = 'info'
     else:
         payout_status_label = 'Commission only'
@@ -4904,7 +4904,7 @@ def rider_workspace_context(request: HttpRequest) -> dict[str, Any]:
                 'drop_detail': collection_request.collection_address,
                 'distance_km': collection_request.distance_km or Decimal('0.0'),
                 'distance_label': f'{collection_request.distance_km} km away' if collection_request.distance_km is not None else 'Nearby',
-                'payment_label': 'KhataBook',
+                'payment_label': 'Khata',
                 'payment_chip': 'rider-payment-chip-khata',
                 'accept_url': reverse('core:rider_accept_khatabook_collection', args=[collection_request.id]),
                 'accept_label': 'Accept Collection',
@@ -5202,8 +5202,8 @@ def build_payment_summary(order: Order) -> dict[str, str]:
     if order.payment_method == PaymentMethod.KHATABOOK:
         if order.payment_status == PaymentStatus.PAID:
             return {
-                'label': 'KhataBook settled',
-                'detail': 'This platform credit order has been repaid successfully for the weekly KhataBook cycle.',
+                'label': 'Khata settled',
+                'detail': 'This platform credit order has been repaid successfully for the weekly Khata cycle.',
                 'chip_class': 'success',
                 'status_label': 'Paid',
                 'reference': reference,
@@ -5212,13 +5212,13 @@ def build_payment_summary(order: Order) -> dict[str, str]:
             }
         due_label = order.credit_due_date.strftime('%b %d') if order.credit_due_date else 'the next Monday'
         return {
-            'label': 'Added to KhataBook',
+            'label': 'Added to Khata',
             'detail': f'This order is on a 7-day credit line. The amount stays due until {due_label}.',
             'chip_class': 'warn',
             'status_label': 'Credit open',
             'reference': reference,
             'link_url': '',
-            'link_label': 'Open KhataBook',
+            'link_label': 'Open Khata',
         }
     if order.payment_status == PaymentStatus.PAID:
         return {
@@ -6469,19 +6469,19 @@ def customer_orders_view(request: HttpRequest) -> HttpResponse:
 def customer_khatabook_request_collection(request: HttpRequest) -> HttpResponse:
     cycle = request.role_profile.khatabook_cycles.order_by('-week_start').first()
     if not cycle:
-        messages.info(request, 'You do not have an active KhataBook due yet.')
+        messages.info(request, 'You do not have an active Khata due yet.')
         return redirect('core:customer_khatabook')
     cycle = refresh_khatabook_cycle(cycle)
     if cycle.outstanding_amount <= Decimal('0.00'):
-        messages.success(request, 'This KhataBook cycle is already settled.')
+        messages.success(request, 'This Khata cycle is already settled.')
         return redirect('core:customer_khatabook')
 
     active_request = active_khatabook_collection_request(cycle)
     if active_request:
         if active_request.rider_id:
-            messages.info(request, 'A rider is already assigned to this KhataBook collection request.')
+            messages.info(request, 'A rider is already assigned to this Khata collection request.')
         else:
-            messages.info(request, 'Your KhataBook collection request is already open for nearby riders.')
+            messages.info(request, 'Your Khata collection request is already open for nearby riders.')
         return redirect('core:customer_khatabook')
 
     collection_request = KhataBookCollectionRequest.objects.create(
@@ -6489,7 +6489,7 @@ def customer_khatabook_request_collection(request: HttpRequest) -> HttpResponse:
         khata_cycle=cycle,
         amount=cycle.outstanding_amount,
         collection_address=build_delivery_address(request.role_profile),
-        collection_notes='Customer requested COD / UPI repayment for the weekly KhataBook due.',
+        collection_notes='Customer requested COD / UPI repayment for the weekly Khata due.',
         collection_otp='',
         latitude=request.role_profile.latitude,
         longitude=request.role_profile.longitude,
@@ -6510,14 +6510,14 @@ def customer_khatabook_request_collection(request: HttpRequest) -> HttpResponse:
     )
     create_notification(
         customer=request.role_profile,
-        title='KhataBook collection requested',
+        title='Khata collection requested',
         body='COD / UPI repayment was requested. A delivery agent might take time to arrive for the collection handoff.',
         notification_type=NotificationType.PAYMENT,
     )
     for nearby_rider in eligible_available_riders_for_collection_request(collection_request):
         create_notification(
             rider=nearby_rider,
-            title='KhataBook collection request nearby',
+            title='Khata collection request nearby',
             body=(
                 f'{collection_request.display_id} is ready nearby for Rs. {collection_request.amount}. '
                 'Open the rider dashboard to accept this credit collection.'
@@ -6539,26 +6539,26 @@ def customer_khatabook_razorpay_complete(request: HttpRequest) -> HttpResponse:
     )
     cycle = refresh_khatabook_cycle(cycle)
     if cycle.outstanding_amount <= Decimal('0.00'):
-        messages.success(request, 'This KhataBook cycle is already paid.')
+        messages.success(request, 'This Khata cycle is already paid.')
         return redirect('core:customer_khatabook')
 
     razorpay_payment_id = request.POST.get('razorpay_payment_id', '').strip()
     razorpay_order_id = request.POST.get('razorpay_order_id', '').strip()
     razorpay_signature = request.POST.get('razorpay_signature', '').strip()
     if not all([razorpay_payment_id, razorpay_order_id, razorpay_signature]):
-        messages.error(request, 'Razorpay did not return the KhataBook payment confirmation details.')
+        messages.error(request, 'Razorpay did not return the Khata payment confirmation details.')
         return redirect('core:customer_khatabook')
     if razorpay_order_id != cycle.razorpay_order_id:
-        messages.error(request, 'The KhataBook payment order did not match this weekly due.')
+        messages.error(request, 'The Khata payment order did not match this weekly due.')
         return redirect('core:customer_khatabook')
     if not verify_razorpay_payment_signature(
         razorpay_order_id=razorpay_order_id,
         razorpay_payment_id=razorpay_payment_id,
         razorpay_signature=razorpay_signature,
     ):
-        cycle.failure_reason = 'KhataBook payment signature verification failed.'
+        cycle.failure_reason = 'Khata payment signature verification failed.'
         cycle.save(update_fields=['failure_reason', 'updated_at'])
-        messages.error(request, 'We could not verify the KhataBook payment signature. Please try again.')
+        messages.error(request, 'We could not verify the Khata payment signature. Please try again.')
         return redirect('core:customer_khatabook')
 
     try:
@@ -6577,9 +6577,9 @@ def customer_khatabook_razorpay_complete(request: HttpRequest) -> HttpResponse:
         or int(razorpay_payment.get('amount', 0)) != expected_amount
         or payment_status not in ['authorized', 'captured']
     ):
-        cycle.failure_reason = 'KhataBook payment verification did not pass all checks.'
+        cycle.failure_reason = 'Khata payment verification did not pass all checks.'
         cycle.save(update_fields=['failure_reason', 'updated_at'])
-        messages.error(request, 'KhataBook payment verification failed. Your due is still open.')
+        messages.error(request, 'Khata payment verification failed. Your due is still open.')
         return redirect('core:customer_khatabook')
 
     cycle.razorpay_payment_id = razorpay_payment_id
@@ -6593,11 +6593,11 @@ def customer_khatabook_razorpay_complete(request: HttpRequest) -> HttpResponse:
     )
     create_notification(
         customer=customer,
-        title='KhataBook payment received',
-        body=f'Your KhataBook due for the week starting {cycle.week_start.strftime("%b %d")} was settled successfully.',
+        title='Khata payment received',
+        body=f'Your Khata due for the week starting {cycle.week_start.strftime("%b %d")} was settled successfully.',
         notification_type=NotificationType.PAYMENT,
     )
-    messages.success(request, 'KhataBook due paid successfully through Razorpay UPI.')
+    messages.success(request, 'Khata due paid successfully through Razorpay UPI.')
     return redirect('core:customer_khatabook')
 
 
@@ -6612,7 +6612,7 @@ def customer_khatabook_razorpay_failed(request: HttpRequest) -> HttpResponse:
     error_message = (
         request.POST.get('error_description')
         or request.POST.get('error_reason')
-        or 'The KhataBook UPI payment was not completed.'
+        or 'The Khata UPI payment was not completed.'
     )
     cycle.failure_reason = error_message[:240]
     cycle.save(update_fields=['failure_reason', 'updated_at'])
@@ -6630,7 +6630,7 @@ def customer_khatabook_subscription_complete(request: HttpRequest) -> HttpRespon
         customer=customer,
     )
     if purchase.status == KhataBookSubscriptionStatus.ACTIVE:
-        messages.success(request, 'This KhataBook credit boost is already active.')
+        messages.success(request, 'This Khata credit boost is already active.')
         return redirect('core:customer_khatabook')
 
     razorpay_payment_id = request.POST.get('razorpay_payment_id', '').strip()
@@ -6640,7 +6640,7 @@ def customer_khatabook_subscription_complete(request: HttpRequest) -> HttpRespon
         messages.error(request, 'Razorpay did not return the subscription payment confirmation details.')
         return redirect('core:customer_khatabook')
     if razorpay_order_id != purchase.razorpay_order_id:
-        messages.error(request, 'The KhataBook credit boost order did not match this payment.')
+        messages.error(request, 'The Khata credit boost order did not match this payment.')
         return redirect('core:customer_khatabook')
     if not verify_razorpay_payment_signature(
         razorpay_order_id=razorpay_order_id,
@@ -6648,9 +6648,9 @@ def customer_khatabook_subscription_complete(request: HttpRequest) -> HttpRespon
         razorpay_signature=razorpay_signature,
     ):
         purchase.status = KhataBookSubscriptionStatus.FAILED
-        purchase.failure_reason = 'KhataBook subscription payment signature verification failed.'
+        purchase.failure_reason = 'Khata subscription payment signature verification failed.'
         purchase.save(update_fields=['status', 'failure_reason', 'updated_at'])
-        messages.error(request, 'We could not verify the KhataBook subscription payment signature. Please try again.')
+        messages.error(request, 'We could not verify the Khata subscription payment signature. Please try again.')
         return redirect('core:customer_khatabook')
 
     try:
@@ -6670,9 +6670,9 @@ def customer_khatabook_subscription_complete(request: HttpRequest) -> HttpRespon
         or payment_status not in ['authorized', 'captured']
     ):
         purchase.status = KhataBookSubscriptionStatus.FAILED
-        purchase.failure_reason = 'KhataBook subscription payment verification did not pass all checks.'
+        purchase.failure_reason = 'Khata subscription payment verification did not pass all checks.'
         purchase.save(update_fields=['status', 'failure_reason', 'updated_at'])
-        messages.error(request, 'KhataBook credit boost verification failed. No plan change was applied.')
+        messages.error(request, 'Khata credit boost verification failed. No plan change was applied.')
         return redirect('core:customer_khatabook')
 
     activate_khatabook_subscription_purchase(
@@ -6683,16 +6683,16 @@ def customer_khatabook_subscription_complete(request: HttpRequest) -> HttpRespon
     customer.refresh_from_db(fields=['khatabook_plan', 'khatabook_credit_limit', 'khatabook_subscription_paid_at'])
     create_notification(
         customer=customer,
-        title='KhataBook credit boost active',
+        title='Khata credit boost active',
         body=(
             f'Your {khatabook_plan_config(purchase.tier)["name"]} plan is active. '
-            f'KhataBook credit is now available up to Rs. {purchase.credit_limit}.'
+            f'Khata credit is now available up to Rs. {purchase.credit_limit}.'
         ),
         notification_type=NotificationType.PAYMENT,
     )
     messages.success(
         request,
-        f'KhataBook credit boost activated. Your limit is now Rs. {purchase.credit_limit}.',
+        f'Khata credit boost activated. Your limit is now Rs. {purchase.credit_limit}.',
     )
     return redirect('core:customer_khatabook')
 
@@ -6708,7 +6708,7 @@ def customer_khatabook_subscription_failed(request: HttpRequest) -> HttpResponse
     error_message = (
         request.POST.get('error_description')
         or request.POST.get('error_reason')
-        or 'The KhataBook subscription payment was not completed.'
+        or 'The Khata subscription payment was not completed.'
     )
     purchase.status = KhataBookSubscriptionStatus.FAILED
     purchase.failure_reason = error_message[:240]
@@ -7026,7 +7026,7 @@ def customer_checkout(request: HttpRequest) -> HttpResponse:
                     if checkout_data['payment_method'] == PaymentMethod.KHATABOOK:
                         khata_due_date = next((order.credit_due_date for order in created_orders if order.credit_due_date), None)
                         due_copy = f' Repayment is due by {khata_due_date.strftime("%b %d")}.' if khata_due_date else ''
-                        messages.success(request, f'{len(created_orders)} order(s) were added to KhataBook.{due_copy}')
+                        messages.success(request, f'{len(created_orders)} order(s) were added to Khata.{due_copy}')
                     else:
                         messages.success(request, f'{len(created_orders)} order(s) placed across your selected stores.')
                     return redirect('core:customer_checkout_success')
@@ -7463,15 +7463,15 @@ def razorpay_webhook(request: HttpRequest) -> HttpResponse:
             )
             create_notification(
                 customer=cycle.customer,
-                title='KhataBook payment received',
-                body=f'Your KhataBook due for the week starting {cycle.week_start.strftime("%b %d")} was settled successfully.',
+                title='Khata payment received',
+                body=f'Your Khata due for the week starting {cycle.week_start.strftime("%b %d")} was settled successfully.',
                 notification_type=NotificationType.PAYMENT,
             )
         elif event_name == 'payment.failed':
             error_message = (
                 payment_entity.get('error_description')
                 or payment_entity.get('error_reason')
-                or 'The KhataBook UPI payment failed.'
+                or 'The Khata UPI payment failed.'
             )
             cycle.failure_reason = error_message[:240]
             cycle.save(update_fields=['failure_reason', 'updated_at'])
@@ -7881,28 +7881,28 @@ def shop_send_khatabook_reminder(request: HttpRequest, order_id: int) -> HttpRes
         payment_method=PaymentMethod.KHATABOOK,
     )
     if order.payment_status == PaymentStatus.PAID or order.credit_paid_at:
-        messages.info(request, 'This KhataBook order is already paid.')
+        messages.info(request, 'This Khata order is already paid.')
         return redirect('core:shop_khatabook')
     due_date = order.credit_due_date or (order.khata_cycle.due_date if order.khata_cycle_id else None)
     due_copy = f' It is due by {due_date.strftime("%b %d, %Y")}.' if due_date else ''
     reminder_body = (
-        f'{order.shop.name} sent a KhataBook payment reminder for {order.display_id}. '
+        f'{order.shop.name} sent a Khata payment reminder for {order.display_id}. '
         f'Rs. {order.total_amount} is still pending on your credit cycle.{due_copy}'
     )
     create_notification(
         customer=order.customer,
         order=order,
-        title='KhataBook payment reminder',
+        title='Khata payment reminder',
         body=reminder_body,
         notification_type=NotificationType.PAYMENT,
     )
     if order.customer.email:
         try:
             send_branded_email(
-                subject=f'KhataBook reminder for {order.display_id}',
+                subject=f'Khata reminder for {order.display_id}',
                 recipient_list=[order.customer.email],
                 preview=f'Payment reminder for {order.display_id}.',
-                headline='KhataBook payment reminder',
+                headline='Khata payment reminder',
                 intro=reminder_body,
                 badge='Payment reminder',
                 highlights=[
@@ -7913,12 +7913,12 @@ def shop_send_khatabook_reminder(request: HttpRequest, order_id: int) -> HttpRes
                 sections=[
                     {
                         'title': 'Need help?',
-                        'lines': ['You can review this KhataBook due from your GramExpress customer dashboard.'],
+                        'lines': ['You can review this Khata due from your GramExpress customer dashboard.'],
                     }
                 ],
-                cta_label='Open KhataBook',
+                cta_label='Open Khata',
                 cta_url=build_absolute_app_url(reverse('core:customer_khatabook')),
-                footer_note='This reminder was sent by the store that owns this KhataBook due.',
+                footer_note='This reminder was sent by the store that owns this Khata due.',
             )
         except Exception:
             pass
@@ -7936,7 +7936,7 @@ def shop_mark_khatabook_order_paid(request: HttpRequest, order_id: int) -> HttpR
         payment_method=PaymentMethod.KHATABOOK,
     )
     if order.payment_status == PaymentStatus.PAID or order.credit_paid_at:
-        messages.info(request, 'This KhataBook order is already marked as paid.')
+        messages.info(request, 'This Khata order is already marked as paid.')
         return redirect('core:shop_khatabook')
     if order.khata_cycle_id:
         mark_khatabook_cycle_paid(
@@ -7947,14 +7947,14 @@ def shop_mark_khatabook_order_paid(request: HttpRequest, order_id: int) -> HttpR
         create_notification(
             customer=order.customer,
             order=order,
-            title='KhataBook payment recorded',
+            title='Khata payment recorded',
             body=(
-                f'{order.shop.name} marked the KhataBook cycle containing {order.display_id} as recovered. '
+                f'{order.shop.name} marked the Khata cycle containing {order.display_id} as recovered. '
                 'Your credit due now shows as paid.'
             ),
             notification_type=NotificationType.PAYMENT,
         )
-        messages.success(request, f'The KhataBook cycle for {order.display_id} was marked as paid.')
+        messages.success(request, f'The Khata cycle for {order.display_id} was marked as paid.')
         return redirect('core:shop_khatabook')
     order.payment_status = PaymentStatus.PAID
     order.credit_paid_at = timezone.now()
@@ -8512,13 +8512,13 @@ def rider_accept_order(request: HttpRequest, order_id: int) -> HttpResponse:
 def rider_accept_khatabook_collection(request: HttpRequest, request_id: int) -> HttpResponse:
     rider = request.role_profile
     if rider.approval_status != ApprovalStatus.APPROVED or not rider.is_available:
-        messages.error(request, 'Only approved and available riders can accept KhataBook collection requests.')
+        messages.error(request, 'Only approved and available riders can accept Khata collection requests.')
         return redirect('core:rider_deliveries')
 
     with transaction.atomic():
         locked_rider = RiderProfile.objects.select_for_update().get(pk=rider.pk)
         if locked_rider.approval_status != ApprovalStatus.APPROVED or not locked_rider.is_available:
-            messages.error(request, 'This rider account is no longer available for KhataBook collections.')
+            messages.error(request, 'This rider account is no longer available for Khata collections.')
             return redirect('core:rider_deliveries')
 
         collection_request = (
@@ -8528,10 +8528,10 @@ def rider_accept_khatabook_collection(request: HttpRequest, request_id: int) -> 
             .first()
         )
         if not collection_request or collection_request.rider_id is not None:
-            messages.error(request, 'That KhataBook collection was already claimed by another rider.')
+            messages.error(request, 'That Khata collection was already claimed by another rider.')
             return redirect('core:rider_deliveries')
         if collection_request.status != KhataBookCollectionStatus.REQUESTED:
-            messages.error(request, 'This KhataBook collection request is no longer open.')
+            messages.error(request, 'This Khata collection request is no longer open.')
             return redirect('core:rider_deliveries')
 
         dispatch_radius = locked_rider.max_service_radius_km if RiderProfile.objects.filter(approval_status=ApprovalStatus.APPROVED, is_available=True).count() < 3 else locked_rider.service_radius_km
@@ -8542,7 +8542,7 @@ def rider_accept_khatabook_collection(request: HttpRequest, request_id: int) -> 
             collection_request.longitude,
         )
         if distance_km > dispatch_radius:
-            messages.error(request, 'This KhataBook collection request is outside your current dispatch radius.')
+            messages.error(request, 'This Khata collection request is outside your current dispatch radius.')
             return redirect('core:rider_deliveries')
 
         collection_request.rider = locked_rider
@@ -8559,16 +8559,16 @@ def rider_accept_khatabook_collection(request: HttpRequest, request_id: int) -> 
     )
     create_notification(
         customer=collection_request.customer,
-        title='Rider assigned for KhataBook collection',
+        title='Rider assigned for Khata collection',
         body=(
             f'{locked_rider.full_name} accepted {collection_request.display_id}. '
-            'A fresh 6-digit KhataBook repayment OTP was sent to your registered contact for the handoff.'
+            'A fresh 6-digit Khata repayment OTP was sent to your registered contact for the handoff.'
         ),
         notification_type=NotificationType.PAYMENT,
     )
     create_notification(
         rider=locked_rider,
-        title='KhataBook collection accepted',
+        title='Khata collection accepted',
         body=f'{collection_request.display_id} is now in your active queue for Rs. {collection_request.amount}.',
         notification_type=NotificationType.PAYMENT,
     )
@@ -8593,7 +8593,7 @@ def rider_complete_khatabook_collection(request: HttpRequest, request_id: int) -
             rider=locked_rider,
         )
         if collection_request.status != KhataBookCollectionStatus.ACCEPTED:
-            messages.error(request, 'This KhataBook collection is not ready to complete.')
+            messages.error(request, 'This Khata collection is not ready to complete.')
             return redirect('core:rider_deliveries')
 
         distance_km = kilometers_between(
@@ -8606,7 +8606,7 @@ def rider_complete_khatabook_collection(request: HttpRequest, request_id: int) -
             messages.error(request, f'Get closer to the customer to complete collection. You are {distance_km} km away.')
             return redirect('core:rider_deliveries')
         if otp != collection_request.collection_otp:
-            messages.error(request, 'KhataBook collection OTP did not match.')
+            messages.error(request, 'Khata collection OTP did not match.')
             return redirect('core:rider_deliveries')
 
         paid_at = timezone.now()
@@ -8625,13 +8625,13 @@ def rider_complete_khatabook_collection(request: HttpRequest, request_id: int) -
 
     create_notification(
         customer=collection_request.customer,
-        title='KhataBook collection completed',
-        body=f'{collection_request.display_id} was collected successfully and your weekly KhataBook due is now closed.',
+        title='Khata collection completed',
+        body=f'{collection_request.display_id} was collected successfully and your weekly Khata due is now closed.',
         notification_type=NotificationType.PAYMENT,
     )
     create_notification(
         rider=locked_rider,
-        title='KhataBook collection completed',
+        title='Khata collection completed',
         body=f'{collection_request.display_id} was marked complete for Rs. {collection_request.amount}.',
         notification_type=NotificationType.PAYMENT,
     )
@@ -8649,7 +8649,7 @@ def rider_resend_khatabook_collection_otp(request: HttpRequest, request_id: int)
         rider=rider,
     )
     if collection_request.status != KhataBookCollectionStatus.ACCEPTED:
-        messages.error(request, 'Repayment OTPs can only be resent for active accepted KhataBook collections.')
+        messages.error(request, 'Repayment OTPs can only be resent for active accepted Khata collections.')
         return redirect('core:rider_deliveries')
 
     otp_email_sent, otp_sms_sent = ensure_khatabook_collection_otp_ready(

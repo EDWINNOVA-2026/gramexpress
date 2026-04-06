@@ -15,7 +15,7 @@ These values are loaded from `.env`.
 ## What This Project Uses Razorpay For
 
 - Customer online checkout
-- KhataBook due payments
+- Khata due payments
 - COD online payment links
 - Rider settlement QR and payment webhook updates
 
@@ -127,7 +127,7 @@ venv/bin/python manage.py runserver
 Also test:
 
 - COD online payment link flow
-- KhataBook Razorpay payment flow
+- Khata Razorpay payment flow
 - Webhook delivery from Razorpay dashboard
 
 ## Production Checklist

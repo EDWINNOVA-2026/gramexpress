@@ -289,7 +289,7 @@
         {% elif priority_khatabook_request %}
           <div class="hero-inline-facts">
             <span class="soft-pill shrink-0">{{ priority_khatabook_request.display_id }}</span>
-            <span class="status-chip rider-payment-chip-khata shrink-0">KhataBook</span>
+            <span class="status-chip rider-payment-chip-khata shrink-0">Khata</span>
             <span class="status-chip {{ priority_khatabook_request.status_chip }} shrink-0">{{ priority_khatabook_request.get_status_display }}</span>
           </div>
         {% endif %}
@@ -394,7 +394,7 @@
         <div class="rider-mission-grid">
           <article class="rider-mission-stop">
             <span class="eyebrow">Pickup Shop</span>
-            <strong>KhataBook recovery task</strong>
+            <strong>Khata recovery task</strong>
             <p>Collect the weekly due only. Do not ask for payment on the original order.</p>
           </article>
           <article class="rider-mission-stop">
@@ -404,7 +404,7 @@
           </article>
           <article class="rider-mission-stat">
             <span class="metric-label">Payment Type</span>
-            <strong>KhataBook</strong>
+            <strong>Khata</strong>
             <p>Recovery request for Rs. {{ priority_khatabook_request.amount }}.</p>
           </article>
           <article class="rider-mission-stat">
@@ -454,7 +454,7 @@
       {% else %}
         <div class="nested-panel rider-empty-state">
           <strong>No active mission</strong>
-          <p>Keep your dispatch location fresh and stay online. New pickup or KhataBook recovery tasks will appear in the queue below.</p>
+          <p>Keep your dispatch location fresh and stay online. New pickup or Khata recovery tasks will appear in the queue below.</p>
         </div>
       {% endif %}
     </article>
@@ -596,7 +596,7 @@
         <p>Approximate delivery route distance today.</p>
       </article>
       <article class="metric-card rider-metric-card">
-        <span class="metric-label">KhataBook Collections</span>
+        <span class="metric-label">Khata Collections</span>
         <strong class="metric-value">{{ today_khatabook_collection_count }}</strong>
         <p>Recovery tasks completed today.</p>
       </article>

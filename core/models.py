@@ -41,7 +41,7 @@ class OrderStatus(models.TextChoices):
 class PaymentMethod(models.TextChoices):
     COD = 'cod', 'Cash On Delivery'
     RAZORPAY = 'razorpay', 'Razorpay'
-    KHATABOOK = 'khata', 'KhataBook Credit'
+    KHATABOOK = 'khata', 'Khata Credit'
 
 
 class PaymentStatus(models.TextChoices):
@@ -585,7 +585,7 @@ class KhataBookCycle(TimeStampedModel):
         ]
 
     def __str__(self) -> str:
-        return f'KhataBook {self.customer.full_name} - {self.week_start}'
+        return f'Khata {self.customer.full_name} - {self.week_start}'
 
     @property
     def outstanding_amount(self) -> Decimal:
@@ -617,7 +617,7 @@ class KhataBookSubscriptionPurchase(TimeStampedModel):
         ordering = ['-created_at']
 
     def __str__(self) -> str:
-        return f'KhataBook plan {self.customer.full_name} - {self.tier}'
+        return f'Khata plan {self.customer.full_name} - {self.tier}'
 
 
 class KhataBookCollectionRequest(TimeStampedModel, LocationMixin):

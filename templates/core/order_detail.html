@@ -267,10 +267,10 @@
 
               {% if order.payment_method == 'khata' and order.payment_status != 'paid' %}
                 <div class="checkout-cod-panel">
-                  <strong>KhataBook repayment</strong>
-                  <p>This order sits inside your weekly KhataBook due. Open the section to repay through COD / UPI collection or Razorpay UPI.</p>
+                  <strong>Khata repayment</strong>
+                  <p>This order sits inside your weekly Khata due. Open the section to repay through COD / UPI collection or Razorpay UPI.</p>
                   <div class="inline-actions">
-                    <a class="button small secondary" href="{% url 'core:customer_khatabook' %}">Open KhataBook</a>
+                    <a class="button small secondary" href="{% url 'core:customer_khatabook' %}">Open Khata</a>
                   </div>
                 </div>
               {% endif %}
@@ -370,7 +370,7 @@
               {% if order.status == 'out_for_delivery' %}
                 {% if order.payment_method == 'khata' %}
                   <div class="compact-item content-stack">
-                    <strong>KhataBook credit order</strong>
+                    <strong>Khata credit order</strong>
                     <p>This order is on platform credit. Complete the OTP handoff normally and do not collect money from the customer.</p>
                     {% if order.credit_due_date %}
                       <span class="status-chip warn">Customer due {{ order.credit_due_date|date:"M d" }}</span>

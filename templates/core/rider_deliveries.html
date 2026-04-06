@@ -13,8 +13,8 @@
   <section class="dashboard-top" id="top">
     <article class="hero-card glass-card hero-card-rider" data-appear>
       <span class="eyebrow">Active Work</span>
-      <h1>Pickup, drop-off, and KhataBook collection</h1>
-      <p class="hero-lead">Keep delivery handoffs and KhataBook repayment collections in one focused rider workspace, with clear signals on which jobs need money and which do not.</p>
+      <h1>Pickup, drop-off, and Khata collection</h1>
+      <p class="hero-lead">Keep delivery handoffs and Khata repayment collections in one focused rider workspace, with clear signals on which jobs need money and which do not.</p>
       <div class="hero-inline-facts">
         <span class="soft-pill"><span class="ui-icon icon-bike" aria-hidden="true"></span><span>{{ active_order_count }} active</span></span>
         <span class="soft-pill"><span class="ui-icon icon-wallet" aria-hidden="true"></span><span>{{ active_khatabook_collection_count }} collections</span></span>
@@ -26,7 +26,7 @@
       <article class="metric-card">
         <span class="metric-label">Completed</span>
         <strong class="metric-value">{{ completed_delivery_count }}</strong>
-        <p>{{ rider.full_name }} can finish both deliveries and KhataBook collections from here.</p>
+        <p>{{ rider.full_name }} can finish both deliveries and Khata collections from here.</p>
       </article>
       <article class="card quick-card">
         <span class="eyebrow">Payout Mix</span>
@@ -61,7 +61,7 @@
           <strong>Latest customer update sent</strong>
           <p>{{ priority_order.latest_rider_update }}</p>
           {% if priority_order.is_khatabook_order %}
-            <p class="utility-note">KhataBook credit order: do not collect money at drop-off.</p>
+            <p class="utility-note">Khata credit order: do not collect money at drop-off.</p>
           {% endif %}
         </div>
       </div>
@@ -148,7 +148,7 @@
     <section class="card mission-card" data-appear>
       <div class="split-row">
         <div class="content-stack">
-          <span class="eyebrow">Current KhataBook collection</span>
+          <span class="eyebrow">Current Khata collection</span>
           <h2 class="section-title">{{ priority_khatabook_request.flow_headline }}</h2>
           <p class="subtle">{{ priority_khatabook_request.flow_detail }}</p>
         </div>
@@ -166,7 +166,7 @@
         </div>
         <div class="compact-item">
           <strong>Collection rule</strong>
-          <p>Collect only the KhataBook weekly due for this request, not any separate storefront order payment.</p>
+          <p>Collect only the Khata weekly due for this request, not any separate storefront order payment.</p>
           <span class="tiny muted">Distance {{ priority_khatabook_request.distance_km }} km</span>
         </div>
       </div>
@@ -178,7 +178,7 @@
       <form method="post" action="{% url 'core:rider_complete_khatabook_collection' priority_khatabook_request.id %}" class="stack small-gap rider-action-form top-gap-sm">
         {% csrf_token %}
         <label>Collection OTP
-          <input type="text" name="collection_otp" placeholder="Enter customer KhataBook OTP" required />
+          <input type="text" name="collection_otp" placeholder="Enter customer Khata OTP" required />
         </label>
         <p class="utility-note">Ask the customer for the repayment OTP sent to their registered contact. Completion works only when you are close to the customer location.</p>
         <div class="inline-actions">
@@ -187,7 +187,7 @@
       </form>
       <form method="post" action="{% url 'core:rider_resend_khatabook_collection_otp' priority_khatabook_request.id %}" class="inline-actions">
         {% csrf_token %}
-        <button class="button small secondary" type="submit">Resend KhataBook OTP</button>
+        <button class="button small secondary" type="submit">Resend Khata OTP</button>
       </form>
     </section>
   {% endif %}
@@ -197,7 +197,7 @@
       <div class="content-stack">
         <span class="eyebrow">Active Deliveries</span>
         <h2 class="section-title">Everything else you are handling</h2>
-        <p class="subtle">KhataBook credit orders stay visible here so you always know when not to ask the customer for money.</p>
+        <p class="subtle">Khata credit orders stay visible here so you always know when not to ask the customer for money.</p>
       </div>
       <span class="status-chip info">{{ active_order_count }} active</span>
     </div>
@@ -273,7 +273,7 @@
               <strong>{{ order.flow_headline }}</strong>
               <p>{{ order.flow_detail }}</p>
               {% if order.is_khatabook_order %}
-                <p class="utility-note">KhataBook credit order: deliver against OTP only and do not collect money.</p>
+                <p class="utility-note">Khata credit order: deliver against OTP only and do not collect money.</p>
               {% endif %}
               <span class="tiny muted">Last update {{ order.last_update_label }}{% if order.last_update_timestamp_label %} | {{ order.last_update_timestamp_label }}{% endif %}</span>
             </div>
@@ -402,7 +402,7 @@
   <section class="card section-stack" data-appear>
     <div class="split-row">
       <div class="content-stack">
-        <span class="eyebrow">KhataBook Collections</span>
+        <span class="eyebrow">Khata Collections</span>
         <h2 class="section-title">Credit repayments you already accepted</h2>
       </div>
       <span class="status-chip warn">{{ active_khatabook_collection_count }} active</span>
@@ -442,19 +442,19 @@
           <form method="post" action="{% url 'core:rider_complete_khatabook_collection' collection_request.id %}" class="stack small-gap rider-action-form">
             {% csrf_token %}
             <label>Collection OTP
-              <input type="text" name="collection_otp" placeholder="Enter customer KhataBook OTP" required />
+              <input type="text" name="collection_otp" placeholder="Enter customer Khata OTP" required />
             </label>
-            <p class="utility-note">The customer should share the KhataBook collection OTP sent to their registered contact only at the repayment handoff.</p>
+            <p class="utility-note">The customer should share the Khata collection OTP sent to their registered contact only at the repayment handoff.</p>
             <button class="button primary" type="submit">Collected And Closed</button>
           </form>
           <form method="post" action="{% url 'core:rider_resend_khatabook_collection_otp' collection_request.id %}" class="inline-actions">
             {% csrf_token %}
-            <button class="button small secondary" type="submit">Resend KhataBook OTP</button>
+            <button class="button small secondary" type="submit">Resend Khata OTP</button>
           </form>
         </article>
       {% empty %}
         <div class="nested-panel">
-          <strong>No active KhataBook collections</strong>
+          <strong>No active Khata collections</strong>
           <p>Accepted credit-collection tasks will appear here until you complete them.</p>
         </div>
       {% endfor %}

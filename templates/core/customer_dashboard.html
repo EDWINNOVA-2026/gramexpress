@@ -23,7 +23,7 @@
         <strong>{{ customer_khatabook_warning.title }}</strong>
         <p>{{ customer_khatabook_warning.detail }}</p>
         <div class="inline-actions">
-          <a class="button small primary" href="{% url 'core:customer_khatabook' %}">Review KhataBook</a>
+          <a class="button small primary" href="{% url 'core:customer_khatabook' %}">Review Khata</a>
         </div>
       </div>
     </section>
@@ -68,10 +68,10 @@
             <div class="compact-item">
               <div class="split-row">
                 <div class="min-w-0">
-                  <strong>KhataBook due</strong>
+                  <strong>Khata due</strong>
                   <p>{{ khatabook_summary.status_label }} • Rs. {{ khatabook_summary.outstanding_amount }}</p>
                 </div>
-                <a class="button small secondary shrink-0" href="{% url 'core:customer_khatabook' %}">Open KhataBook</a>
+                <a class="button small secondary shrink-0" href="{% url 'core:customer_khatabook' %}">Open Khata</a>
               </div>
             </div>
           {% endif %}
@@ -366,7 +366,7 @@
         <article class="card border-amber-200 bg-amber-50/70 p-4 sm:p-5">
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
-              <span class="eyebrow">KhataBook</span>
+              <span class="eyebrow">Khata</span>
               <h2 class="section-title">Credit at a glance</h2>
             </div>
             <span class="status-chip {{ khatabook_summary.badge_class }} shrink-0">{{ khatabook_summary.status_label }}</span>
@@ -376,7 +376,7 @@
             <p class="tiny text-slate-600 top-gap-xs">Due on {{ khatabook_summary.due_date|date:"M d, Y" }}</p>
           {% endif %}
           <div class="top-gap-sm">
-            <a class="button small primary" href="{% url 'core:customer_khatabook' %}">Open KhataBook</a>
+            <a class="button small primary" href="{% url 'core:customer_khatabook' %}">Open Khata</a>
           </div>
         </article>
 

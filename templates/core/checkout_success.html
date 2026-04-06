@@ -15,7 +15,7 @@
           <span class="soft-pill">Rs. {{ estimated_total }}</span>
           <span class="soft-pill">{{ payment_method_label }}</span>
           {% if payment_method == 'khata' %}
-            <span class="soft-pill">Added to KhataBook</span>
+            <span class="soft-pill">Added to Khata</span>
           {% endif %}
         </div>
       </div>
@@ -80,13 +80,13 @@
           </div>
         {% elif payment_method == 'khata' %}
           <div class="checkout-cod-panel">
-            <strong>Added to KhataBook</strong>
+            <strong>Added to Khata</strong>
             <p>Your checkout total is now on a 7-day platform credit line.</p>
             <p class="utility-note">
               {% if khatabook_summary.cycle %}
                 Rs. {{ khatabook_summary.outstanding_amount }} is due by {{ khatabook_summary.due_date|date:"M d" }}.
               {% else %}
-                The weekly KhataBook due will appear in your customer section immediately.
+                The weekly Khata due will appear in your customer section immediately.
               {% endif %}
             </p>
           </div>
@@ -127,7 +127,7 @@
 
         <div class="stack small-gap">
           <a class="button primary" href="{% if payment_method == 'khata' %}{% url 'core:customer_khatabook' %}{% elif primary_order %}{% url 'core:order_tracking' primary_order.id %}{% else %}{% url 'core:customer_dashboard' %}{% endif %}">
-            {% if payment_method == 'khata' %}Open KhataBook{% else %}Track Order{% endif %}
+            {% if payment_method == 'khata' %}Open Khata{% else %}Track Order{% endif %}
           </a>
           <a class="button secondary" href="{% url 'core:customer_orders' %}">Open All Orders</a>
           <a class="button secondary" href="{% url 'core:customer_dashboard' %}">Browse Stores</a>
