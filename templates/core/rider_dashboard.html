@@ -12,150 +12,183 @@
   </section>
 
   <style>
-    /* ── Mobile overflow fixes ── */
+    /* ── Mobile overflow fixes — all !important to win specificity wars ── */
 
-    /* 1. Topbar: stack vertically on mobile, side-by-side on desktop */
+    /* Root: prevent any horizontal scroll on the whole page */
+    html, body {
+      max-width: 100% !important;
+      overflow-x: hidden !important;
+      box-sizing: border-box !important;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box !important;
+    }
+
+    /* Shell and all cards must never exceed viewport */
+    .rider-dashboard-shell,
+    .rider-dashboard-topbar,
+    .rider-mission-card,
+    .rider-queue-card,
+    .rider-dispatch-card,
+    .rider-history-card,
+    .card {
+      max-width: 100% !important;
+      min-width: 0 !important;
+      overflow: hidden !important;
+      box-sizing: border-box !important;
+    }
+
+    /* 1. Topbar main: column on mobile, row on desktop */
     .rider-dashboard-topbar-main {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      min-width: 0;
-      overflow: hidden;
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 16px !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      overflow: hidden !important;
     }
     @media (min-width: 768px) {
       .rider-dashboard-topbar-main {
-        flex-direction: row;
-        align-items: flex-start;
+        flex-direction: row !important;
+        align-items: flex-start !important;
       }
     }
 
-    /* 2. Identity section must not overflow */
+    /* 2. Identity: clamp width, never overflow */
     .rider-dashboard-identity {
-      min-width: 0;
-      overflow: hidden;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      overflow: hidden !important;
+      flex: 1 1 auto !important;
     }
-    .rider-dashboard-identity h1,
-    .rider-dashboard-identity p {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      max-width: 100%;
+    .rider-dashboard-identity .page-title,
+    .rider-dashboard-identity .hero-lead {
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+      max-width: 100% !important;
     }
 
-    /* 3. Side tiles full-width on mobile */
+    /* 3. Side tiles: full width on mobile */
     .rider-dashboard-topbar-side {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      min-width: 0;
+      width: 100% !important;
+      max-width: 100% !important;
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 12px !important;
+      min-width: 0 !important;
     }
 
-    /* 4. Pills: allow wrapping and shrinking */
+    /* 4. Pills row: wrap, never overflow */
     .hero-inline-facts {
       display: flex !important;
       flex-wrap: wrap !important;
-      gap: 8px;
-      min-width: 0;
-      overflow: hidden;
+      gap: 8px !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      overflow: hidden !important;
     }
     .hero-inline-facts .soft-pill {
       flex-shrink: 1 !important;
-      min-width: 0;
-      max-width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      flex-grow: 0 !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+      box-sizing: border-box !important;
     }
 
-    /* 5. Mission section head */
+    /* 5. Section head: wrap on small screens */
     .rider-section-head {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: flex-start;
-      min-width: 0;
+      display: flex !important;
+      flex-wrap: wrap !important;
+      gap: 8px !important;
+      align-items: flex-start !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      overflow: hidden !important;
     }
     .rider-section-head .min-w-0 {
-      flex: 1 1 0;
-      min-width: 0;
-      overflow: hidden;
+      flex: 1 1 0 !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      overflow: hidden !important;
     }
-    .rider-section-head h2 {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      max-width: 100%;
+    .rider-section-head .section-title {
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+      max-width: 100% !important;
     }
 
-    /* 6. Mission grid: single column on mobile */
+    /* 6. Mission grid: 1 col mobile, 2 col desktop */
     .rider-mission-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 12px;
+      display: grid !important;
+      grid-template-columns: 1fr !important;
+      gap: 12px !important;
+      max-width: 100% !important;
     }
     @media (min-width: 560px) {
       .rider-mission-grid {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr 1fr !important;
       }
     }
 
-    /* 7. Mission actions: wrap buttons */
+    /* 7. Mission action buttons: wrap */
     .rider-mission-actions {
       display: flex !important;
       flex-wrap: wrap !important;
-      gap: 8px;
+      gap: 8px !important;
+      max-width: 100% !important;
     }
     .rider-mission-button {
-      flex: 1 1 auto;
-      min-width: 0;
-      white-space: nowrap;
+      flex: 1 1 auto !important;
+      min-width: 0 !important;
+      white-space: nowrap !important;
     }
 
-    /* 8. Queue table horizontal scroll container */
+    /* 8. Queue scroll: horizontal scroll inside, not page-wide */
     .rider-queue-scroll {
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      width: 100%;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      width: 100% !important;
+      max-width: 100% !important;
     }
 
-    /* 9. Summary grid: 2 cols on mobile, 4 on desktop */
+    /* 9. Summary grid: 2 col mobile, 4 col desktop */
     .rider-summary-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
+      display: grid !important;
+      grid-template-columns: 1fr 1fr !important;
+      gap: 12px !important;
+      max-width: 100% !important;
     }
     @media (min-width: 768px) {
       .rider-summary-grid {
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(4, 1fr) !important;
       }
     }
 
-    /* 10. History rows: don't overflow */
+    /* 10. History rows */
     .rider-history-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto auto;
-      gap: 8px;
-      align-items: start;
-      min-width: 0;
-    }
-    .rider-history-row strong,
-    .rider-history-row p {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) auto auto !important;
+      gap: 8px !important;
+      align-items: start !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      overflow: hidden !important;
     }
 
-    /* 11. General safe truncate */
+    /* 11. Utilities */
     .truncate {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
     }
-    .block { display: block; }
-
-    /* 12. Shrink-0 utility only for elements that truly must not shrink */
-    .shrink-0 { flex-shrink: 0; }
+    .block { display: block !important; }
+    .min-w-0 { min-width: 0 !important; }
+    .shrink-0 { flex-shrink: 0 !important; }
   </style>
 
   <section class="rider-dashboard-shell" id="top">
