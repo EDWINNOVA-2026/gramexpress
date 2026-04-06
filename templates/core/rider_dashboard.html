@@ -11,6 +11,153 @@
     {% endfor %}
   </section>
 
+  <style>
+    /* ── Mobile overflow fixes ── */
+
+    /* 1. Topbar: stack vertically on mobile, side-by-side on desktop */
+    .rider-dashboard-topbar-main {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
+      overflow: hidden;
+    }
+    @media (min-width: 768px) {
+      .rider-dashboard-topbar-main {
+        flex-direction: row;
+        align-items: flex-start;
+      }
+    }
+
+    /* 2. Identity section must not overflow */
+    .rider-dashboard-identity {
+      min-width: 0;
+      overflow: hidden;
+    }
+    .rider-dashboard-identity h1,
+    .rider-dashboard-identity p {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+
+    /* 3. Side tiles full-width on mobile */
+    .rider-dashboard-topbar-side {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    /* 4. Pills: allow wrapping and shrinking */
+    .hero-inline-facts {
+      display: flex !important;
+      flex-wrap: wrap !important;
+      gap: 8px;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .hero-inline-facts .soft-pill {
+      flex-shrink: 1 !important;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* 5. Mission section head */
+    .rider-section-head {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: flex-start;
+      min-width: 0;
+    }
+    .rider-section-head .min-w-0 {
+      flex: 1 1 0;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .rider-section-head h2 {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+
+    /* 6. Mission grid: single column on mobile */
+    .rider-mission-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    @media (min-width: 560px) {
+      .rider-mission-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    /* 7. Mission actions: wrap buttons */
+    .rider-mission-actions {
+      display: flex !important;
+      flex-wrap: wrap !important;
+      gap: 8px;
+    }
+    .rider-mission-button {
+      flex: 1 1 auto;
+      min-width: 0;
+      white-space: nowrap;
+    }
+
+    /* 8. Queue table horizontal scroll container */
+    .rider-queue-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      width: 100%;
+    }
+
+    /* 9. Summary grid: 2 cols on mobile, 4 on desktop */
+    .rider-summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (min-width: 768px) {
+      .rider-summary-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    /* 10. History rows: don't overflow */
+    .rider-history-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 8px;
+      align-items: start;
+      min-width: 0;
+    }
+    .rider-history-row strong,
+    .rider-history-row p {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* 11. General safe truncate */
+    .truncate {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .block { display: block; }
+
+    /* 12. Shrink-0 utility only for elements that truly must not shrink */
+    .shrink-0 { flex-shrink: 0; }
+  </style>
+
   <section class="rider-dashboard-shell" id="top">
 
     <article class="card rider-dashboard-topbar" data-appear>
@@ -33,10 +180,19 @@
           <span class="eyebrow">Rider Command Center</span>
           <h1 class="page-title">{{ rider.full_name }}</h1>
           <p class="hero-lead">Current mission stays at the top so you can navigate, verify OTP, and close the job in fewer taps.</p>
-          <div class="hero-inline-facts" style="display:flex;flex-wrap:wrap;gap:8px;">
-            <span class="soft-pill" style="flex-shrink:0;white-space:nowrap;"><span class="ui-icon icon-bike" aria-hidden="true"></span><span>{{ rider.get_vehicle_type_display }}</span></span>
-            <span class="soft-pill" style="flex-shrink:0;white-space:nowrap;"><span class="ui-icon icon-map-pinned" aria-hidden="true"></span><span>{{ dispatch_radius }} km dispatch radius</span></span>
-            <span class="soft-pill" style="flex-shrink:0;white-space:nowrap;"><span class="ui-icon icon-package" aria-hidden="true"></span><span>{{ active_order_count }} active delivery{{ active_order_count|pluralize }}</span></span>
+          <div class="hero-inline-facts">
+            <span class="soft-pill">
+              <span class="ui-icon icon-bike" aria-hidden="true"></span>
+              <span>{{ rider.get_vehicle_type_display }}</span>
+            </span>
+            <span class="soft-pill">
+              <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+              <span>{{ dispatch_radius }} km dispatch radius</span>
+            </span>
+            <span class="soft-pill">
+              <span class="ui-icon icon-package" aria-hidden="true"></span>
+              <span>{{ active_order_count }} active delivery{{ active_order_count|pluralize }}</span>
+            </span>
           </div>
         </div>
 
@@ -92,16 +248,16 @@
         </div>
 
         {% if priority_order %}
-          <div class="hero-inline-facts" style="display:flex;flex-wrap:wrap;gap:8px;">
-            <span class="soft-pill" style="flex-shrink:0;white-space:nowrap;">{{ priority_order.display_id }}</span>
-            <span class="status-chip {{ priority_order.dashboard_payment_chip }}" style="flex-shrink:0;white-space:nowrap;">{{ priority_order.dashboard_payment_label }}</span>
-            <span class="status-chip {{ priority_order.status_chip }}" style="flex-shrink:0;white-space:nowrap;">{{ priority_order.get_status_display }}</span>
+          <div class="hero-inline-facts">
+            <span class="soft-pill shrink-0">{{ priority_order.display_id }}</span>
+            <span class="status-chip {{ priority_order.dashboard_payment_chip }} shrink-0">{{ priority_order.dashboard_payment_label }}</span>
+            <span class="status-chip {{ priority_order.status_chip }} shrink-0">{{ priority_order.get_status_display }}</span>
           </div>
         {% elif priority_khatabook_request %}
-          <div class="hero-inline-facts" style="display:flex;flex-wrap:wrap;gap:8px;">
-            <span class="soft-pill" style="flex-shrink:0;white-space:nowrap;">{{ priority_khatabook_request.display_id }}</span>
-            <span class="status-chip rider-payment-chip-khata" style="flex-shrink:0;white-space:nowrap;">KhataBook</span>
-            <span class="status-chip {{ priority_khatabook_request.status_chip }}" style="flex-shrink:0;white-space:nowrap;">{{ priority_khatabook_request.get_status_display }}</span>
+          <div class="hero-inline-facts">
+            <span class="soft-pill shrink-0">{{ priority_khatabook_request.display_id }}</span>
+            <span class="status-chip rider-payment-chip-khata shrink-0">KhataBook</span>
+            <span class="status-chip {{ priority_khatabook_request.status_chip }} shrink-0">{{ priority_khatabook_request.get_status_display }}</span>
           </div>
         {% endif %}
       </div>
@@ -130,12 +286,12 @@
           </article>
         </div>
 
-        <div class="rider-mission-actions" style="display:flex;flex-wrap:wrap;gap:8px;">
-          <a class="button primary rider-mission-button" href="{{ priority_order.current_mission_map_url }}" target="_blank" rel="noreferrer" style="flex-shrink:0;">
+        <div class="rider-mission-actions">
+          <a class="button primary rider-mission-button" href="{{ priority_order.current_mission_map_url }}" target="_blank" rel="noreferrer">
             <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
             <span>Open in Maps</span>
           </a>
-          <a class="button secondary rider-mission-button" href="tel:{{ priority_order.customer.phone }}" style="flex-shrink:0;">
+          <a class="button secondary rider-mission-button" href="tel:{{ priority_order.customer.phone }}">
             <span class="ui-icon icon-phone" aria-hidden="true"></span>
             <span>Call Customer</span>
           </a>
@@ -143,7 +299,7 @@
             <form method="post" action="{% url 'core:rider_resend_customer_otp' priority_order.id %}">
               {% csrf_token %}
               <input type="hidden" name="next" value="{% url 'core:rider_dashboard' %}" />
-              <button class="button secondary rider-mission-button" type="submit" style="flex-shrink:0;">
+              <button class="button secondary rider-mission-button" type="submit">
                 <span class="ui-icon icon-refresh-cw" aria-hidden="true"></span>
                 <span>Resend OTP</span>
               </button>
@@ -225,18 +381,18 @@
           </article>
         </div>
 
-        <div class="rider-mission-actions" style="display:flex;flex-wrap:wrap;gap:8px;">
-          <a class="button primary rider-mission-button" href="{{ priority_khatabook_request.map_url }}" target="_blank" rel="noreferrer" style="flex-shrink:0;">
+        <div class="rider-mission-actions">
+          <a class="button primary rider-mission-button" href="{{ priority_khatabook_request.map_url }}" target="_blank" rel="noreferrer">
             <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
             <span>Open in Maps</span>
           </a>
-          <a class="button secondary rider-mission-button" href="tel:{{ priority_khatabook_request.customer.phone }}" style="flex-shrink:0;">
+          <a class="button secondary rider-mission-button" href="tel:{{ priority_khatabook_request.customer.phone }}">
             <span class="ui-icon icon-phone" aria-hidden="true"></span>
             <span>Call Customer</span>
           </a>
           <form method="post" action="{% url 'core:rider_resend_khatabook_collection_otp' priority_khatabook_request.id %}">
             {% csrf_token %}
-            <button class="button secondary rider-mission-button" type="submit" style="flex-shrink:0;">
+            <button class="button secondary rider-mission-button" type="submit">
               <span class="ui-icon icon-refresh-cw" aria-hidden="true"></span>
               <span>Resend OTP</span>
             </button>
@@ -281,7 +437,7 @@
           <span class="soft-pill shrink-0">{{ dashboard_queue|length }} waiting</span>
         </div>
 
-        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;">
+        <div class="rider-queue-scroll">
           <div class="rider-queue-table" style="min-width:560px;">
             <div class="rider-queue-head">
               <span>Order ID</span>
@@ -297,11 +453,11 @@
                   <span class="status-chip {{ job.payment_chip }}">{{ job.payment_label }}</span>
                 </div>
                 <div class="rider-queue-cell">
-                  <strong class="truncate" style="display:block;max-width:120px;">{{ job.pickup_label }}</strong>
+                  <strong class="truncate block" style="max-width:120px;">{{ job.pickup_label }}</strong>
                   <p class="truncate" style="max-width:120px;">{{ job.pickup_detail }}</p>
                 </div>
                 <div class="rider-queue-cell">
-                  <strong class="truncate" style="display:block;max-width:120px;">{{ job.drop_label }}</strong>
+                  <strong class="truncate block" style="max-width:120px;">{{ job.drop_label }}</strong>
                   <p class="truncate" style="max-width:120px;">{{ job.drop_detail }}</p>
                 </div>
                 <div class="rider-queue-cell">
@@ -424,7 +580,7 @@
 
       <div class="rider-history-list">
         {% for order in delivery_history %}
-          <article class="rider-history-row" style="display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:start;">
+          <article class="rider-history-row">
             <div class="min-w-0">
               <strong class="block truncate">{{ order.display_id }}</strong>
               <p class="truncate">{{ order.shop.name }} to {{ order.customer.full_name }}</p>
