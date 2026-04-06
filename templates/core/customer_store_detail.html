@@ -1,9 +1,41 @@
 {% extends 'core/base.html' %}
 
+{% block extra_head %}
+  {{ block.super }}
+  <style>
+    .customer-store-product-card {
+      width: min(19rem, calc(100vw - 2.25rem));
+      flex-shrink: 0;
+    }
+    .customer-product-cart-row {
+      flex-wrap: wrap;
+      align-items: stretch;
+    }
+    .customer-product-stepper {
+      flex: 1 1 auto;
+      min-width: 0;
+      justify-content: space-between;
+    }
+    .customer-product-add-button {
+      flex: 1 1 100%;
+      width: 100%;
+      justify-content: center;
+    }
+    @media (min-width: 400px) {
+      .customer-product-add-button {
+        flex: 0 0 auto;
+        width: auto;
+      }
+    }
+  </style>
+{% endblock %}
+
 {% block content %}
   <section class="page-stack" id="top">
+
     <article class="card overflow-hidden border-slate-200 bg-white/95 shadow-soft" data-appear>
-      <div class="grid gap-4 p-4 sm:p-5 xl:grid-cols-[148px_minmax(0,1fr)_190px] xl:items-start">
+      <div class="grid gap-4 p-4 sm:p-5 xl:grid-cols-[148px_minmax(0,1fr)_190px] xl:items-start" style="min-width:0;">
+
         <div class="relative overflow-hidden rounded-[1.35rem] bg-slate-100 h-32 xl:h-32">
           {% if shop.image_source %}
             <img class="h-full w-full object-cover" src="{{ shop.image_source }}" alt="{{ shop.name }}" />
@@ -12,31 +44,33 @@
           {% endif %}
         </div>
 
-        <div class="space-y-3">
+        <div class="min-w-0 space-y-3">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
               <span class="eyebrow">Store</span>
-              <h1 class="page-title !text-[clamp(1.5rem,2.6vw,2.15rem)]">{{ shop.name }}</h1>
+              <h1 class="page-title truncate" style="font-size:clamp(1.5rem,2.6vw,2.15rem);">{{ shop.name }}</h1>
               <p class="subtle top-gap-xs max-w-2xl">{{ shop.description }}</p>
             </div>
-            <a class="button small secondary" href="{% url 'core:customer_dashboard' %}">
+            <a class="button small secondary shrink-0" href="{% url 'core:customer_dashboard' %}">
               <span>Back To Stores</span>
             </a>
           </div>
 
-          <div class="flex flex-wrap gap-2 text-sm text-slate-600">
-            <span class="soft-pill">{{ shop.get_shop_type_display }}</span>
-            <span class="soft-pill">{{ shop.rating }} rating</span>
-            <span class="soft-pill">{{ shop.distance_km }} km away</span>
-            <span class="soft-pill">Eco delivery in 1-4 hours</span>
-            <span class="status-chip success">{% if shop.is_open %}Open now{% else %}Closed{% endif %}</span>
+          <div
+            style="display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;padding:4px 0 6px;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;"
+          >
+            <span class="soft-pill" style="flex-shrink:0;white-space:nowrap;">{{ shop.get_shop_type_display }}</span>
+            <span class="soft-pill" style="flex-shrink:0;white-space:nowrap;">{{ shop.rating }} rating</span>
+            <span class="soft-pill" style="flex-shrink:0;white-space:nowrap;">{{ shop.distance_km }} km away</span>
+            <span class="soft-pill" style="flex-shrink:0;white-space:nowrap;">Eco delivery in 1–4 hours</span>
+            <span class="status-chip success" style="flex-shrink:0;white-space:nowrap;">{% if shop.is_open %}Open now{% else %}Closed{% endif %}</span>
           </div>
         </div>
 
-        <aside class="rounded-[1.15rem] border border-slate-200 bg-slate-50/80 p-3">
+        <aside class="rounded-[1.15rem] border border-slate-200 bg-slate-50/80 p-3" style="min-width:0;">
           <span class="eyebrow">Your Progress</span>
           {% if store_cart_group %}
-            <h2 class="section-title !text-[1.05rem]">Store cart</h2>
+            <h2 class="section-title" style="font-size:1.05rem;">Store cart</h2>
             <div class="grid gap-2 top-gap-sm">
               <div>
                 <span class="tiny muted">Items</span>
@@ -48,28 +82,37 @@
               </div>
             </div>
           {% else %}
-            <h2 class="section-title !text-[1.05rem]">Store cart</h2>
+            <h2 class="section-title" style="font-size:1.05rem;">Store cart</h2>
             <p class="subtle top-gap-sm">Items you add here will appear in your cart.</p>
           {% endif %}
         </aside>
+
       </div>
     </article>
 
     <section class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]" data-appear>
-      <article class="card border-slate-200 bg-white/95 p-4 sm:p-5">
+      <article class="card border-slate-200 bg-white/95 p-4 sm:p-5" style="min-width:0;">
         <form method="get" class="grid gap-3" role="search" aria-label="Search products in store">
           <label for="product-search" class="tiny muted">Search inside {{ shop.name }}</label>
-          <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-            <div class="relative">
+          <div style="display:grid;gap:10px;grid-template-columns:minmax(0,1fr) auto;align-items:center;">
+            <div class="relative" style="min-width:0;">
               <span class="pointer-events-none absolute left-4 top-1/2 inline-grid h-5 w-5 -translate-y-1/2 place-items-center text-slate-400" aria-hidden="true">
                 <span class="ui-icon icon-search"></span>
               </span>
-              <input id="product-search" class="w-full rounded-[1rem] border border-slate-200 bg-white py-3 pl-12 pr-4 text-[0.98rem] text-slate-800 placeholder:text-slate-400 shadow-[0_8px_24px_rgba(15,23,42,0.05)] focus:border-emerald-400 focus:outline-none focus:ring-0" type="search" name="q" value="{{ product_query }}" placeholder="Search by product, category, or tag" />
+              <input
+                id="product-search"
+                class="w-full rounded-[1rem] border border-slate-200 bg-white py-3 pl-12 pr-4 text-slate-800 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none"
+                style="font-size:0.98rem;box-shadow:0 8px 24px rgba(15,23,42,0.05);"
+                type="search"
+                name="q"
+                value="{{ product_query }}"
+                placeholder="Search by product, category, or tag"
+              />
             </div>
             {% if selected_category and selected_category != 'All' %}
               <input type="hidden" name="category" value="{{ selected_category }}" />
             {% endif %}
-            <button class="button small primary !justify-center sm:min-w-[104px]" type="submit">
+            <button class="button small primary" type="submit" style="white-space:nowrap;flex-shrink:0;justify-content:center;min-width:88px;">
               <span>Search</span>
             </button>
           </div>
@@ -77,41 +120,49 @@
       </article>
     </section>
 
-    <section class="card border-slate-200 bg-white/95 p-4 customer-store-tabs-card" data-appear>
+    <section class="card border-slate-200 bg-white/95 p-4 customer-store-tabs-card" data-appear style="overflow:hidden;">
       <div class="split-row">
-        <div>
+        <div class="min-w-0">
           <span class="eyebrow">Categories</span>
-          <h2 class="section-title !text-[1.2rem]">Jump faster</h2>
+          <h2 class="section-title" style="font-size:1.2rem;">Jump faster</h2>
         </div>
-        <span class="soft-pill !text-[0.72rem]">{{ category_tabs|length }} tab{{ category_tabs|length|pluralize }}</span>
+        <span class="soft-pill shrink-0" style="font-size:0.72rem;">{{ category_tabs|length }} tab{{ category_tabs|length|pluralize }}</span>
       </div>
-      <div class="customer-store-tabs top-gap-sm flex flex-wrap gap-2">
+
+      <div
+        style="display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;padding:10px 0 6px;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px;"
+      >
         {% for category in category_tabs %}
           <a
-            class="customer-store-tab inline-flex min-h-[2.25rem] items-center justify-center rounded-full border border-slate-200 px-4 py-2 text-[0.95rem] font-semibold text-slate-600{% if selected_category == category %} customer-store-tab-active border-emerald-500 bg-emerald-500 text-white{% else %} bg-white{% endif %}"
-            href="?{% if category != 'All' %}category={{ category|urlencode }}{% endif %}{% if product_query %}{% if category != 'All' %}&{% endif %}q={{ product_query|urlencode }}{% endif %}">
+            class="customer-store-tab{% if selected_category == category %} customer-store-tab-active border-emerald-500 bg-emerald-500 text-white{% else %} bg-white{% endif %}"
+            href="?{% if category != 'All' %}category={{ category|urlencode }}{% endif %}{% if product_query %}{% if category != 'All' %}&{% endif %}q={{ product_query|urlencode }}{% endif %}"
+            style="flex-shrink:0;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;border-radius:9999px;border:1px solid #e2e8f0;padding:0.5rem 1rem;font-size:0.95rem;font-weight:600;color:{% if selected_category == category %}#fff{% else %}#475569{% endif %};"
+          >
             {{ category }}
           </a>
         {% endfor %}
       </div>
     </section>
 
-    <section class="card border-slate-200 bg-white/95 p-4 sm:p-5" data-appear>
+    <section class="card border-slate-200 bg-white/95 p-4 sm:p-5" data-appear style="overflow:hidden;">
       <div class="split-row">
-        <div>
+        <div class="min-w-0">
           <span class="eyebrow">Products</span>
           <h2 class="section-title">Available now</h2>
-          <p class="subtle top-gap-xs">Top matches appear first so the page stays shorter and easier to browse.</p>
+          <p class="subtle top-gap-xs truncate">Top matches appear first so the page stays shorter and easier to browse.</p>
         </div>
-        <span class="status-chip info">{{ products|length }} item{{ products|length|pluralize }}</span>
+        <span class="status-chip info shrink-0">{{ products|length }} item{{ products|length|pluralize }}</span>
       </div>
 
       {% if products %}
-        <div class="customer-home-slider customer-home-strip-compact top-gap-sm">
+        <div
+          style="display:flex;flex-wrap:nowrap;gap:12px;overflow-x:auto;overflow-y:hidden;padding:12px 0 10px;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px;"
+        >
           {% for product in products|slice:":12" %}
-            <div class="w-[310px] shrink-0 rounded-[1.65rem] border border-slate-200 bg-slate-50/70 p-4 shadow-soft sm:w-[340px]">
-              <div class="grid gap-4 sm:grid-cols-[108px_minmax(0,1fr)]">
-                <div class="customer-product-media relative min-h-[7rem] rounded-[1.25rem]" style="background: linear-gradient(135deg, {{ product.color }}, #fff4ee);">
+            <div class="customer-store-product-card rounded-[1.65rem] border border-slate-200 bg-slate-50/70 p-4 shadow-soft">
+              <div class="grid gap-4" style="grid-template-columns:108px minmax(0,1fr);">
+
+                <div class="customer-product-media relative min-h-[7rem] rounded-[1.25rem]" style="background:linear-gradient(135deg,{{ product.color }},#fff4ee);">
                   {% if product.image_source %}
                     <img src="{{ product.image_source }}" alt="{{ product.name }}" />
                   {% else %}
@@ -122,19 +173,19 @@
                 <div class="min-w-0 space-y-3">
                   <div class="space-y-2">
                     <div class="flex flex-wrap items-center gap-2">
-                      <strong class="customer-product-name">{{ product.name }}</strong>
-                      <span class="status-chip {{ product.stock_status_chip }}">{{ product.stock_status_label }}</span>
+                      <strong class="customer-product-name truncate">{{ product.name }}</strong>
+                      <span class="status-chip {{ product.stock_status_chip }} shrink-0">{{ product.stock_status_label }}</span>
                     </div>
                     <p class="customer-product-description">{{ product.preview_description|default:product.subtitle }}</p>
-                    <div class="flex flex-wrap gap-2">
-                      <span class="soft-pill">{{ product.unit }}</span>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                      <span class="soft-pill" style="flex-shrink:0;white-space:nowrap;">{{ product.unit }}</span>
                       {% if product.discount_percent %}
-                        <span class="soft-pill">{{ product.discount_percent }}% off</span>
+                        <span class="soft-pill" style="flex-shrink:0;white-space:nowrap;">{{ product.discount_percent }}% off</span>
                       {% endif %}
                     </div>
                   </div>
 
-                  <div class="flex flex-wrap items-end justify-between gap-3">
+                  <div style="display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px;">
                     <div class="customer-product-price-copy">
                       <strong class="customer-product-price">Rs. {{ product.price }}</strong>
                       {% if product.mrp and product.mrp > product.price %}
@@ -145,36 +196,33 @@
                     <form method="post" action="{% url 'core:cart_add' product.id %}" class="customer-product-cart-form" data-product-stepper>
                       {% csrf_token %}
                       <input type="hidden" name="next" value="{{ request.get_full_path }}" />
-                      <div class="customer-product-cart-row">
-                        <div class="customer-product-stepper">
+                      <div class="customer-product-cart-row" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+                        <div class="customer-product-stepper" style="display:flex;align-items:center;gap:4px;">
                           <button class="customer-product-stepper-button" type="button" data-stepper-decrease aria-label="Decrease quantity">-</button>
                           <input type="number" min="1" max="{{ product.stock }}" name="quantity" value="1" class="customer-product-stepper-input" />
                           <button class="customer-product-stepper-button" type="button" data-stepper-increase aria-label="Increase quantity">+</button>
                         </div>
                         <button class="button small primary customer-product-add-button" type="submit" {% if product.stock <= 0 or not shop.is_open %}disabled{% endif %}>
-                          {% if product.stock <= 0 %}
-                            Out Of Stock
-                          {% else %}
-                            Add
-                          {% endif %}
+                          {% if product.stock <= 0 %}Out Of Stock{% else %}Add{% endif %}
                         </button>
                       </div>
                     </form>
                   </div>
                 </div>
+
               </div>
             </div>
           {% endfor %}
         </div>
 
         {% if products|length > 12 %}
-          <details class="top-gap-sm rounded-[1.6rem] border border-slate-200 bg-slate-50/70 p-4">
+          <details class="top-gap-sm rounded-[1.6rem] border border-slate-200 bg-slate-50/70 p-4" style="overflow:hidden;">
             <summary class="cursor-pointer font-semibold text-slate-800">Show more products</summary>
             <div class="grid gap-4 pt-4 md:grid-cols-2">
               {% for product in products|slice:"12:" %}
-                <div class="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-soft">
-                  <div class="grid gap-4 sm:grid-cols-[92px_minmax(0,1fr)]">
-                    <div class="customer-product-media relative min-h-[6rem] rounded-[1.1rem]" style="background: linear-gradient(135deg, {{ product.color }}, #fff4ee);">
+                <div class="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-soft" style="min-width:0;">
+                  <div class="grid gap-4" style="grid-template-columns:92px minmax(0,1fr);">
+                    <div class="customer-product-media relative min-h-[6rem] rounded-[1.1rem]" style="background:linear-gradient(135deg,{{ product.color }},#fff4ee);">
                       {% if product.image_source %}
                         <img src="{{ product.image_source }}" alt="{{ product.name }}" />
                       {% else %}
@@ -183,23 +231,21 @@
                     </div>
                     <div class="min-w-0 space-y-3">
                       <div>
-                        <strong class="customer-product-name">{{ product.name }}</strong>
+                        <strong class="customer-product-name block truncate">{{ product.name }}</strong>
                         <p class="customer-product-description">{{ product.preview_description|default:product.subtitle }}</p>
                       </div>
-                      <div class="flex flex-wrap items-center justify-between gap-3">
+                      <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">
                         <strong class="customer-product-price">Rs. {{ product.price }}</strong>
                         <form method="post" action="{% url 'core:cart_add' product.id %}" class="customer-product-cart-form" data-product-stepper>
                           {% csrf_token %}
                           <input type="hidden" name="next" value="{{ request.get_full_path }}" />
-                          <div class="customer-product-cart-row">
-                            <div class="customer-product-stepper">
+                          <div class="customer-product-cart-row" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+                            <div class="customer-product-stepper" style="display:flex;align-items:center;gap:4px;">
                               <button class="customer-product-stepper-button" type="button" data-stepper-decrease aria-label="Decrease quantity">-</button>
                               <input type="number" min="1" max="{{ product.stock }}" name="quantity" value="1" class="customer-product-stepper-input" />
                               <button class="customer-product-stepper-button" type="button" data-stepper-increase aria-label="Increase quantity">+</button>
                             </div>
-                            <button class="button small primary customer-product-add-button" type="submit" {% if product.stock <= 0 or not shop.is_open %}disabled{% endif %}>
-                              Add
-                            </button>
+                            <button class="button small primary customer-product-add-button" type="submit" {% if product.stock <= 0 or not shop.is_open %}disabled{% endif %}>Add</button>
                           </div>
                         </form>
                       </div>
@@ -210,6 +256,7 @@
             </div>
           </details>
         {% endif %}
+
       {% else %}
         <div class="nested-panel top-gap-sm">
           <strong>No matching products</strong>
@@ -221,6 +268,7 @@
         </div>
       {% endif %}
     </section>
+
   </section>
 {% endblock %}
 
@@ -229,35 +277,20 @@
   <script>
     (function () {
       var forms = document.querySelectorAll('[data-product-stepper]');
-      if (!forms.length) {
-        return;
-      }
-
+      if (!forms.length) return;
       forms.forEach(function (form) {
         var input = form.querySelector('input[name="quantity"]');
         var decrease = form.querySelector('[data-stepper-decrease]');
         var increase = form.querySelector('[data-stepper-increase]');
-        if (!input || !decrease || !increase) {
-          return;
-        }
-
+        if (!input || !decrease || !increase) return;
         function clamp(value) {
           var min = Number(input.getAttribute('min') || '1');
           var max = Number(input.getAttribute('max') || '999');
           return Math.max(min, Math.min(max, value));
         }
-
-        decrease.addEventListener('click', function () {
-          input.value = clamp(Number(input.value || '1') - 1);
-        });
-
-        increase.addEventListener('click', function () {
-          input.value = clamp(Number(input.value || '1') + 1);
-        });
-
-        input.addEventListener('change', function () {
-          input.value = clamp(Number(input.value || '1'));
-        });
+        decrease.addEventListener('click', function () { input.value = clamp(Number(input.value || '1') - 1); });
+        increase.addEventListener('click', function () { input.value = clamp(Number(input.value || '1') + 1); });
+        input.addEventListener('change', function () { input.value = clamp(Number(input.value || '1')); });
       });
     })();
   </script>

@@ -1,6 +1,7 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
+
   <section class="feature-nav card rider-segmented-nav" data-appear>
     {% for item in page_nav %}
       <a class="feature-nav-link{% if request.path == item.url %} feature-nav-link-active{% endif %}" href="{{ item.url }}">
@@ -11,8 +12,10 @@
   </section>
 
   <section class="rider-dashboard-shell" id="top">
+
     <article class="card rider-dashboard-topbar" data-appear>
       <div class="rider-dashboard-topbar-main">
+
         <div class="rider-dashboard-identity">
           <div class="rider-dashboard-identity-head">
             {% if rider.photo_source %}
@@ -30,10 +33,10 @@
           <span class="eyebrow">Rider Command Center</span>
           <h1 class="page-title">{{ rider.full_name }}</h1>
           <p class="hero-lead">Current mission stays at the top so you can navigate, verify OTP, and close the job in fewer taps.</p>
-          <div class="hero-inline-facts">
-            <span class="soft-pill"><span class="ui-icon icon-bike" aria-hidden="true"></span><span>{{ rider.get_vehicle_type_display }}</span></span>
-            <span class="soft-pill"><span class="ui-icon icon-map-pinned" aria-hidden="true"></span><span>{{ dispatch_radius }} km dispatch radius</span></span>
-            <span class="soft-pill"><span class="ui-icon icon-package" aria-hidden="true"></span><span>{{ active_order_count }} active delivery{{ active_order_count|pluralize }}</span></span>
+          <div class="hero-inline-facts" style="display:flex;flex-wrap:wrap;gap:8px;">
+            <span class="soft-pill" style="flex-shrink:0;white-space:nowrap;"><span class="ui-icon icon-bike" aria-hidden="true"></span><span>{{ rider.get_vehicle_type_display }}</span></span>
+            <span class="soft-pill" style="flex-shrink:0;white-space:nowrap;"><span class="ui-icon icon-map-pinned" aria-hidden="true"></span><span>{{ dispatch_radius }} km dispatch radius</span></span>
+            <span class="soft-pill" style="flex-shrink:0;white-space:nowrap;"><span class="ui-icon icon-package" aria-hidden="true"></span><span>{{ active_order_count }} active delivery{{ active_order_count|pluralize }}</span></span>
           </div>
         </div>
 
@@ -68,12 +71,13 @@
             </form>
           </article>
         </div>
+
       </div>
     </article>
 
     <article class="card rider-mission-card" data-appear>
       <div class="rider-section-head">
-        <div>
+        <div class="min-w-0">
           <span class="eyebrow">Current Mission</span>
           {% if priority_order %}
             <h2 class="section-title">{{ priority_order.current_mission_title }}</h2>
@@ -88,16 +92,16 @@
         </div>
 
         {% if priority_order %}
-          <div class="hero-inline-facts">
-            <span class="soft-pill">{{ priority_order.display_id }}</span>
-            <span class="status-chip {{ priority_order.dashboard_payment_chip }}">{{ priority_order.dashboard_payment_label }}</span>
-            <span class="status-chip {{ priority_order.status_chip }}">{{ priority_order.get_status_display }}</span>
+          <div class="hero-inline-facts" style="display:flex;flex-wrap:wrap;gap:8px;">
+            <span class="soft-pill" style="flex-shrink:0;white-space:nowrap;">{{ priority_order.display_id }}</span>
+            <span class="status-chip {{ priority_order.dashboard_payment_chip }}" style="flex-shrink:0;white-space:nowrap;">{{ priority_order.dashboard_payment_label }}</span>
+            <span class="status-chip {{ priority_order.status_chip }}" style="flex-shrink:0;white-space:nowrap;">{{ priority_order.get_status_display }}</span>
           </div>
         {% elif priority_khatabook_request %}
-          <div class="hero-inline-facts">
-            <span class="soft-pill">{{ priority_khatabook_request.display_id }}</span>
-            <span class="status-chip rider-payment-chip-khata">KhataBook</span>
-            <span class="status-chip {{ priority_khatabook_request.status_chip }}">{{ priority_khatabook_request.get_status_display }}</span>
+          <div class="hero-inline-facts" style="display:flex;flex-wrap:wrap;gap:8px;">
+            <span class="soft-pill" style="flex-shrink:0;white-space:nowrap;">{{ priority_khatabook_request.display_id }}</span>
+            <span class="status-chip rider-payment-chip-khata" style="flex-shrink:0;white-space:nowrap;">KhataBook</span>
+            <span class="status-chip {{ priority_khatabook_request.status_chip }}" style="flex-shrink:0;white-space:nowrap;">{{ priority_khatabook_request.get_status_display }}</span>
           </div>
         {% endif %}
       </div>
@@ -126,12 +130,12 @@
           </article>
         </div>
 
-        <div class="rider-mission-actions">
-          <a class="button primary rider-mission-button" href="{{ priority_order.current_mission_map_url }}" target="_blank" rel="noreferrer">
+        <div class="rider-mission-actions" style="display:flex;flex-wrap:wrap;gap:8px;">
+          <a class="button primary rider-mission-button" href="{{ priority_order.current_mission_map_url }}" target="_blank" rel="noreferrer" style="flex-shrink:0;">
             <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
             <span>Open in Maps</span>
           </a>
-          <a class="button secondary rider-mission-button" href="tel:{{ priority_order.customer.phone }}">
+          <a class="button secondary rider-mission-button" href="tel:{{ priority_order.customer.phone }}" style="flex-shrink:0;">
             <span class="ui-icon icon-phone" aria-hidden="true"></span>
             <span>Call Customer</span>
           </a>
@@ -139,7 +143,7 @@
             <form method="post" action="{% url 'core:rider_resend_customer_otp' priority_order.id %}">
               {% csrf_token %}
               <input type="hidden" name="next" value="{% url 'core:rider_dashboard' %}" />
-              <button class="button secondary rider-mission-button" type="submit">
+              <button class="button secondary rider-mission-button" type="submit" style="flex-shrink:0;">
                 <span class="ui-icon icon-refresh-cw" aria-hidden="true"></span>
                 <span>Resend OTP</span>
               </button>
@@ -152,7 +156,7 @@
             {% csrf_token %}
             <input type="hidden" name="status" value="out_for_delivery" />
             <p class="utility-note">Pickup confirmation works only when you are close enough to the store geofence.</p>
-            <button class="button primary rider-mission-submit" type="submit">
+            <button class="button primary rider-mission-submit" type="submit" style="width:100%;">
               <span class="ui-icon icon-package-open" aria-hidden="true"></span>
               <span>Picked Up From Store</span>
             </button>
@@ -167,7 +171,7 @@
                 <input type="hidden" name="next" value="{% url 'core:rider_dashboard' %}" />
                 <button class="button secondary" type="submit">
                   <span class="ui-icon icon-wallet" aria-hidden="true"></span>
-                  <span>Recieve Money Online</span>
+                  <span>Receive Money Online</span>
                 </button>
               </form>
             </div>
@@ -189,13 +193,14 @@
               {% if priority_order.customer_otp_valid_until %}
                 <p class="utility-note">Current OTP valid until {{ priority_order.customer_otp_valid_until|date:"H:i" }}.</p>
               {% endif %}
-              <button class="button primary rider-mission-submit" type="submit">
+              <button class="button primary rider-mission-submit" type="submit" style="width:100%;">
                 <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
                 <span>Delivered</span>
               </button>
             </form>
           {% endif %}
         {% endif %}
+
       {% elif priority_khatabook_request %}
         <div class="rider-mission-grid">
           <article class="rider-mission-stop">
@@ -220,18 +225,18 @@
           </article>
         </div>
 
-        <div class="rider-mission-actions">
-          <a class="button primary rider-mission-button" href="{{ priority_khatabook_request.map_url }}" target="_blank" rel="noreferrer">
+        <div class="rider-mission-actions" style="display:flex;flex-wrap:wrap;gap:8px;">
+          <a class="button primary rider-mission-button" href="{{ priority_khatabook_request.map_url }}" target="_blank" rel="noreferrer" style="flex-shrink:0;">
             <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
             <span>Open in Maps</span>
           </a>
-          <a class="button secondary rider-mission-button" href="tel:{{ priority_khatabook_request.customer.phone }}">
+          <a class="button secondary rider-mission-button" href="tel:{{ priority_khatabook_request.customer.phone }}" style="flex-shrink:0;">
             <span class="ui-icon icon-phone" aria-hidden="true"></span>
             <span>Call Customer</span>
           </a>
           <form method="post" action="{% url 'core:rider_resend_khatabook_collection_otp' priority_khatabook_request.id %}">
             {% csrf_token %}
-            <button class="button secondary rider-mission-button" type="submit">
+            <button class="button secondary rider-mission-button" type="submit" style="flex-shrink:0;">
               <span class="ui-icon icon-refresh-cw" aria-hidden="true"></span>
               <span>Resend OTP</span>
             </button>
@@ -251,11 +256,12 @@
               </div>
             </div>
           </div>
-          <button class="button primary rider-mission-submit" type="submit">
+          <button class="button primary rider-mission-submit" type="submit" style="width:100%;">
             <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
             <span>Collected And Closed</span>
           </button>
         </form>
+
       {% else %}
         <div class="nested-panel rider-empty-state">
           <strong>No active mission</strong>
@@ -265,65 +271,68 @@
     </article>
 
     <section class="rider-dashboard-grid">
+
       <article class="card rider-queue-card" data-appear>
         <div class="rider-section-head">
-          <div>
+          <div class="min-w-0">
             <span class="eyebrow">Next Orders Queue</span>
             <h2 class="section-title">Nearby jobs ready to accept</h2>
           </div>
-          <span class="soft-pill">{{ dashboard_queue|length }} waiting</span>
+          <span class="soft-pill shrink-0">{{ dashboard_queue|length }} waiting</span>
         </div>
 
-        <div class="rider-queue-table">
-          <div class="rider-queue-head">
-            <span>Order ID</span>
-            <span>Pickup Location</span>
-            <span>Drop Location</span>
-            <span>Distance</span>
-            <span>Action</span>
-          </div>
-          {% for job in dashboard_queue %}
-            <article class="rider-queue-row">
-              <div class="rider-queue-cell">
-                <strong>{{ job.display_id }}</strong>
-                <span class="status-chip {{ job.payment_chip }}">{{ job.payment_label }}</span>
-              </div>
-              <div class="rider-queue-cell">
-                <strong>{{ job.pickup_label }}</strong>
-                <p>{{ job.pickup_detail }}</p>
-              </div>
-              <div class="rider-queue-cell">
-                <strong>{{ job.drop_label }}</strong>
-                <p>{{ job.drop_detail }}</p>
-              </div>
-              <div class="rider-queue-cell">
-                <strong>{{ job.distance_label }}</strong>
-                <p>{% if job.kind == 'collection' %}Recovery task{% else %}Pickup first{% endif %}</p>
-              </div>
-              <div class="rider-queue-cell rider-queue-cell-action">
-                <form method="post" action="{{ job.accept_url }}">
-                  {% csrf_token %}
-                  <button class="button primary" type="submit">{{ job.accept_label }}</button>
-                </form>
-              </div>
-            </article>
-          {% empty %}
-            <div class="nested-panel rider-empty-state">
-              <strong>No active queue right now</strong>
-              <p>Stay online near your dispatch point. New nearby jobs will show up here automatically.</p>
+        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;">
+          <div class="rider-queue-table" style="min-width:560px;">
+            <div class="rider-queue-head">
+              <span>Order ID</span>
+              <span>Pickup</span>
+              <span>Drop</span>
+              <span>Distance</span>
+              <span>Action</span>
             </div>
-          {% endfor %}
+            {% for job in dashboard_queue %}
+              <article class="rider-queue-row">
+                <div class="rider-queue-cell">
+                  <strong>{{ job.display_id }}</strong>
+                  <span class="status-chip {{ job.payment_chip }}">{{ job.payment_label }}</span>
+                </div>
+                <div class="rider-queue-cell">
+                  <strong class="truncate" style="display:block;max-width:120px;">{{ job.pickup_label }}</strong>
+                  <p class="truncate" style="max-width:120px;">{{ job.pickup_detail }}</p>
+                </div>
+                <div class="rider-queue-cell">
+                  <strong class="truncate" style="display:block;max-width:120px;">{{ job.drop_label }}</strong>
+                  <p class="truncate" style="max-width:120px;">{{ job.drop_detail }}</p>
+                </div>
+                <div class="rider-queue-cell">
+                  <strong>{{ job.distance_label }}</strong>
+                  <p style="white-space:nowrap;">{% if job.kind == 'collection' %}Recovery task{% else %}Pickup first{% endif %}</p>
+                </div>
+                <div class="rider-queue-cell rider-queue-cell-action">
+                  <form method="post" action="{{ job.accept_url }}">
+                    {% csrf_token %}
+                    <button class="button primary" type="submit" style="white-space:nowrap;">{{ job.accept_label }}</button>
+                  </form>
+                </div>
+              </article>
+            {% empty %}
+              <div class="nested-panel rider-empty-state">
+                <strong>No active queue right now</strong>
+                <p>Stay online near your dispatch point. New nearby jobs will show up here automatically.</p>
+              </div>
+            {% endfor %}
+          </div>
         </div>
       </article>
 
       <article class="card rider-dispatch-card" data-appear data-rider-dispatch-editor>
         <div class="rider-section-head">
-          <div>
+          <div class="min-w-0">
             <span class="eyebrow">Dispatch Location</span>
             <h2 class="section-title">Set the pin riders get assigned from</h2>
             <p class="subtle">Orders will be assigned based on this location.</p>
           </div>
-          <span class="soft-pill">Live dispatch radius {{ dispatch_radius }} km</span>
+          <span class="soft-pill shrink-0" style="white-space:nowrap;">Live dispatch radius {{ dispatch_radius }} km</span>
         </div>
 
         <form method="post" action="{% url 'core:rider_update_location' %}" class="rider-dispatch-form" data-rider-location-form>
@@ -335,23 +344,23 @@
               {{ location_form.longitude }}
             </div>
 
-            <div class="location-editor-toolbar">
-              <button class="button secondary" type="button" data-location-current>
+            <div class="location-editor-toolbar" style="display:flex;flex-wrap:wrap;gap:8px;">
+              <button class="button secondary" type="button" data-location-current style="flex-shrink:0;">
                 <span class="ui-icon icon-locate-fixed" aria-hidden="true"></span>
                 <span>Use Current Location</span>
               </button>
-              <button class="button primary" type="submit">
+              <button class="button primary" type="submit" style="flex-shrink:0;">
                 <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
                 <span>Confirm Dispatch Location</span>
               </button>
-              <a class="button secondary" href="https://www.google.com/maps/search/?api=1&query={{ rider.latitude }},{{ rider.longitude }}" target="_blank" rel="noreferrer" data-location-open-maps>
+              <a class="button secondary" href="https://www.google.com/maps/search/?api=1&query={{ rider.latitude }},{{ rider.longitude }}" target="_blank" rel="noreferrer" data-location-open-maps style="flex-shrink:0;">
                 <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
                 <span>Open Google Maps</span>
               </a>
             </div>
 
-            <div class="location-editor-status-row">
-              <span class="soft-pill">
+            <div class="location-editor-status-row" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
+              <span class="soft-pill" style="flex-shrink:0;">
                 <span class="ui-icon icon-map-pin" aria-hidden="true"></span>
                 <span data-location-coordinates>{{ rider.latitude }}, {{ rider.longitude }}</span>
               </span>
@@ -360,8 +369,8 @@
               </span>
             </div>
 
-            <div class="location-editor-preview">
-              <strong class="location-editor-preview-main" data-location-preview-main>Fetching your current dispatch address...</strong>
+            <div class="location-editor-preview" style="min-width:0;">
+              <strong class="location-editor-preview-main" data-location-preview-main style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Fetching your current dispatch address...</strong>
               <p class="location-editor-preview-sub" data-location-preview-sub>Move the pin or use current location to refresh the exact address line automatically.</p>
             </div>
 
@@ -378,6 +387,7 @@
           </div>
         </form>
       </article>
+
     </section>
 
     <section class="rider-summary-grid" data-appear>
@@ -405,27 +415,27 @@
 
     <article class="card rider-history-card" data-appear>
       <div class="rider-section-head">
-        <div>
+        <div class="min-w-0">
           <span class="eyebrow">Delivery History</span>
           <h2 class="section-title">Recent completed orders</h2>
         </div>
-        <span class="soft-pill">{{ completed_delivery_count }} lifetime completed</span>
+        <span class="soft-pill shrink-0">{{ completed_delivery_count }} lifetime completed</span>
       </div>
 
       <div class="rider-history-list">
         {% for order in delivery_history %}
-          <article class="rider-history-row">
-            <div>
-              <strong>{{ order.display_id }}</strong>
-              <p>{{ order.shop.name }} to {{ order.customer.full_name }}</p>
+          <article class="rider-history-row" style="display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:start;">
+            <div class="min-w-0">
+              <strong class="block truncate">{{ order.display_id }}</strong>
+              <p class="truncate">{{ order.shop.name }} to {{ order.customer.full_name }}</p>
             </div>
-            <div>
-              <span class="status-chip {{ order.dashboard_payment_chip }}">{{ order.dashboard_payment_label }}</span>
-              <p>{% if order.delivered_at %}{{ order.delivered_at|date:"M d, H:i" }}{% else %}Completed{% endif %}</p>
+            <div style="text-align:right;flex-shrink:0;">
+              <span class="status-chip {{ order.dashboard_payment_chip }}" style="white-space:nowrap;">{{ order.dashboard_payment_label }}</span>
+              <p style="white-space:nowrap;">{% if order.delivered_at %}{{ order.delivered_at|date:"M d, H:i" }}{% else %}Completed{% endif %}</p>
             </div>
-            <div>
-              <strong>Rs. {{ order.rider_payout_total }}</strong>
-              <p>Earnings Per Order</p>
+            <div style="text-align:right;flex-shrink:0;">
+              <strong style="white-space:nowrap;">Rs. {{ order.rider_payout_total }}</strong>
+              <p style="white-space:nowrap;">Earnings</p>
             </div>
           </article>
         {% empty %}
@@ -436,5 +446,6 @@
         {% endfor %}
       </div>
     </article>
+
   </section>
 {% endblock %}
