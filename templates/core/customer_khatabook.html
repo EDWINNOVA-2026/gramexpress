@@ -2,12 +2,12 @@
 
 {% block content %}
   <section class="page-stack customer-khatabook-shell" id="top">
-    <article class="card success-hero-card" data-appear>
+    <article class="card success-hero-card section-stack" data-appear>
       <div class="split-row">
         <div>
           <span class="eyebrow">KhataBook</span>
           <h1 class="page-title">Track your weekly credit clearly</h1>
-          <p>See your due amount, open credit orders, and the fastest way to settle the current KhataBook cycle.</p>
+          <p>See what is due, repay it quickly, and keep the rest tucked away unless you need it.</p>
         </div>
         <div class="hero-inline-facts">
           <span class="soft-pill">Due {{ khatabook_summary.due_date|date:"M d" }}</span>
@@ -17,34 +17,16 @@
       </div>
     </article>
 
-    <section class="summary-grid customer-khatabook-metrics" data-appear>
-      <article class="metric-card checkout-summary-card">
-        <span class="metric-label">Used Credit</span>
-        <strong class="metric-value">Rs. {{ khatabook_summary.outstanding_amount }}</strong>
-        <p>Current weekly due amount</p>
-      </article>
-      <article class="metric-card checkout-summary-card">
-        <span class="metric-label">Orders on Credit</span>
-        <strong class="metric-value">{{ khatabook_orders|length }}</strong>
-        <p>Orders covered in this cycle</p>
-      </article>
-      <article class="metric-card checkout-summary-card">
-        <span class="metric-label">Due Date</span>
-        <strong class="metric-value">{{ khatabook_summary.due_date|date:"M d" }}</strong>
-        <p>Repay before default begins</p>
-      </article>
-      <article class="metric-card checkout-summary-card">
-        <span class="metric-label">Status</span>
-        <strong class="metric-value">{{ khatabook_summary.status_label }}</strong>
-        <p>{{ khatabook_summary.detail }}</p>
-      </article>
-    </section>
-
     <section class="layout-two customer-khatabook-layout" id="workspace">
       <div class="stack">
-        <article class="card" data-appear>
-          <span class="eyebrow">Credit Overview</span>
-          <h2 class="section-title">{{ khatabook_summary.headline }}</h2>
+        <article class="card section-stack" data-appear>
+          <div class="split-row">
+            <div>
+              <span class="eyebrow">This Week</span>
+              <h2 class="section-title">{{ khatabook_summary.headline }}</h2>
+            </div>
+            <span class="status-chip {{ khatabook_summary.badge_class }}">{{ khatabook_summary.status_label }}</span>
+          </div>
           {% if khatabook_summary.is_defaulted %}
             <div class="checkout-alert checkout-alert-error">
               <strong>KhataBook is in default</strong>
@@ -53,23 +35,25 @@
           {% endif %}
           <div class="summary-grid">
             <div class="metric-card checkout-summary-card">
-              <span class="metric-label">Outstanding this week</span>
+              <span class="metric-label">Due now</span>
               <strong class="metric-value">Rs. {{ khatabook_summary.outstanding_amount }}</strong>
-              <p>Due on {{ khatabook_summary.due_date|date:"M d, Y" }}</p>
+              <p>Current cycle balance</p>
             </div>
             <div class="metric-card checkout-summary-card">
-              <span class="metric-label">Credit window</span>
-              <strong class="metric-value">7 Days</strong>
-              <p>Every KhataBook checkout rolls into one weekly due instead of immediate payment.</p>
+              <span class="metric-label">Due date</span>
+              <strong class="metric-value">{{ khatabook_summary.due_date|date:"M d" }}</strong>
+              <p>Repay before default begins</p>
+            </div>
+            <div class="metric-card checkout-summary-card">
+              <span class="metric-label">Orders in cycle</span>
+              <strong class="metric-value">{{ khatabook_orders|length }}</strong>
+              <p>Orders covered in this weekly due</p>
             </div>
           </div>
-          <div class="checkout-cod-panel">
-            <strong>What this means</strong>
-            <p>{{ khatabook_summary.detail }}</p>
-          </div>
+          <p class="utility-note">{{ khatabook_summary.detail }}</p>
         </article>
 
-        <article class="card" data-appear>
+        <article class="card section-stack" data-appear>
           <div class="split-row">
             <div>
               <span class="eyebrow">Orders on Credit</span>
@@ -105,54 +89,14 @@
       </div>
 
       <div class="stack">
-        <article class="card" data-appear>
-          <span class="eyebrow">Credit Boost</span>
-          <h2 class="section-title">Increase your KhataBook line</h2>
-          <p>Every customer starts with Rs. {{ khatabook_free_plan.credit_limit }} credit. Repay within 7 days or when the full line is used, whichever comes first.</p>
-          <div class="summary-grid">
-            <div class="metric-card checkout-summary-card">
-              <span class="metric-label">Current line</span>
-              <strong class="metric-value">Rs. {{ khatabook_balance.plan.credit_limit }}</strong>
-              <p>{{ khatabook_balance.plan.name }}</p>
-            </div>
-            <div class="metric-card checkout-summary-card">
-              <span class="metric-label">Available now</span>
-              <strong class="metric-value">Rs. {{ khatabook_balance.available_credit }}</strong>
-              <p>Open due Rs. {{ khatabook_balance.open_balance }}</p>
-            </div>
-            <div class="metric-card checkout-summary-card">
-              <span class="metric-label">Next repayment</span>
-              <strong class="metric-value">{{ khatabook_balance.next_due_date|date:"M d" }}</strong>
-              <p>Earlier of 7 days or full usage</p>
-            </div>
-          </div>
-          <div class="stack">
-            {% for option in khatabook_plan_options %}
-              <div class="compact-item">
-                <div class="split-row">
-                  <div>
-                    <strong>{{ option.name }}</strong>
-                    <p>Credit up to Rs. {{ option.credit_limit }} | Fee Rs. {{ option.subscription_fee }}</p>
-                  </div>
-                  {% if option.is_current %}
-                    <span class="status-chip success">Current plan</span>
-                  {% elif option.checkout %}
-                    <button class="button primary small" type="button" data-khatabook-plan-button data-plan="{{ option.code }}">
-                      Activate With Razorpay
-                    </button>
-                  {% else %}
-                    <span class="soft-pill">Unavailable</span>
-                  {% endif %}
-                </div>
-                <p class="utility-note">Razorpay only. COD is not available for plan activation.</p>
-              </div>
-            {% endfor %}
-          </div>
-        </article>
-
-        <article class="card" data-appear>
+        <article class="card section-stack" data-appear>
           <span class="eyebrow">Repay Now</span>
           <h2 class="section-title">Choose how to settle this week</h2>
+          <div class="metric-card checkout-summary-card">
+            <span class="metric-label">Amount to settle</span>
+            <strong class="metric-value">Rs. {{ khatabook_summary.outstanding_amount }}</strong>
+            <p>{{ khatabook_summary.status_label }} | due {{ khatabook_summary.due_date|date:"M d, Y" }}</p>
+          </div>
           {% if khatabook_collection_request %}
             <div class="checkout-cod-panel">
               <strong>Collection request status</strong>
@@ -212,6 +156,70 @@
           <div class="inline-actions">
             <a class="button primary" href="{% url 'core:customer_dashboard' %}">Browse Stores</a>
             <a class="button secondary" href="{% url 'core:customer_orders' %}">View Orders</a>
+          </div>
+        </article>
+
+        <article class="card section-stack" data-appear>
+          <div class="split-row">
+            <div>
+              <span class="eyebrow">Credit Line</span>
+              <h2 class="section-title">Limit and subscription plans</h2>
+            </div>
+            <span class="soft-pill">Rs. {{ khatabook_balance.available_credit }} available</span>
+          </div>
+
+          <div class="summary-grid">
+            <div class="metric-card checkout-summary-card">
+              <span class="metric-label">Current line</span>
+              <strong class="metric-value">Rs. {{ khatabook_balance.plan.credit_limit }}</strong>
+              <p>{{ khatabook_balance.plan.name }}</p>
+            </div>
+            <div class="metric-card checkout-summary-card">
+              <span class="metric-label">Available now</span>
+              <strong class="metric-value">Rs. {{ khatabook_balance.available_credit }}</strong>
+              <p>Open due Rs. {{ khatabook_balance.open_balance }}</p>
+            </div>
+          </div>
+
+          <div class="checkout-cod-panel">
+            <strong>How subscriptions work</strong>
+            <p>Every customer starts with Rs. {{ khatabook_free_plan.credit_limit }} free credit. Upgrade only if you need a larger KhataBook limit. Subscription upgrades use Razorpay.</p>
+          </div>
+
+          <div class="grid gap-3">
+            {% for option in khatabook_plan_options %}
+              <div class="rounded-[1.35rem] border border-slate-200 bg-slate-50/80 p-4 shadow-soft">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div class="min-w-0 space-y-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <strong class="text-lg text-slate-900">{{ option.name }}</strong>
+                      {% if option.is_current %}
+                        <span class="status-chip success">Current plan</span>
+                      {% elif forloop.last %}
+                        <span class="status-chip info">Higher limit</span>
+                      {% endif %}
+                    </div>
+                    <p class="subtle">Credit up to Rs. {{ option.credit_limit }}</p>
+                    <div class="flex flex-wrap gap-2 text-sm text-slate-600">
+                      <span class="soft-pill">Fee Rs. {{ option.subscription_fee }}</span>
+                      <span class="soft-pill">7-day cycle</span>
+                    </div>
+                  </div>
+
+                  <div class="sm:text-right">
+                    {% if option.is_current %}
+                      <span class="soft-pill">Already active</span>
+                    {% elif option.checkout %}
+                      <button class="button primary small" type="button" data-khatabook-plan-button data-plan="{{ option.code }}">
+                        Upgrade with Razorpay
+                      </button>
+                    {% else %}
+                      <span class="soft-pill">Unavailable</span>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
           </div>
         </article>
       </div>

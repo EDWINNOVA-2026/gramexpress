@@ -97,40 +97,41 @@
 
 {% block content %}
   <section class="page-stack" id="top">
-    <article class="card section-stack overflow-hidden" data-appear>
-      <div class="grid gap-6 xl:grid-cols-[1.35fr_auto] xl:items-end">
+    <article class="card section-stack" data-appear>
+      <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
         <div class="content-stack">
           <span class="eyebrow">Cart</span>
-          <h1 class="page-title">Review your basket before checkout</h1>
-          <p class="subtle">This page now focuses only on what you ordered, the delivery speed you want, and the total payable preview. Address and payment are handled on the next checkout screen.</p>
+          <h1 class="page-title">Review your basket</h1>
+          <p class="subtle">Keep this page focused on products, delivery speed, and the amount you’ll pay before moving to checkout.</p>
         </div>
-        <div class="grid gap-3 sm:grid-cols-3">
-          <div class="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4">
-            <span class="tiny muted">Items</span>
-            <strong class="block text-2xl text-slate-900">{{ cart.item_count }}</strong>
-          </div>
-          <div class="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4">
-            <span class="tiny muted">Stores</span>
-            <strong class="block text-2xl text-slate-900">{{ cart.groups|length }}</strong>
-          </div>
-          <div class="rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-4">
-            <span class="tiny muted">Estimated total</span>
-            <strong class="block text-2xl text-emerald-700">Rs. {{ cart_estimated_total|floatformat:2 }}</strong>
-          </div>
+        <div class="flex flex-wrap gap-2">
+          <span class="soft-pill">{{ cart.item_count }} item{{ cart.item_count|pluralize }}</span>
+          <span class="soft-pill">{{ cart.groups|length }} store{{ cart.groups|length|pluralize }}</span>
+          <span class="soft-pill">Rs. {{ cart_estimated_total|floatformat:2 }}</span>
         </div>
       </div>
     </article>
 
     {% if cart.groups %}
-      <section class="grid gap-6 xl:grid-cols-[1.45fr_1fr] xl:grid-rows-[minmax(0,1fr)_auto] xl:items-stretch" id="workspace">
-        <article class="card flex flex-col gap-5 xl:min-h-0 xl:h-full xl:row-start-1 xl:col-start-1" data-appear>
-          <div class="split-row">
-            <div class="content-stack">
-              <span class="eyebrow">Store Baskets</span>
-              <h2 class="section-title">Products grouped by store</h2>
+      <section class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]" id="workspace">
+        <div class="stack">
+          {% if cart.has_blocking_issues %}
+            <div class="checkout-alert checkout-alert-error" data-appear>
+              <strong>Some cart items need attention before checkout.</strong>
+              <ul class="checkout-checklist">
+                {% for issue in cart.validation_errors %}
+                  <li>{{ issue }}</li>
+                {% endfor %}
+              </ul>
             </div>
-            <div class="action-cluster">
-              <span class="soft-pill">{{ cart.groups|length }} store{{ cart.groups|length|pluralize }}</span>
+          {% endif %}
+
+          <article class="card flex flex-col gap-5" data-appear>
+            <div class="split-row">
+              <div class="content-stack">
+                <span class="eyebrow">Store Baskets</span>
+                <h2 class="section-title">Grouped by store</h2>
+              </div>
               <form method="post" action="{% url 'core:cart_clear' %}">
                 {% csrf_token %}
                 <input type="hidden" name="next" value="{% url 'core:customer_cart' %}" />
@@ -140,201 +141,182 @@
                 </button>
               </form>
             </div>
-          </div>
 
-          <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <div class="rounded-[1.35rem] bg-slate-50/90 px-4 py-3 shadow-soft">
-              <span class="tiny muted">Products in cart</span>
-              <strong class="mt-1 block text-xl text-slate-900">{{ cart.item_count }}</strong>
-              <p class="tiny muted">Everything grouped shop-wise for a faster review.</p>
-            </div>
-            <div class="rounded-[1.35rem] bg-slate-50/90 px-4 py-3 shadow-soft">
-              <span class="tiny muted">Basket subtotal</span>
-              <strong class="mt-1 block text-xl text-slate-900">Rs. {{ cart.subtotal }}</strong>
-              <p class="tiny muted">Before delivery slot and platform service fees.</p>
-            </div>
-            <div class="rounded-[1.35rem] bg-emerald-50/80 px-4 py-3 shadow-soft sm:col-span-2 xl:col-span-1">
-              <span class="tiny muted">Selected delivery model</span>
-              <strong class="mt-1 block text-xl text-emerald-700">{{ selected_delivery_slot_config.name }}</strong>
-              <p class="tiny muted">{{ selected_delivery_slot_config.time_label }} for {{ cart.groups|length }} store order{{ cart.groups|length|pluralize }}.</p>
-            </div>
-          </div>
-
-          {% if cart.has_blocking_issues %}
-            <div class="checkout-alert checkout-alert-error">
-              <strong>Checkout is blocked until these issues are fixed.</strong>
-              <ul class="checkout-checklist">
-                {% for issue in cart.validation_errors %}
-                  <li>{{ issue }}</li>
-                {% endfor %}
-              </ul>
-            </div>
-          {% endif %}
-
-          <div class="stack">
-            {% for group in cart.groups %}
-              <section class="rounded-[1.75rem] border border-slate-200 bg-slate-50/80 p-4 shadow-soft{% if group.has_blocking_issue %} border-amber-300{% endif %}">
-                <div class="split-row">
-                  <div class="content-stack">
-                    <strong class="text-lg text-slate-900">{{ group.shop.name }}</strong>
-                    <p class="subtle">{{ group.item_count }} item{{ group.item_count|pluralize }} | {{ group.shop.area }}{% if group.shop.district %}, {{ group.shop.district }}{% endif %}</p>
-                  </div>
-                  <div class="action-cluster">
-                    {% if group.has_blocking_issue %}
-                      <span class="status-chip warn">Needs review</span>
-                    {% endif %}
-                    <span class="pill">Rs. {{ group.subtotal }}</span>
-                    <a class="button small secondary" href="{% url 'core:customer_store_detail' group.shop.slug %}">Open Store</a>
-                  </div>
-                </div>
-
-                <div class="grid gap-3 top-gap-sm">
-                  {% for item in group.items %}
-                    <article class="cart-product-card rounded-[1.5rem] border border-white/70 p-4 md:p-5{% if item.has_blocking_issue %} border-amber-200{% endif %}">
-                      <div class="grid gap-4 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
-                        <div class="cart-product-thumb shrink-0 flex items-center justify-center text-xl font-bold text-slate-500{% if item.product.image_source %} has-image{% endif %}" {% if item.product.image_source %}style="background-image:url('{{ item.product.image_source }}');"{% endif %}>
-                          {% if not item.product.image_source %}
-                            <span>{{ item.product.name|first|upper }}</span>
-                          {% endif %}
-                        </div>
-
-                        <div class="min-w-0 space-y-3">
-                          <div class="flex flex-wrap items-center gap-2">
-                            <strong class="truncate text-lg text-slate-900">{{ item.product.name }}</strong>
-                            <span class="status-chip {{ item.availability_class }}">{{ item.availability_label }}</span>
-                          </div>
-                          <p class="text-sm text-slate-500">{{ group.shop.name }}</p>
-                          <div class="cart-product-subline">
-                            <span>{{ item.product.unit }}</span>
-                            <span>Rs. {{ item.product.price }} each</span>
-                            <span>Qty <strong data-stepper-value>{{ item.quantity }}</strong></span>
-                          </div>
-                          <div class="cart-product-total">
-                            <span class="tiny uppercase tracking-[0.24em] text-slate-400">Total</span>
-                            <span>Rs. {{ item.line_total }}</span>
-                          </div>
-                        </div>
-
-                        <div class="space-y-3 lg:justify-self-end">
-                          <form method="post" action="{% url 'core:cart_update' item.product.id %}" class="flex flex-col items-start gap-3 lg:items-end" data-stepper-form>
-                            {% csrf_token %}
-                            <input type="hidden" name="next" value="{% url 'core:customer_cart' %}" />
-                            <input type="hidden" min="0" max="{{ item.max_quantity }}" name="quantity" value="{{ item.quantity }}" data-stepper-input />
-                            <div class="cart-stepper" aria-label="Quantity selector">
-                              <button class="cart-stepper-button" type="button" data-stepper-action="decrement" aria-label="Decrease quantity">−</button>
-                              <span class="cart-stepper-value" data-stepper-display>{{ item.quantity }}</span>
-                              <button class="cart-stepper-button" type="button" data-stepper-action="increment" aria-label="Increase quantity">+</button>
-                            </div>
-                            <button class="button small primary" type="submit">
-                              <span class="ui-icon icon-refresh-cw" aria-hidden="true"></span>
-                              <span>Update</span>
-                            </button>
-                          </form>
-                          <form method="post" action="{% url 'core:cart_update' item.product.id %}" class="lg:text-right">
-                            {% csrf_token %}
-                            <input type="hidden" name="next" value="{% url 'core:customer_cart' %}" />
-                            <input type="hidden" name="quantity" value="0" />
-                            <button class="button small danger" type="submit">
-                              <span class="ui-icon icon-trash-2" aria-hidden="true"></span>
-                              <span>Remove</span>
-                            </button>
-                          </form>
-                        </div>
-                      </div>
-
-                      {% if item.issues %}
-                        <ul class="checkout-checklist checkout-checklist-tight top-gap-sm">
-                          {% for issue in item.issues %}
-                            <li>{{ issue }}</li>
-                          {% endfor %}
-                        </ul>
-                      {% endif %}
-                    </article>
-                  {% endfor %}
-                </div>
-              </section>
-            {% endfor %}
-          </div>
-        </article>
-
-        <article class="card section-stack xl:min-h-0 xl:h-full xl:row-start-1 xl:col-start-2" data-delivery-slot-picker data-base-total="{{ cart_fixed_total }}" data-store-count="{{ cart.groups|length }}" data-appear>
-          <span class="eyebrow">Delivery Slot</span>
-          <h2 class="section-title">Choose delivery speed here</h2>
-          <p class="subtle">This is the only checkout-related choice on the cart page. Once you’re happy with the total, move to the dedicated checkout screen for address and payment.</p>
-
-          <div class="grid gap-3 top-gap-sm">
-            {% for option in delivery_slot_options %}
-              <label class="block rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-soft transition{% if option.is_selected %} border-emerald-400 bg-emerald-50{% endif %}" data-slot-card>
-                <div class="flex items-start justify-between gap-4">
-                  <div class="content-stack">
-                    <div class="flex flex-wrap items-center gap-2">
-                      <strong>{{ option.name }}</strong>
-                      <span class="status-chip {{ option.chip_class }}">{{ option.tag }}</span>
+            <div class="stack">
+              {% for group in cart.groups %}
+                <section class="rounded-[1.75rem] border border-slate-200 bg-slate-50/80 p-4 shadow-soft{% if group.has_blocking_issue %} border-amber-300{% endif %}">
+                  <div class="split-row">
+                    <div class="content-stack">
+                      <strong class="text-lg text-slate-900">{{ group.shop.name }}</strong>
+                      <p class="subtle">{{ group.item_count }} item{{ group.item_count|pluralize }} | {{ group.shop.area }}{% if group.shop.district %}, {{ group.shop.district }}{% endif %}</p>
                     </div>
-                    <p class="subtle">{{ option.time_label }}</p>
-                    <p class="tiny muted">{{ option.description }}</p>
+                    <div class="action-cluster">
+                      {% if group.has_blocking_issue %}
+                        <span class="status-chip warn">Needs review</span>
+                      {% endif %}
+                      <span class="pill">Rs. {{ group.subtotal }}</span>
+                      <a class="button small secondary" href="{% url 'core:customer_store_detail' group.shop.slug %}">Open Store</a>
+                    </div>
                   </div>
-                  <div class="content-stack items-end text-right">
-                    <input type="radio" name="delivery_slot" value="{{ option.code }}" data-slot-fee="{{ option.fee }}" data-slot-name="{{ option.name }}" form="checkout-setup-form" {% if option.is_selected %}checked{% endif %} />
-                    <span class="soft-pill">{% if option.fee > 0 %}+ Rs. {{ option.fee }}{% else %}Free{% endif %}</span>
+
+                  <div class="grid gap-3 top-gap-sm">
+                    {% for item in group.items %}
+                      <article class="cart-product-card rounded-[1.5rem] border border-white/70 p-4 md:p-5{% if item.has_blocking_issue %} border-amber-200{% endif %}">
+                        <div class="grid gap-4 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
+                          <div class="cart-product-thumb shrink-0 flex items-center justify-center text-xl font-bold text-slate-500{% if item.product.image_source %} has-image{% endif %}" {% if item.product.image_source %}style="background-image:url('{{ item.product.image_source }}');"{% endif %}>
+                            {% if not item.product.image_source %}
+                              <span>{{ item.product.name|first|upper }}</span>
+                            {% endif %}
+                          </div>
+
+                          <div class="min-w-0 space-y-3">
+                            <div class="flex flex-wrap items-center gap-2">
+                              <strong class="truncate text-lg text-slate-900">{{ item.product.name }}</strong>
+                              <span class="status-chip {{ item.availability_class }}">{{ item.availability_label }}</span>
+                            </div>
+                            <p class="text-sm text-slate-500">{{ item.product.unit }} • Rs. {{ item.product.price }} each</p>
+                            <div class="cart-product-subline">
+                              <span>Qty <strong data-stepper-value>{{ item.quantity }}</strong></span>
+                              <span class="cart-product-total">
+                                <span class="tiny uppercase tracking-[0.24em] text-slate-400">Total</span>
+                                <span>Rs. {{ item.line_total }}</span>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div class="space-y-3 lg:justify-self-end">
+                            <form method="post" action="{% url 'core:cart_update' item.product.id %}" class="flex flex-col items-start gap-3 lg:items-end" data-stepper-form>
+                              {% csrf_token %}
+                              <input type="hidden" name="next" value="{% url 'core:customer_cart' %}" />
+                              <input type="hidden" min="0" max="{{ item.max_quantity }}" name="quantity" value="{{ item.quantity }}" data-stepper-input />
+                              <div class="cart-stepper" aria-label="Quantity selector">
+                                <button class="cart-stepper-button" type="button" data-stepper-action="decrement" aria-label="Decrease quantity">−</button>
+                                <span class="cart-stepper-value" data-stepper-display>{{ item.quantity }}</span>
+                                <button class="cart-stepper-button" type="button" data-stepper-action="increment" aria-label="Increase quantity">+</button>
+                              </div>
+                              <button class="button small primary" type="submit">
+                                <span class="ui-icon icon-refresh-cw" aria-hidden="true"></span>
+                                <span>Update</span>
+                              </button>
+                            </form>
+                            <form method="post" action="{% url 'core:cart_update' item.product.id %}" class="lg:text-right">
+                              {% csrf_token %}
+                              <input type="hidden" name="next" value="{% url 'core:customer_cart' %}" />
+                              <input type="hidden" name="quantity" value="0" />
+                              <button class="button small danger" type="submit">
+                                <span class="ui-icon icon-trash-2" aria-hidden="true"></span>
+                                <span>Remove</span>
+                              </button>
+                            </form>
+                          </div>
+                        </div>
+
+                        {% if item.issues %}
+                          <ul class="checkout-checklist checkout-checklist-tight top-gap-sm">
+                            {% for issue in item.issues %}
+                              <li>{{ issue }}</li>
+                            {% endfor %}
+                          </ul>
+                        {% endif %}
+                      </article>
+                    {% endfor %}
                   </div>
-                </div>
-              </label>
-            {% endfor %}
-          </div>
-          {% for error in slot_form.delivery_slot.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
-        </article>
-
-        <article class="card section-stack xl:min-h-0 xl:h-full xl:row-start-2 xl:col-start-1" data-appear>
-          <form id="checkout-setup-form" method="post" action="{% url 'core:customer_checkout' %}" class="section-stack h-full">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="setup" />
-
-            <span class="eyebrow">Cost Summary</span>
-            <h2 class="section-title">What you’ll pay</h2>
-            <div class="bill-grid">
-              <div class="bill-row"><span>Items total</span><strong>Rs. {{ cart.subtotal }}</strong></div>
-              <div class="bill-row"><span>Delivery slot</span><strong>{{ selected_delivery_slot_config.name }}</strong></div>
-              <div class="bill-row"><span>Service fees</span><strong>Rs. {{ cart_service_fee_total|floatformat:2 }}</strong></div>
-              <div class="bill-row"><span>Estimated payable</span><strong data-delivery-slot-total>Rs. {{ cart_estimated_total|floatformat:2 }}</strong></div>
+                </section>
+              {% endfor %}
             </div>
-            <div class="checkout-cod-panel">
-              <strong>Address and payment come next</strong>
-              <p>We’ll ask for your delivery address, handoff notes, and payment method on the dedicated checkout page so this cart stays compact and easy to scan.</p>
+          </article>
+        </div>
+
+        <aside class="stack xl:sticky xl:top-24">
+          <article class="card section-stack" data-delivery-slot-picker data-base-total="{{ cart_fixed_total }}" data-store-count="{{ cart.groups|length }}" data-appear>
+            <span class="eyebrow">Delivery Slot</span>
+            <h2 class="section-title">Choose delivery speed</h2>
+            <p class="subtle">This is the only checkout choice on the cart page. Address and payment stay on the next screen.</p>
+
+            <div class="grid gap-3 top-gap-sm">
+              {% for option in delivery_slot_options %}
+                <label class="block rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-soft transition{% if option.is_selected %} border-emerald-400 bg-emerald-50{% endif %}" data-slot-card>
+                  <div class="flex items-start justify-between gap-4">
+                    <div class="content-stack">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <strong>{{ option.name }}</strong>
+                        <span class="status-chip {{ option.chip_class }}">{{ option.tag }}</span>
+                      </div>
+                      <p class="subtle">{{ option.time_label }}</p>
+                    </div>
+                    <div class="content-stack items-end text-right">
+                      <input type="radio" name="delivery_slot" value="{{ option.code }}" data-slot-fee="{{ option.fee }}" data-slot-name="{{ option.name }}" form="checkout-setup-form" {% if option.is_selected %}checked{% endif %} />
+                      <span class="soft-pill">{% if option.fee > 0 %}+ Rs. {{ option.fee }}{% else %}Free{% endif %}</span>
+                    </div>
+                  </div>
+                </label>
+              {% endfor %}
             </div>
-            {% if cart.has_blocking_issues %}
-              <div class="checkout-alert checkout-alert-error">
-                <strong>Fix the cart issues before moving to checkout.</strong>
-                <ul class="checkout-checklist">
-                  {% for issue in cart.validation_errors %}
-                    <li>{{ issue }}</li>
-                  {% endfor %}
-                </ul>
+            {% for error in slot_form.delivery_slot.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+          </article>
+
+          <article class="card section-stack" data-appear>
+            <form id="checkout-setup-form" method="post" action="{% url 'core:customer_checkout' %}" class="section-stack">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="setup" />
+
+              <span class="eyebrow">Summary</span>
+              <h2 class="section-title">What you’ll pay</h2>
+              <div class="metric-card">
+                <span class="metric-label">Estimated total</span>
+                <strong class="metric-value" data-delivery-slot-total>Rs. {{ cart_estimated_total|floatformat:2 }}</strong>
+                <p>{{ selected_delivery_slot_config.name }} selected for {{ cart.groups|length }} store order{{ cart.groups|length|pluralize }}</p>
               </div>
-            {% endif %}
-            <div class="flex flex-col gap-3 sm:flex-row">
-              <button class="button primary flex-1 !justify-center" type="submit" {% if cart.has_blocking_issues %}disabled{% endif %}>Move To Checkout</button>
-              <a class="button secondary flex-1 !justify-center" href="{% url 'core:customer_dashboard' %}">Browse Stores</a>
-            </div>
-          </form>
-        </article>
-
-        <article class="card section-stack xl:min-h-0 xl:h-full xl:row-start-2 xl:col-start-2" data-appear>
-          <span class="eyebrow">Helpful Next Step</span>
-          <h2 class="section-title">Keep shopping or continue</h2>
-          <p class="subtle">Need more items before checkout? You can still jump back into stores or open your KhataBook from here.</p>
-          <div class="flex flex-col gap-3">
-            <a class="button secondary !justify-center" href="{% url 'core:customer_dashboard' %}">Browse More Stores</a>
-            <a class="button secondary !justify-center" href="{% url 'core:customer_khatabook' %}">Open KhataBook</a>
-          </div>
-        </article>
+              <div class="bill-grid top-gap-sm">
+                <div class="bill-row"><span>Items total</span><strong>Rs. {{ cart.subtotal }}</strong></div>
+                <div class="bill-row"><span>Service fees</span><strong>Rs. {{ cart_service_fee_total|floatformat:2 }}</strong></div>
+                <div class="bill-row"><span>Delivery slot</span><strong>{{ selected_delivery_slot_config.name }}</strong></div>
+                <div class="bill-row"><span>Stores</span><strong>{{ cart.groups|length }}</strong></div>
+              </div>
+              <div class="checkout-cod-panel">
+                <strong>Address and payment come next</strong>
+                <p>We keep checkout details on the next page so this cart stays shorter and easier to scan.</p>
+              </div>
+              <div class="ux-step-grid">
+                <div class="ux-step-card">
+                  <strong>Check quantities</strong>
+                  <p class="tiny">Make sure the basket matches what you want before moving forward.</p>
+                </div>
+                <div class="ux-step-card">
+                  <strong>Choose delivery speed</strong>
+                  <p class="tiny">Pick the speed that fits your budget and urgency.</p>
+                </div>
+                <div class="ux-step-card">
+                  <strong>Finish once</strong>
+                  <p class="tiny">Address and payment are kept on the next page to reduce clutter here.</p>
+                </div>
+              </div>
+              <div class="flex flex-col gap-3">
+                <button class="button primary !justify-center" type="submit" {% if cart.has_blocking_issues %}disabled{% endif %}>Move To Checkout</button>
+                <a class="button secondary !justify-center" href="{% url 'core:customer_dashboard' %}">Browse More Stores</a>
+              </div>
+            </form>
+          </article>
+        </aside>
       </section>
+      <div class="mobile-action-bar-spacer" aria-hidden="true"></div>
+      <div class="mobile-action-bar" data-appear>
+        <div class="mobile-action-bar-copy">
+          <strong>Estimated total Rs. {{ cart_estimated_total|floatformat:2 }}</strong>
+          <span>{{ selected_delivery_slot_config.name }} for {{ cart.groups|length }} store{{ cart.groups|length|pluralize }}</span>
+        </div>
+      </div>
     {% else %}
-      <article class="card section-stack items-center text-center min-h-[420px] justify-center" data-appear>
+      <article class="card section-stack items-center text-center min-h-[320px] justify-center" data-appear>
         <span class="eyebrow">Cart</span>
         <h2 class="section-title">Your cart is empty</h2>
         <p class="subtle max-w-xl">Add products from nearby stores and come back here to compare totals, choose the delivery model, and move into checkout.</p>
-        <a class="button primary" href="{% url 'core:customer_dashboard' %}">Browse Stores</a>
+        <div class="flex flex-col gap-3 sm:flex-row">
+          <a class="button primary" href="{% url 'core:customer_dashboard' %}">Browse Stores</a>
+          {% if orders %}
+            <a class="button secondary" href="{% url 'core:order_detail' orders.0.id %}">Open Latest Order</a>
+          {% endif %}
+        </div>
       </article>
     {% endif %}
   </section>
@@ -384,7 +366,6 @@
       }
 
       var totalNodes = document.querySelectorAll('[data-delivery-slot-total]');
-      var summaryNodes = document.querySelectorAll('[data-delivery-slot-summary]');
       var radios = picker.querySelectorAll('input[name="delivery_slot"]');
       var cards = picker.querySelectorAll('[data-slot-card]');
       var baseTotal = Number(picker.getAttribute('data-base-total') || '0');
@@ -408,9 +389,6 @@
         var nextTotal = baseTotal + (fee * storeCount);
         Array.prototype.forEach.call(totalNodes, function (node) {
           node.textContent = 'Rs. ' + nextTotal.toFixed(2);
-        });
-        Array.prototype.forEach.call(summaryNodes, function (node) {
-          node.textContent = (selected.getAttribute('data-slot-name') || selected.value) + ' selected for ' + storeCount + ' store order' + (storeCount === 1 ? '.' : 's.');
         });
         syncCards(selected);
       }

@@ -58,7 +58,7 @@ def shell_navigation(request):
             primary_links = role_links[:3]
             mobile_links = [
                 nav_link('Home', reverse('core:customer_dashboard'), 'house'),
-                nav_link('Search', f"{reverse('core:customer_dashboard')}#store-search", 'search', match_url=reverse('core:customer_dashboard')),
+                nav_link('Cart', reverse('core:customer_cart'), 'shopping-cart'),
                 nav_link('Orders', reverse('core:customer_orders'), 'package'),
                 nav_link('KhataBook', reverse('core:customer_khatabook'), 'wallet'),
                 nav_link('Profile', reverse('core:customer_profile'), 'user'),

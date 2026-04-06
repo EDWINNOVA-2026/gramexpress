@@ -2,63 +2,109 @@
 
 {% block content %}
   <section class="page-stack customer-tracking-shell" id="top">
-    <article class="card tracking-hero-card" data-appear>
+    <article class="card tracking-hero-card section-stack" data-appear>
       <div class="split-row">
-        <div>
-          <span class="eyebrow">Live Tracking</span>
+        <div class="content-stack">
+          <span class="eyebrow">Order Tracking</span>
           <h1 class="page-title">{{ order.display_id }}</h1>
           <p>{{ order.shop.name }} to {{ order.customer.full_name }}</p>
         </div>
-        <div class="hero-inline-facts">
+        <div class="action-cluster">
           <span class="soft-pill">{{ eta_label }}</span>
           <span class="soft-pill">{{ order.get_delivery_slot_display }}</span>
           <span class="status-chip {{ status_summary.chip_class }}">{{ order.get_status_display }}</span>
+          <a class="button small secondary" href="{% url 'core:customer_orders' %}">Back To Orders</a>
+        </div>
+      </div>
+
+      <div class="ux-step-grid">
+        <div class="ux-step-card">
+          <strong>Current stage</strong>
+          <p class="tiny">{{ status_summary.title }}</p>
+          <span class="tiny muted">{{ status_summary.detail }}</span>
+        </div>
+        <div class="ux-step-card">
+          <strong>What happens next</strong>
+          <p class="tiny">{{ order.flow_headline }}</p>
+          <span class="tiny muted">{{ order.flow_detail }}</span>
+        </div>
+        <div class="ux-step-card">
+          <strong>Payment</strong>
+          <p class="tiny">{{ payment_summary.label }}</p>
+          <span class="tiny muted">{{ payment_summary.detail }}</span>
         </div>
       </div>
     </article>
 
-    <section class="layout-two customer-tracking-layout" id="workspace">
-      <article class="card tracking-map-card" data-appear>
-        <div class="split-row">
-          <div>
-            <span class="eyebrow">Live Map</span>
-            <h2 class="section-title">Route from pickup to drop</h2>
-          </div>
-          <span class="soft-pill">{{ eta_label }}</span>
-        </div>
-        {% if maps_embed_url %}
-          <iframe
-            class="tracking-map-embed tracking-map-embed-tall"
-            loading="lazy"
-            referrerpolicy="no-referrer-when-downgrade"
-            src="{{ maps_embed_url }}"
-            title="Live tracking map">
-          </iframe>
-        {% else %}
-          <div class="tracking-map-scene">
-            <div class="tracking-map-copy">
-              <strong>Delivery route overview</strong>
-              <p>Store pickup, rider handoff, and customer destination stay visible in one place.</p>
+    <section class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]" id="workspace">
+      <div class="stack">
+        <article class="card section-stack" data-appear>
+          <div class="split-row">
+            <div>
+              <span class="eyebrow">Route</span>
+              <h2 class="section-title">Pickup to drop-off</h2>
             </div>
-            <div class="tracking-route-line"></div>
-            <div class="tracking-pin tracking-pin-store">Store</div>
-            {% if order.rider %}
-              <div class="tracking-pin tracking-pin-rider">Rider</div>
-            {% endif %}
-            <div class="tracking-pin tracking-pin-home">Home</div>
+            <span class="soft-pill">{{ eta_label }}</span>
           </div>
-        {% endif %}
-        <div class="inline-actions">
-          <a class="button small primary" href="{{ route_url }}" target="_blank" rel="noreferrer">Open Route In Maps</a>
-          {% if order.rider and rider_location_url %}
-            <a class="button small secondary" href="{{ rider_location_url }}" target="_blank" rel="noreferrer">Rider Location</a>
-          {% endif %}
-        </div>
-      </article>
+          <div class="summary-grid customer-tracking-summary-grid">
+            <div class="compact-item content-stack">
+              <strong>Pickup shop</strong>
+              <p>{{ order.shop.name }}</p>
+              <span class="utility-note">{{ order.shop.area }}, {{ order.shop.district }}</span>
+            </div>
+            <div class="compact-item content-stack">
+              <strong>Drop-off</strong>
+              <p>{{ order.customer.full_name }}</p>
+              <span class="utility-note">{{ order.delivery_address }}</span>
+            </div>
+          </div>
+          <div class="checkout-cod-panel">
+            <strong>Open Maps when you need the full route</strong>
+            <p>The route opens directly in your map app so the page stays lighter and easier to use.</p>
+          </div>
+          <div class="inline-actions">
+            <a class="button small primary" href="{{ route_url }}" target="_blank" rel="noreferrer">Open Route In Maps</a>
+            {% if order.rider and rider_location_url %}
+              <a class="button small secondary" href="{{ rider_location_url }}" target="_blank" rel="noreferrer">Open Rider Pin</a>
+            {% endif %}
+          </div>
+        </article>
+
+        <article class="card section-stack" data-appear>
+          <div class="split-row">
+            <div>
+              <span class="eyebrow">Tracking Steps</span>
+              <h2 class="section-title">See every delivery step at a glance</h2>
+            </div>
+            <span class="soft-pill">{{ order.get_status_display }}</span>
+          </div>
+          <div class="timeline-list">
+            {% for item in timeline %}
+              <div class="timeline-item{% if item.current %} timeline-item-current{% endif %}{% if item.completed %} timeline-item-complete{% endif %}">
+                <div class="timeline-marker"></div>
+                <div class="timeline-copy">
+                  <strong>{{ item.label }}</strong>
+                  <p>{{ item.caption }}</p>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
 
       <div class="stack customer-tracking-sidebar">
-        <article class="card" data-appear>
-          <span class="eyebrow">Delivery Partner Card</span>
+        <article class="card section-stack" data-appear>
+          <span class="eyebrow">ETA</span>
+          <h2 class="section-title">{{ status_summary.title }}</h2>
+          <div class="metric-card tracking-metric-card">
+            <span class="metric-label">Estimated arrival</span>
+            <strong class="metric-value">{{ eta_label }}</strong>
+            <p>{{ status_summary.detail }}</p>
+          </div>
+        </article>
+
+        <article class="card section-stack" data-appear>
+          <span class="eyebrow">Delivery Partner</span>
           <h2 class="section-title">{% if order.rider %}Rider assigned{% else %}Rider assignment pending{% endif %}</h2>
           {% if order.rider %}
             <div class="rider-visibility-card">
@@ -77,41 +123,23 @@
               <div class="rider-visibility-actions">
                 <a class="button small secondary" href="tel:{{ order.rider.phone }}">Call Rider</a>
                 {% if rider_location_url %}
-                  <a class="button small secondary" href="{{ rider_location_url }}" target="_blank" rel="noreferrer">Live Location</a>
+                  <a class="button small secondary" href="{{ rider_location_url }}" target="_blank" rel="noreferrer">Open Rider Pin</a>
                 {% endif %}
               </div>
             </div>
           {% else %}
             <div class="compact-item">
               <strong>We are assigning a rider</strong>
-              <p>The map still shows the store-to-home route. Rider details will appear here as soon as dispatch starts.</p>
+              <p>The map still shows the route. Rider details will appear here as soon as dispatch starts.</p>
             </div>
           {% endif %}
         </article>
 
-        <article class="card" data-appear>
-          <span class="eyebrow">ETA</span>
-          <h2 class="section-title">{{ status_summary.title }}</h2>
-          <div class="metric-card tracking-metric-card">
-            <span class="metric-label">Estimated arrival</span>
-            <strong class="metric-value">{{ eta_label }}</strong>
-            <p>{{ status_summary.detail }}</p>
-          </div>
-          <div class="compact-item top-gap-sm">
-            <strong>{{ payment_summary.label }}</strong>
-            <p>{{ payment_summary.detail }}</p>
-            <span class="status-chip {{ payment_summary.chip_class }}">{{ order.get_payment_status_display }}</span>
-            {% if order.checkout_session and order.checkout_session.razorpay_payment_id %}
-              <p class="utility-note">Payment reference: {{ order.checkout_session.razorpay_payment_id }}</p>
-            {% endif %}
-          </div>
-        </article>
-
         {% if order.status == 'out_for_delivery' and order.customer_otp %}
-          <article class="card" data-appear>
+          <article class="card section-stack" data-appear>
             <span class="eyebrow">OTP Delivery Handoff</span>
             <h2 class="section-title">Share this OTP only at delivery</h2>
-            <p class="subtle">This confirms the final handoff. Tell the rider the code only after you receive the order.</p>
+            <p class="subtle">Tell the rider the code only after you receive the order.</p>
             <div class="otp-display-row" aria-label="Delivery handoff OTP">
               {% for digit in order.customer_otp %}
                 <span class="otp-display-box">{{ digit }}</span>
@@ -122,46 +150,34 @@
             {% endif %}
           </article>
         {% endif %}
+
+        <article class="card section-stack" data-appear>
+          <span class="eyebrow">Need Help?</span>
+          <h2 class="section-title">{{ order.support_prompt }}</h2>
+          <p class="subtle">{{ order.support_copy }}</p>
+          <a class="button secondary w-fit" href="{% url 'core:support' %}">Contact Support</a>
+        </article>
       </div>
     </section>
 
-    <article class="card" data-appear>
-      <div class="split-row">
-        <div>
-          <span class="eyebrow">Tracking Steps</span>
-          <h2 class="section-title">See every delivery step at a glance</h2>
-        </div>
-        <span class="soft-pill">{{ order.get_status_display }}</span>
-      </div>
-      <div class="timeline-list">
-        {% for item in timeline %}
-          <div class="timeline-item{% if item.current %} timeline-item-current{% endif %}{% if item.completed %} timeline-item-complete{% endif %}">
-            <div class="timeline-marker"></div>
-            <div class="timeline-copy">
-              <strong>{{ item.label }}</strong>
-              <p>{{ item.caption }}</p>
-            </div>
+    <details class="card section-stack" data-appear>
+      <summary class="list-none cursor-pointer">
+        <div class="split-row">
+          <div>
+            <span class="eyebrow">Order Snapshot</span>
+            <h2 class="section-title">Open full delivery details only if you need them</h2>
           </div>
-        {% endfor %}
-      </div>
-    </article>
-
-    <article class="card" data-appear>
-      <div class="split-row">
-        <div>
-          <span class="eyebrow">Order Snapshot</span>
-          <h2 class="section-title">Store, payment, and delivery details</h2>
+          <span class="pill">Rs. {{ order.total_amount }}</span>
         </div>
-        <span class="pill">Rs. {{ order.total_amount }}</span>
-      </div>
-      <div class="summary-grid customer-tracking-summary-grid">
+      </summary>
+      <div class="summary-grid customer-tracking-summary-grid top-gap-sm">
         <div class="compact-item">
           <strong>Pickup shop</strong>
           <p>{{ order.shop.name }}</p>
           <p class="utility-note">{{ order.shop.address_line_1 }}, {{ order.shop.area }}, {{ order.shop.district }}</p>
         </div>
         <div class="compact-item">
-          <strong>Drop customer location</strong>
+          <strong>Drop location</strong>
           <p>{{ order.customer.full_name }}</p>
           <p class="utility-note">{{ order.delivery_address }}</p>
         </div>
@@ -171,11 +187,11 @@
           <p class="utility-note">{{ payment_summary.detail }}</p>
         </div>
         <div class="compact-item">
-          <strong>Order total</strong>
+          <strong>Total</strong>
           <p>Rs. {{ order.total_amount }}</p>
           <p class="utility-note">{{ order.get_delivery_slot_display }} | {{ eta_label }}</p>
         </div>
       </div>
-    </article>
+    </details>
   </section>
 {% endblock %}

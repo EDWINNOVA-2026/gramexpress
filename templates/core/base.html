@@ -141,6 +141,21 @@
                 </span>
               </a>
 
+              {% if user.is_authenticated and shell_active_role == 'customer' and route_name == 'customer_dashboard' %}
+                <div class="topbar-search-shell">
+                  <form method="get" action="{% url 'core:customer_dashboard' %}" class="topbar-search-form" role="search" aria-label="Search stores">
+                    <input
+                      id="store-search"
+                      class="topbar-search-input"
+                      type="search"
+                      name="q"
+                      value="{{ shop_query|default:'' }}"
+                      placeholder="Search stores, groceries"
+                    />
+                  </form>
+                </div>
+              {% endif %}
+
               {% if user.is_authenticated %}
                 <div class="topbar-actions">
                   <nav class="nav nav-primary" aria-label="Primary navigation">
@@ -230,10 +245,6 @@
                 </div>
               {% else %}
                 <nav class="nav nav-guest" aria-label="Guest navigation">
-                  <a href="{% url 'core:home' %}" class="{% if route_name == 'home' %}nav-active{% endif %}">
-                    <span class="ui-icon icon-house" aria-hidden="true"></span>
-                    <span>Home</span>
-                  </a>
                   <a href="{% url 'core:login' %}" class="nav-active">
                     <span class="ui-icon icon-log-in" aria-hidden="true"></span>
                     <span>Sign In</span>

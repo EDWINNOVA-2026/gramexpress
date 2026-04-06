@@ -5338,7 +5338,7 @@ def refresh_ratings():
 def home(request: HttpRequest) -> HttpResponse:
     if request.user.is_authenticated:
         return redirect(get_dashboard_url_for_user(request.user))
-    return render(request, 'core/home.html', landing_context())
+    return redirect('core:login')
 
 
 def login_view(request: HttpRequest) -> HttpResponse:
@@ -6971,7 +6971,7 @@ def customer_checkout(request: HttpRequest) -> HttpResponse:
 
             if action == 'confirm':
                 if checkout_data['payment_method'] == PaymentMethod.RAZORPAY:
-                    messages.info(request, 'Use the Razorpay payment button below to complete your online order.')
+                    return redirect('core:customer_razorpay_launch')
                 else:
                     if checkout_data['payment_method'] == PaymentMethod.KHATABOOK:
                         try:

@@ -7,7 +7,7 @@
         <div class="content-stack">
           <span class="eyebrow">Order Detail</span>
           <h1 class="page-title">{{ order.display_id }}</h1>
-          <p>{{ order.shop.name }} to {{ order.customer.full_name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }} | {{ order.delivery_slot_name }}</p>
+          <p>{{ order.shop.name }} to {{ order.customer.full_name }} | {{ order.get_status_display }} | {{ order.get_payment_method_display }}</p>
         </div>
         <div class="action-cluster">
           <span class="status-chip {{ status_summary.chip_class }}">{{ order.get_status_display }}</span>
@@ -17,102 +17,111 @@
         </div>
       </div>
 
-      <div class="meta-grid">
-        <div class="focus-card content-stack">
+      <div class="ux-step-grid">
+        <div class="ux-step-card">
           <strong>Latest update</strong>
-          <p>{{ order.latest_rider_update }}</p>
+          <p class="tiny">{{ order.latest_rider_update }}</p>
           <span class="tiny muted">{{ order.last_update_timestamp_label }}</span>
         </div>
-        <div class="focus-card content-stack">
+        <div class="ux-step-card">
           <strong>Current stage</strong>
-          <p>{{ order.flow_headline }}</p>
+          <p class="tiny">{{ order.flow_headline }}</p>
           <span class="tiny muted">{{ order.flow_detail }}</span>
         </div>
-        <div class="focus-card content-stack">
-          <strong>Need help?</strong>
-          <p>{{ order.support_copy }}</p>
-          <div class="inline-actions">
-            <a class="button small secondary" href="{% url 'core:support' %}">
-              <span class="ui-icon icon-life-buoy" aria-hidden="true"></span>
-              <span>Contact Support</span>
-            </a>
-          </div>
+        <div class="ux-step-card">
+          <strong>Payment</strong>
+          <p class="tiny">{{ payment_summary.label }}</p>
+          <span class="tiny muted">{{ payment_summary.status_label }}</span>
         </div>
       </div>
     </article>
 
-    <section class="layout-two" id="workspace">
-      <article class="card section-stack" data-appear>
-        <span class="eyebrow">Status</span>
-        <h2 class="section-title">{{ status_summary.title }}</h2>
-        <div class="metric-card tracking-metric-card">
-          <span class="metric-label">{{ status_summary.caption }}</span>
-          <strong class="metric-value">{{ eta_label }}</strong>
-          <p>{{ status_summary.detail }}</p>
-        </div>
-        <div class="flow-strip" aria-label="Order flow">
-          {% for step in order.flow_steps %}
-            <span class="flow-step{% if step.completed %} flow-step-complete{% endif %}{% if step.current %} flow-step-current{% endif %}">{{ step.label }}</span>
-          {% endfor %}
-        </div>
-        <div class="compact-item content-stack top-gap-sm">
-          <strong>Last update</strong>
-          <p>{{ order.latest_rider_update }}</p>
-          <span class="tiny muted">{{ order.last_update_timestamp_label }}</span>
-        </div>
-        <div class="compact-item content-stack top-gap-sm">
-          <strong>Delivery slot</strong>
-          <p>{{ order.delivery_slot_name }} | {{ order.delivery_slot_time_label }}</p>
-          <span class="tiny muted">Deadline {{ order.deadline_label }}</span>
-        </div>
-        <div class="compact-item content-stack top-gap-sm">
-          <strong>{{ order.support_prompt }}</strong>
-          <p>{{ order.support_copy }}</p>
-          <div class="inline-actions">
-            <a class="button small secondary" href="{% url 'core:support' %}">
-              <span class="ui-icon icon-life-buoy" aria-hidden="true"></span>
-              <span>Need Help?</span>
-            </a>
+    <section class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]" id="workspace">
+      <div class="stack">
+        <article class="card section-stack" data-appear>
+          <span class="eyebrow">Status</span>
+          <h2 class="section-title">{{ status_summary.title }}</h2>
+          <div class="metric-card tracking-metric-card">
+            <span class="metric-label">{{ status_summary.caption }}</span>
+            <strong class="metric-value">{{ eta_label }}</strong>
+            <p>{{ status_summary.detail }}</p>
           </div>
-        </div>
-        <div class="compact-item content-stack top-gap-sm">
-          <strong>Email updates</strong>
-          <p>Live tracking is unavailable in this version. Rider assignment and delivery status updates are shared by email and in-app updates.</p>
-        </div>
-        <div class="compact-item content-stack top-gap-sm">
-          <strong>{{ payment_summary.label }}</strong>
-          <p>{{ payment_summary.detail }}</p>
-          <span class="status-chip {{ payment_summary.chip_class }}">{{ payment_summary.status_label }}</span>
-          {% if payment_summary.reference %}
-            <p class="utility-note">Payment reference: {{ payment_summary.reference }}</p>
-          {% endif %}
-          {% if payment_summary.link_url %}
-            <a class="button small secondary" href="{{ payment_summary.link_url }}" target="_blank" rel="noreferrer">
-              <span class="ui-icon icon-credit-card" aria-hidden="true"></span>
-              <span>{{ payment_summary.link_label }}</span>
-            </a>
-          {% endif %}
-        </div>
-      </article>
-
-      <article class="card section-stack" data-appear>
-        <span class="eyebrow">Timeline</span>
-        <h2 class="section-title">Order progress</h2>
-        <div class="timeline-list">
-          {% for item in timeline %}
-            <div class="timeline-item{% if item.current %} timeline-item-current{% endif %}{% if item.completed %} timeline-item-complete{% endif %}">
-              <div class="timeline-marker"></div>
-              <div class="timeline-copy">
-                <strong>{{ item.label }}</strong>
-                <p>{{ item.caption }}</p>
-                {% if item.timestamp %}
-                  <span class="tiny muted">{{ item.timestamp|date:"M d, H:i" }}</span>
-                {% endif %}
-              </div>
+          <div class="flow-strip" aria-label="Order flow">
+            {% for step in order.flow_steps %}
+              <span class="flow-step{% if step.completed %} flow-step-complete{% endif %}{% if step.current %} flow-step-current{% endif %}">{{ step.label }}</span>
+            {% endfor %}
+          </div>
+          <div class="summary-grid">
+            <div class="compact-item content-stack">
+              <strong>Delivery slot</strong>
+              <p>{{ order.delivery_slot_name }} | {{ order.delivery_slot_time_label }}</p>
+              <span class="tiny muted">Deadline {{ order.deadline_label }}</span>
             </div>
-          {% endfor %}
-        </div>
-      </article>
+            <div class="compact-item content-stack">
+              <strong>{{ order.support_prompt }}</strong>
+              <p>{{ order.support_copy }}</p>
+              <a class="button small secondary w-fit" href="{% url 'core:support' %}">Need Help?</a>
+            </div>
+          </div>
+        </article>
+
+        <article class="card section-stack" data-appear>
+          <span class="eyebrow">Timeline</span>
+          <h2 class="section-title">Order progress</h2>
+          <div class="timeline-list">
+            {% for item in timeline %}
+              <div class="timeline-item{% if item.current %} timeline-item-current{% endif %}{% if item.completed %} timeline-item-complete{% endif %}">
+                <div class="timeline-marker"></div>
+                <div class="timeline-copy">
+                  <strong>{{ item.label }}</strong>
+                  <p>{{ item.caption }}</p>
+                  {% if item.timestamp %}
+                    <span class="tiny muted">{{ item.timestamp|date:"M d, H:i" }}</span>
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+
+        <details class="card section-stack" data-appear open>
+          <summary class="list-none cursor-pointer">
+            <div class="split-row">
+              <div>
+                <span class="eyebrow">Items</span>
+                <h2 class="section-title">Items and billing</h2>
+              </div>
+              <span class="pill">Rs. {{ order.total_amount|floatformat:2 }}</span>
+            </div>
+          </summary>
+          <div class="stack top-gap-sm">
+            {% for item in order.items.all %}
+              <div class="list-item compact-item">
+                <div>
+                  <strong>{{ item.product.name }}</strong>
+                  <p>{{ item.quantity }} x Rs. {{ item.unit_price }}</p>
+                </div>
+                <span class="pill">Rs. {{ item.line_total }}</span>
+              </div>
+            {% endfor %}
+          </div>
+          <div class="bill-grid">
+            <div class="bill-row"><span>Item total</span><strong>Rs. {{ order.subtotal_amount|floatformat:2 }}</strong></div>
+            <div class="bill-row"><span>{{ order.delivery_slot_name }}</span><strong>Rs. {{ order.delivery_fee|floatformat:2 }}</strong></div>
+            {% if order.shopkeeper_commission_fee %}
+              <div class="bill-row"><span>Shopkeeper commission fee</span><strong>Rs. {{ order.shopkeeper_commission_fee|floatformat:2 }}</strong></div>
+            {% endif %}
+            {% if order.platform_fee %}
+              <div class="bill-row"><span>GramExpress platform fee</span><strong>Rs. {{ order.platform_fee|floatformat:2 }}</strong></div>
+            {% endif %}
+            <div class="bill-row"><span>Total</span><strong>Rs. {{ order.total_amount|floatformat:2 }}</strong></div>
+            <div class="bill-row"><span>Payment status</span><strong>{{ payment_summary.status_label }}</strong></div>
+          </div>
+          {% if payment_summary.reference %}
+            <p class="utility-note top-gap-sm">Payment reference: {{ payment_summary.reference }}</p>
+          {% endif %}
+        </details>
+      </div>
 
       <div class="stack">
         <article class="card section-stack" data-appear>
@@ -123,19 +132,13 @@
               <strong>Pickup location</strong>
               <p>{{ order.shop.name }}</p>
               <p class="utility-note">{{ order.shop.address_line_1 }}{% if order.shop.address_line_2 %}, {{ order.shop.address_line_2 }}{% endif %}, {{ order.shop.area }}, {{ order.shop.district }} {{ order.shop.pincode }}</p>
-              <a class="button small secondary" href="{{ shop_map_url }}" target="_blank" rel="noreferrer">
-                <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
-                <span>Open Pickup Pin</span>
-              </a>
+              <a class="button small secondary w-fit" href="{{ shop_map_url }}" target="_blank" rel="noreferrer">Open Pickup Pin</a>
             </div>
             <div class="compact-item rider-stop-card content-stack">
               <strong>Drop-off location</strong>
               <p>{{ order.customer.full_name }}</p>
               <p class="utility-note">{{ order.delivery_address }}</p>
-              <a class="button small secondary" href="{{ customer_map_url }}" target="_blank" rel="noreferrer">
-                <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
-                <span>Open Drop-off Pin</span>
-              </a>
+              <a class="button small secondary w-fit" href="{{ customer_map_url }}" target="_blank" rel="noreferrer">Open Drop-off Pin</a>
             </div>
             {% if order.rider %}
               <div class="compact-item content-stack rider-visibility-card rider-visibility-card-detail">
@@ -153,146 +156,67 @@
                 </div>
                 {% if active_role == 'customer' %}
                   <div class="rider-visibility-actions">
-                    <a class="button small secondary" href="tel:{{ order.rider.phone }}">
-                      <span class="ui-icon icon-phone" aria-hidden="true"></span>
-                      <span>Call Rider</span>
-                    </a>
-                    <a class="button small secondary" href="{{ customer_map_url }}" target="_blank" rel="noreferrer">
-                      <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
-                      <span>Open Drop-off Pin</span>
-                    </a>
+                    <a class="button small secondary" href="tel:{{ order.rider.phone }}">Call Rider</a>
+                    <a class="button small secondary" href="{{ customer_map_url }}" target="_blank" rel="noreferrer">Open Drop-off Pin</a>
                   </div>
                 {% endif %}
               </div>
             {% endif %}
             {% if order.status == 'out_for_delivery' and active_role == 'customer' %}
-              <div class="compact-item content-stack">
+              <div class="checkout-cod-panel">
                 <strong>Delivery OTP</strong>
-                <p>Share this OTP with the rider at handoff.</p>
+                <p>Share this OTP with the rider only at handoff.</p>
                 <code>{{ order.customer_otp }}</code>
                 {% if order.customer_otp_valid_until %}
                   <span class="tiny muted">Valid until {{ order.customer_otp_valid_until|date:"H:i" }}</span>
                 {% endif %}
               </div>
             {% elif order.status == 'out_for_delivery' and active_role == 'shop' %}
-              <div class="compact-item content-stack">
+              <div class="checkout-cod-panel">
                 <strong>Delivery OTP</strong>
                 <p>Customer OTP stays hidden from the store team after dispatch starts.</p>
                 <code>{{ order.customer_otp_masked }}</code>
               </div>
             {% endif %}
-
-            {% if active_role == 'rider' %}
-              {% if order.status == 'confirmed' or order.status == 'packed' %}
-                <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap rider-action-form">
-                  {% csrf_token %}
-                  <input type="hidden" name="status" value="out_for_delivery" />
-                  <button class="button primary" type="submit">
-                    <span class="ui-icon icon-package-open" aria-hidden="true"></span>
-                    <span>Picked Up From Store</span>
-                  </button>
-                </form>
-              {% endif %}
-              {% if order.status == 'out_for_delivery' %}
-                {% if order.payment_method == 'khata' %}
-                  <div class="compact-item content-stack">
-                    <strong>KhataBook credit order</strong>
-                    <p>This order is on platform credit. Complete the OTP handoff normally and do not collect money from the customer.</p>
-                    {% if order.credit_due_date %}
-                      <span class="status-chip warn">Customer due {{ order.credit_due_date|date:"M d" }}</span>
-                    {% endif %}
-                  </div>
-                {% endif %}
-                {% if order.payment_method == 'cod' %}
-                  <div class="compact-item content-stack">
-                    <strong>COD collection</strong>
-                    <p>{{ payment_summary.detail }}</p>
-                    {% if order.cod_online_link_ready and not order.cod_online_paid %}
-                      <span class="status-chip info">Payment link sent</span>
-                    {% elif order.cod_cash_confirmed %}
-                      <span class="status-chip warn">Cash paid</span>
-                    {% else %}
-                      <span class="status-chip warn">Awaiting collection</span>
-                    {% endif %}
-                  </div>
-                  {% if order.payment_status != 'paid' %}
-                    <form method="post" action="{% url 'core:rider_request_cod_online_payment' order.id %}" class="stack small-gap rider-action-form">
-                      {% csrf_token %}
-                      <input type="hidden" name="next" value="{% url 'core:order_detail' order.id %}" />
-                      <button class="button secondary" type="submit">
-                        <span class="ui-icon icon-wallet" aria-hidden="true"></span>
-                        <span>Recieve Money Online</span>
-                      </button>
-                    </form>
-                  {% endif %}
-                {% endif %}
-                <form method="post" action="{% url 'core:rider_resend_customer_otp' order.id %}" class="inline-actions">
-                  {% csrf_token %}
-                  <input type="hidden" name="next" value="{% url 'core:order_detail' order.id %}" />
-                  <button class="button small secondary" type="submit">
-                    <span class="ui-icon icon-refresh-cw" aria-hidden="true"></span>
-                    <span>Resend OTP</span>
-                  </button>
-                </form>
-                {% if order.payment_method != 'cod' or order.cod_collection_mode != 'online' or order.payment_status == 'paid' %}
-                  <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap rider-action-form">
-                    {% csrf_token %}
-                    <input type="hidden" name="status" value="delivered" />
-                    <label>Customer OTP
-                      <input type="text" name="customer_otp" placeholder="Enter OTP before handoff" required />
-                    </label>
-                    {% if order.customer_otp_valid_until %}
-                      <span class="tiny muted">Current OTP valid until {{ order.customer_otp_valid_until|date:"H:i" }}</span>
-                    {% endif %}
-                    <button class="button primary" type="submit">
-                      <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
-                      <span>Delivered</span>
-                    </button>
-                  </form>
-                {% else %}
-                  <div class="compact-item content-stack">
-                    <strong>Online payment pending</strong>
-                    <p>Wait for the customer to complete the Razorpay COD payment link before finishing delivery.</p>
-                  </div>
-                {% endif %}
-              {% endif %}
-              {% if active_role == 'rider' and order.settlement_qr_ready %}
-                <div class="compact-item content-stack">
-                  <strong>Rider settlement QR</strong>
-                  <p>Customer cash is recorded. Pay GramExpress from your own account to close this COD collection.</p>
-                  {% if order.settlement_qr_image_url %}
-                    <img class="qr-preview-image" src="{{ order.settlement_qr_image_url }}" alt="Settlement QR for {{ order.display_id }}" />
-                  {% endif %}
-                  <div class="inline-actions">
-                    {% if order.settlement_qr_image_url %}
-                      <a class="button small secondary" href="{{ order.settlement_qr_image_url }}" target="_blank" rel="noreferrer">
-                        <span class="ui-icon icon-credit-card" aria-hidden="true"></span>
-                        <span>Open QR</span>
-                      </a>
-                    {% endif %}
-                    {% if order.settlement_upi_url %}
-                      <a class="button small secondary" href="{{ order.settlement_upi_url }}">
-                        <span class="ui-icon icon-wallet" aria-hidden="true"></span>
-                        <span>Pay Via UPI App</span>
-                      </a>
-                    {% endif %}
-                  </div>
-                </div>
-              {% endif %}
-            {% endif %}
           </div>
         </article>
 
         <article class="card section-stack" data-appear>
-          <span class="eyebrow">Updates</span>
-          <h2 class="section-title">Recent notifications</h2>
+          <span class="eyebrow">Payment and Help</span>
+          <h2 class="section-title">{{ payment_summary.label }}</h2>
           <div class="compact-item content-stack">
+            <p>{{ payment_summary.detail }}</p>
+            <span class="status-chip {{ payment_summary.chip_class }}">{{ payment_summary.status_label }}</span>
+            {% if payment_summary.reference %}
+              <p class="utility-note">Payment reference: {{ payment_summary.reference }}</p>
+            {% endif %}
+            {% if payment_summary.link_url %}
+              <a class="button small secondary w-fit" href="{{ payment_summary.link_url }}" target="_blank" rel="noreferrer">{{ payment_summary.link_label }}</a>
+            {% endif %}
+          </div>
+          <div class="checkout-cod-panel">
+            <strong>Need help with this order?</strong>
+            <p>{{ order.support_copy }}</p>
+            <a class="button small secondary w-fit" href="{% url 'core:support' %}">Contact Support</a>
+          </div>
+        </article>
+
+        <details class="card section-stack" data-appear>
+          <summary class="list-none cursor-pointer">
+            <div class="split-row">
+              <div>
+                <span class="eyebrow">Updates</span>
+                <h2 class="section-title">Recent notifications</h2>
+              </div>
+              <span class="soft-pill">{{ related_notifications|length }}</span>
+            </div>
+          </summary>
+          <div class="compact-item content-stack top-gap-sm">
             <strong>{{ order.flow_headline }}</strong>
             <p>{{ order.flow_detail }}</p>
             <span class="tiny muted">Last update {{ order.last_update_label }}{% if order.last_update_timestamp_label %} • {{ order.last_update_timestamp_label }}{% endif %}</span>
-            <p class="utility-note">{{ order.latest_rider_update }}</p>
           </div>
-          <div class="stack small-gap">
+          <div class="stack small-gap top-gap-sm">
             {% for note in related_notifications %}
               <div class="compact-item compact-item-notification{% if not note.is_read %} compact-item-notification-unread{% endif %}">
                 <span class="compact-glyph"><span class="ui-icon icon-{{ note.icon_name }}" aria-hidden="true"></span></span>
@@ -304,15 +228,18 @@
                 <span class="tiny muted">{{ note.created_at|date:"M d, H:i" }}</span>
               </div>
             {% empty %}
-              <p>No order-linked notifications yet.</p>
+              <div class="nested-panel empty-card">
+                <strong>No order-linked notifications yet</strong>
+                <p>Important updates for this order will appear here when they are available.</p>
+              </div>
             {% endfor %}
           </div>
-        </article>
+        </details>
 
         {% if show_customer_actions %}
           <article class="card section-stack" data-appear>
             <span class="eyebrow">Actions</span>
-            <h2 class="section-title">Order controls</h2>
+            <h2 class="section-title">Customer controls</h2>
             <div class="stack small-gap">
               {% if order.payment_method == 'cod' %}
                 {% if order.status == 'out_for_delivery' or order.status == 'delivered' %}
@@ -333,10 +260,7 @@
                   <strong>COD payment link</strong>
                   <p>The rider has already sent your Razorpay payment link by email. You can also open it from here.</p>
                   <div class="inline-actions">
-                    <a class="button small secondary" href="{{ order.cod_payment_link_url }}" target="_blank" rel="noreferrer">
-                      <span class="ui-icon icon-credit-card" aria-hidden="true"></span>
-                      <span>Open Payment Link</span>
-                    </a>
+                    <a class="button small secondary" href="{{ order.cod_payment_link_url }}" target="_blank" rel="noreferrer">Open Payment Link</a>
                   </div>
                 </div>
               {% endif %}
@@ -427,39 +351,122 @@
               {% endif %}
             </div>
           </article>
+        {% elif active_role == 'rider' %}
+          <article class="card section-stack" data-appear>
+            <span class="eyebrow">Actions</span>
+            <h2 class="section-title">Rider controls</h2>
+            <div class="stack small-gap">
+              {% if order.status == 'confirmed' or order.status == 'packed' %}
+                <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap rider-action-form">
+                  {% csrf_token %}
+                  <input type="hidden" name="status" value="out_for_delivery" />
+                  <button class="button primary" type="submit">
+                    <span class="ui-icon icon-package-open" aria-hidden="true"></span>
+                    <span>Picked Up From Store</span>
+                  </button>
+                </form>
+              {% endif %}
+
+              {% if order.status == 'out_for_delivery' %}
+                {% if order.payment_method == 'khata' %}
+                  <div class="compact-item content-stack">
+                    <strong>KhataBook credit order</strong>
+                    <p>This order is on platform credit. Complete the OTP handoff normally and do not collect money from the customer.</p>
+                    {% if order.credit_due_date %}
+                      <span class="status-chip warn">Customer due {{ order.credit_due_date|date:"M d" }}</span>
+                    {% endif %}
+                  </div>
+                {% endif %}
+
+                {% if order.payment_method == 'cod' %}
+                  <div class="compact-item content-stack">
+                    <strong>COD collection</strong>
+                    <p>{{ payment_summary.detail }}</p>
+                    {% if order.cod_online_link_ready and not order.cod_online_paid %}
+                      <span class="status-chip info">Payment link sent</span>
+                    {% elif order.cod_cash_confirmed %}
+                      <span class="status-chip warn">Cash paid</span>
+                    {% else %}
+                      <span class="status-chip warn">Awaiting collection</span>
+                    {% endif %}
+                  </div>
+                  {% if order.payment_status != 'paid' %}
+                    <form method="post" action="{% url 'core:rider_request_cod_online_payment' order.id %}" class="stack small-gap rider-action-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{% url 'core:order_detail' order.id %}" />
+                      <button class="button secondary" type="submit">
+                        <span class="ui-icon icon-wallet" aria-hidden="true"></span>
+                        <span>Receive Money Online</span>
+                      </button>
+                    </form>
+                  {% endif %}
+                {% endif %}
+
+                <form method="post" action="{% url 'core:rider_resend_customer_otp' order.id %}" class="inline-actions">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{% url 'core:order_detail' order.id %}" />
+                  <button class="button small secondary" type="submit">
+                    <span class="ui-icon icon-refresh-cw" aria-hidden="true"></span>
+                    <span>Resend OTP</span>
+                  </button>
+                </form>
+
+                {% if order.payment_method != 'cod' or order.cod_collection_mode != 'online' or order.payment_status == 'paid' %}
+                  <form method="post" action="{% url 'core:rider_update_order_status' order.id %}" class="stack small-gap rider-action-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="status" value="delivered" />
+                    <label>Customer OTP
+                      <input type="text" name="customer_otp" placeholder="Enter OTP before handoff" required />
+                    </label>
+                    {% if order.customer_otp_valid_until %}
+                      <span class="tiny muted">Current OTP valid until {{ order.customer_otp_valid_until|date:"H:i" }}</span>
+                    {% endif %}
+                    <button class="button primary" type="submit">
+                      <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
+                      <span>Delivered</span>
+                    </button>
+                  </form>
+                {% else %}
+                  <div class="compact-item content-stack">
+                    <strong>Online payment pending</strong>
+                    <p>Wait for the customer to complete the Razorpay COD payment link before finishing delivery.</p>
+                  </div>
+                {% endif %}
+              {% endif %}
+
+              {% if order.settlement_qr_ready %}
+                <div class="compact-item content-stack">
+                  <strong>Rider settlement QR</strong>
+                  <p>Customer cash is recorded. Pay GramExpress from your own account to close this COD collection.</p>
+                  {% if order.settlement_qr_image_url %}
+                    <img class="qr-preview-image" src="{{ order.settlement_qr_image_url }}" alt="Settlement QR for {{ order.display_id }}" />
+                  {% endif %}
+                  <div class="inline-actions">
+                    {% if order.settlement_qr_image_url %}
+                      <a class="button small secondary" href="{{ order.settlement_qr_image_url }}" target="_blank" rel="noreferrer">Open QR</a>
+                    {% endif %}
+                    {% if order.settlement_upi_url %}
+                      <a class="button small secondary" href="{{ order.settlement_upi_url }}">Pay Via UPI App</a>
+                    {% endif %}
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+          </article>
+        {% elif active_role == 'shop' %}
+          <article class="card section-stack" data-appear>
+            <span class="eyebrow">Store View</span>
+            <h2 class="section-title">Dispatch details</h2>
+            <div class="checkout-cod-panel">
+              <strong>Store handoff visibility</strong>
+              <p>Track the order stage here while dispatch is running. Customer OTP stays masked after dispatch starts.</p>
+              {% if order.status == 'out_for_delivery' %}
+                <code>{{ order.customer_otp_masked }}</code>
+              {% endif %}
+            </div>
+          </article>
         {% endif %}
       </div>
     </section>
-
-    <article class="card section-stack" data-appear>
-      <span class="eyebrow">Items</span>
-      <h2 class="section-title">Items and billing</h2>
-      <div class="stack">
-        {% for item in order.items.all %}
-          <div class="list-item compact-item">
-            <div>
-              <strong>{{ item.product.name }}</strong>
-              <p>{{ item.quantity }} x Rs. {{ item.unit_price }}</p>
-            </div>
-            <span class="pill">Rs. {{ item.line_total }}</span>
-          </div>
-        {% endfor %}
-      </div>
-      <div class="bill-grid">
-        <div class="bill-row"><span>Item total</span><strong>Rs. {{ order.subtotal_amount|floatformat:2 }}</strong></div>
-        <div class="bill-row"><span>{{ order.delivery_slot_name }}</span><strong>Rs. {{ order.delivery_fee|floatformat:2 }}</strong></div>
-        {% if order.shopkeeper_commission_fee %}
-          <div class="bill-row"><span>Shopkeeper commission fee</span><strong>Rs. {{ order.shopkeeper_commission_fee|floatformat:2 }}</strong></div>
-        {% endif %}
-        {% if order.platform_fee %}
-          <div class="bill-row"><span>GramExpress platform fee</span><strong>Rs. {{ order.platform_fee|floatformat:2 }}</strong></div>
-        {% endif %}
-        <div class="bill-row"><span>Total</span><strong>Rs. {{ order.total_amount|floatformat:2 }}</strong></div>
-        <div class="bill-row"><span>Payment status</span><strong>{{ payment_summary.status_label }}</strong></div>
-      </div>
-      {% if payment_summary.reference %}
-        <p class="utility-note top-gap-sm">Payment reference: {{ payment_summary.reference }}</p>
-      {% endif %}
-    </article>
   </section>
 {% endblock %}

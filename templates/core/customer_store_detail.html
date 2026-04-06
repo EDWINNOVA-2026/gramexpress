@@ -2,87 +2,91 @@
 
 {% block content %}
   <section class="page-stack" id="top">
-    <article class="customer-store-shell card" data-appear>
-      <div class="grid gap-4 p-4 sm:p-5 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-5 lg:p-6">
-        <div class="relative overflow-hidden rounded-[1.75rem] bg-slate-100 h-40 sm:h-44 lg:h-full min-h-[9.5rem]">
+    <article class="card overflow-hidden border-slate-200 bg-white/95 shadow-soft" data-appear>
+      <div class="grid gap-4 p-4 sm:p-5 xl:grid-cols-[148px_minmax(0,1fr)_190px] xl:items-start">
+        <div class="relative overflow-hidden rounded-[1.35rem] bg-slate-100 h-32 xl:h-32">
           {% if shop.image_source %}
             <img class="h-full w-full object-cover" src="{{ shop.image_source }}" alt="{{ shop.name }}" />
           {% else %}
             <div class="customer-store-banner-fallback">{{ shop.name|first|upper }}</div>
           {% endif %}
         </div>
-        <div class="flex min-w-0 flex-col justify-between gap-4">
+
+        <div class="space-y-3">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
-              <span class="eyebrow">Store Page</span>
-              <h1 class="page-title !text-[clamp(1.65rem,3vw,2.35rem)]">{{ shop.name }}</h1>
-              <p class="hero-lead !mt-1 max-w-3xl">{{ shop.description }}</p>
+              <span class="eyebrow">Store</span>
+              <h1 class="page-title !text-[clamp(1.5rem,2.6vw,2.15rem)]">{{ shop.name }}</h1>
+              <p class="subtle top-gap-xs max-w-2xl">{{ shop.description }}</p>
             </div>
-            <a class="button secondary" href="{% url 'core:customer_dashboard' %}">
-              <span class="ui-icon icon-store" aria-hidden="true"></span>
+            <a class="button small secondary" href="{% url 'core:customer_dashboard' %}">
               <span>Back To Stores</span>
             </a>
           </div>
 
-          <div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600">
-            <span class="inline-flex items-center gap-1.5 whitespace-nowrap">
-              <span class="ui-icon icon-store" aria-hidden="true"></span>
-              <span>{{ shop.get_shop_type_display }}</span>
-            </span>
-            <span class="hidden text-slate-300 sm:inline">•</span>
-            <span class="inline-flex items-center gap-1.5 whitespace-nowrap">
-              <span class="ui-icon icon-star" aria-hidden="true"></span>
-              <span>{{ shop.rating }} rating</span>
-            </span>
-            <span class="hidden text-slate-300 sm:inline">•</span>
-            <span class="inline-flex items-center gap-1.5 whitespace-nowrap">
-              <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
-              <span>{{ shop.distance_km }} km away</span>
-            </span>
-            <span class="hidden text-slate-300 sm:inline">•</span>
-            <span class="inline-flex items-center gap-1.5 whitespace-nowrap">
-              <span class="ui-icon icon-clock-3" aria-hidden="true"></span>
-              <span>Eco delivery in 1-4 hours</span>
-            </span>
-            <span class="hidden text-slate-300 sm:inline">•</span>
-            <span class="inline-flex items-center gap-1.5 whitespace-nowrap">
-              <span class="ui-icon icon-wallet" aria-hidden="true"></span>
-              <span>Min order Rs. 100</span>
-            </span>
-            <span class="status-chip success">Open now</span>
+          <div class="flex flex-wrap gap-2 text-sm text-slate-600">
+            <span class="soft-pill">{{ shop.get_shop_type_display }}</span>
+            <span class="soft-pill">{{ shop.rating }} rating</span>
+            <span class="soft-pill">{{ shop.distance_km }} km away</span>
+            <span class="soft-pill">Eco delivery in 1-4 hours</span>
+            <span class="status-chip success">{% if shop.is_open %}Open now{% else %}Closed{% endif %}</span>
           </div>
         </div>
+
+        <aside class="rounded-[1.15rem] border border-slate-200 bg-slate-50/80 p-3">
+          <span class="eyebrow">Your Progress</span>
+          {% if store_cart_group %}
+            <h2 class="section-title !text-[1.05rem]">Store cart</h2>
+            <div class="grid gap-2 top-gap-sm">
+              <div>
+                <span class="tiny muted">Items</span>
+                <strong class="mt-1 block text-lg text-slate-900">{{ store_cart_group.item_count }}</strong>
+              </div>
+              <div>
+                <span class="tiny muted">Subtotal</span>
+                <strong class="mt-1 block text-lg text-slate-900">Rs. {{ store_cart_group.subtotal }}</strong>
+              </div>
+            </div>
+          {% else %}
+            <h2 class="section-title !text-[1.05rem]">Store cart</h2>
+            <p class="subtle top-gap-sm">Items you add here will appear in your cart.</p>
+          {% endif %}
+        </aside>
       </div>
     </article>
 
-    <article class="card" data-appear>
-      <form method="get" class="stack small-gap">
-        <label for="product-search" class="tiny muted">Search products in {{ shop.name }}</label>
-        <div class="split-row split-row-inline">
-          <input id="product-search" class="input" type="search" name="q" value="{{ product_query }}" placeholder="Search by product, category, or tag" />
-          {% if selected_category and selected_category != 'All' %}
-            <input type="hidden" name="category" value="{{ selected_category }}" />
-          {% endif %}
-          <button class="button primary" type="submit">
-            <span class="ui-icon icon-search" aria-hidden="true"></span>
-            <span>Search</span>
-          </button>
-        </div>
-      </form>
-    </article>
+    <section class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]" data-appear>
+      <article class="card border-slate-200 bg-white/95 p-4 sm:p-5">
+        <form method="get" class="grid gap-3" role="search" aria-label="Search products in store">
+          <label for="product-search" class="tiny muted">Search inside {{ shop.name }}</label>
+          <div class="flex flex-col gap-3 rounded-[1.15rem] border border-slate-200 bg-slate-50/90 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:flex-row sm:items-center sm:gap-3 sm:p-2">
+            <span class="inline-grid h-5 w-5 shrink-0 place-items-center text-slate-400 sm:ml-2" aria-hidden="true">
+              <span class="ui-icon icon-search"></span>
+            </span>
+            <input id="product-search" class="min-w-0 flex-1 border-0 bg-transparent p-0 text-[0.98rem] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-0" type="search" name="q" value="{{ product_query }}" placeholder="Search by product, category, or tag" />
+            {% if selected_category and selected_category != 'All' %}
+              <input type="hidden" name="category" value="{{ selected_category }}" />
+            {% endif %}
+            <button class="button small primary shrink-0 !justify-center sm:min-w-[104px]" type="submit">
+              <span>Search</span>
+            </button>
+          </div>
+        </form>
+      </article>
+    </section>
 
-    <section class="card customer-store-tabs-card" data-appear>
+    <section class="card border-slate-200 bg-white/95 p-4 customer-store-tabs-card" data-appear>
       <div class="split-row">
         <div>
-          <span class="eyebrow">Category Tabs</span>
-          <h2 class="section-title">Jump to what you need</h2>
+          <span class="eyebrow">Categories</span>
+          <h2 class="section-title !text-[1.2rem]">Jump faster</h2>
         </div>
-        <span class="soft-pill">{{ products|length }} products</span>
+        <span class="soft-pill !text-[0.72rem]">{{ category_tabs|length }} tab{{ category_tabs|length|pluralize }}</span>
       </div>
-      <div class="customer-store-tabs">
+      <div class="customer-store-tabs top-gap-sm flex flex-wrap gap-2">
         {% for category in category_tabs %}
           <a
-            class="customer-store-tab{% if selected_category == category %} customer-store-tab-active{% endif %}"
+            class="customer-store-tab inline-flex min-h-[2.25rem] items-center justify-center rounded-full border border-slate-200 px-4 py-2 text-[0.95rem] font-semibold text-slate-600{% if selected_category == category %} customer-store-tab-active border-emerald-500 bg-emerald-500 text-white{% else %} bg-white{% endif %}"
             href="?{% if category != 'All' %}category={{ category|urlencode }}{% endif %}{% if product_query %}{% if category != 'All' %}&{% endif %}q={{ product_query|urlencode }}{% endif %}">
             {{ category }}
           </a>
@@ -90,84 +94,131 @@
       </div>
     </section>
 
-    <section class="card" data-appear>
+    <section class="card border-slate-200 bg-white/95 p-4 sm:p-5" data-appear>
       <div class="split-row">
         <div>
           <span class="eyebrow">Products</span>
-          <h2 class="section-title">Available items</h2>
+          <h2 class="section-title">Available now</h2>
+          <p class="subtle top-gap-xs">Top matches appear first so the page stays shorter and easier to browse.</p>
         </div>
-        <span class="status-chip info">{{ products|length }} product{{ products|length|pluralize }}</span>
+        <span class="status-chip info">{{ products|length }} item{{ products|length|pluralize }}</span>
       </div>
 
-      <div class="product-grid">
-        {% for product in products %}
-          <div class="product-card product-card-rich">
-            <div class="product-media customer-product-media" style="background: linear-gradient(135deg, {{ product.color }}, #fff4ee);">
-              <div class="customer-product-badge-stack">
-                {% for badge in product.customer_badges %}
-                  <span class="customer-product-image-badge {% if badge == 'Low Stock' %}warn{% elif badge == 'Popular' %}info{% else %}success{% endif %}">{{ badge }}</span>
-                {% endfor %}
-                {% if not product.customer_badges %}
-                  <span class="customer-product-image-badge success">Fresh</span>
-                {% endif %}
-              </div>
-              {% if product.image_source %}
-                <img src="{{ product.image_source }}" alt="{{ product.name }}" />
-              {% else %}
-                <span class="customer-product-media-fallback">{{ product.name|first|upper }}</span>
-              {% endif %}
-            </div>
-            <div class="product-copy customer-product-copy">
-              <div class="customer-product-info">
-                <strong class="customer-product-name">{{ product.name }}</strong>
-                <p class="customer-product-description">{{ product.preview_description|default:product.subtitle }}</p>
-                <div class="product-meta-row customer-product-meta">
-                  <span class="soft-pill">{{ product.unit }}</span>
-                  <span class="status-chip {{ product.stock_status_chip }}">{{ product.stock_status_label }}</span>
-                </div>
-              </div>
-
-              <div class="customer-product-price-row">
-                <div class="customer-product-price-copy">
-                  <strong class="customer-product-price">Rs. {{ product.price }}</strong>
-                  {% if product.mrp and product.mrp > product.price %}
-                    <span class="customer-product-mrp">{{ product.mrp_label }}</span>
+      {% if products %}
+        <div class="grid gap-4 top-gap-sm md:grid-cols-2">
+                {% for product in products|slice:":12" %}
+            <div class="rounded-[1.65rem] border border-slate-200 bg-slate-50/70 p-4 shadow-soft">
+              <div class="grid gap-4 sm:grid-cols-[108px_minmax(0,1fr)]">
+                <div class="customer-product-media relative min-h-[7rem] rounded-[1.25rem]" style="background: linear-gradient(135deg, {{ product.color }}, #fff4ee);">
+                  {% if product.image_source %}
+                    <img src="{{ product.image_source }}" alt="{{ product.name }}" />
+                  {% else %}
+                    <span class="customer-product-media-fallback">{{ product.name|first|upper }}</span>
                   {% endif %}
                 </div>
-                {% if product.discount_percent %}
-                  <span class="customer-product-discount">{{ product.discount_percent }}% off</span>
-                {% endif %}
-              </div>
 
-              <form method="post" action="{% url 'core:cart_add' product.id %}" class="customer-product-cart-form" data-product-stepper>
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ request.get_full_path }}" />
-                <div class="customer-product-cart-row">
-                  <div class="customer-product-stepper">
-                    <button class="customer-product-stepper-button" type="button" data-stepper-decrease aria-label="Decrease quantity">-</button>
-                    <input type="number" min="1" max="{{ product.stock }}" name="quantity" value="1" class="customer-product-stepper-input" />
-                    <button class="customer-product-stepper-button" type="button" data-stepper-increase aria-label="Increase quantity">+</button>
+                <div class="min-w-0 space-y-3">
+                  <div class="space-y-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <strong class="customer-product-name">{{ product.name }}</strong>
+                      <span class="status-chip {{ product.stock_status_chip }}">{{ product.stock_status_label }}</span>
+                    </div>
+                    <p class="customer-product-description">{{ product.preview_description|default:product.subtitle }}</p>
+                    <div class="flex flex-wrap gap-2">
+                      <span class="soft-pill">{{ product.unit }}</span>
+                      {% if product.discount_percent %}
+                        <span class="soft-pill">{{ product.discount_percent }}% off</span>
+                      {% endif %}
+                    </div>
                   </div>
-                  <button class="button small primary customer-product-add-button" type="submit" {% if product.stock <= 0 or not shop.is_open %}disabled{% endif %}>
-                    {% if product.stock <= 0 %}
-                      Out Of Stock
-                    {% else %}
-                      Add
-                    {% endif %}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        {% empty %}
-          <div class="nested-panel">
-            <strong>No matching products</strong>
-            <p>Try another search term or return to the store listing to explore more shops.</p>
-          </div>
-        {% endfor %}
-      </div>
-    </section>
 
+                  <div class="flex flex-wrap items-end justify-between gap-3">
+                    <div class="customer-product-price-copy">
+                      <strong class="customer-product-price">Rs. {{ product.price }}</strong>
+                      {% if product.mrp and product.mrp > product.price %}
+                        <span class="customer-product-mrp">{{ product.mrp_label }}</span>
+                      {% endif %}
+                    </div>
+
+                    <form method="post" action="{% url 'core:cart_add' product.id %}" class="customer-product-cart-form" data-product-stepper>
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+                      <div class="customer-product-cart-row">
+                        <div class="customer-product-stepper">
+                          <button class="customer-product-stepper-button" type="button" data-stepper-decrease aria-label="Decrease quantity">-</button>
+                          <input type="number" min="1" max="{{ product.stock }}" name="quantity" value="1" class="customer-product-stepper-input" />
+                          <button class="customer-product-stepper-button" type="button" data-stepper-increase aria-label="Increase quantity">+</button>
+                        </div>
+                        <button class="button small primary customer-product-add-button" type="submit" {% if product.stock <= 0 or not shop.is_open %}disabled{% endif %}>
+                          {% if product.stock <= 0 %}
+                            Out Of Stock
+                          {% else %}
+                            Add
+                          {% endif %}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+
+        {% if products|length > 12 %}
+          <details class="top-gap-sm rounded-[1.6rem] border border-slate-200 bg-slate-50/70 p-4">
+            <summary class="cursor-pointer font-semibold text-slate-800">Show more products</summary>
+            <div class="grid gap-4 pt-4 md:grid-cols-2">
+              {% for product in products|slice:"12:" %}
+                <div class="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-soft">
+                  <div class="grid gap-4 sm:grid-cols-[92px_minmax(0,1fr)]">
+                    <div class="customer-product-media relative min-h-[6rem] rounded-[1.1rem]" style="background: linear-gradient(135deg, {{ product.color }}, #fff4ee);">
+                      {% if product.image_source %}
+                        <img src="{{ product.image_source }}" alt="{{ product.name }}" />
+                      {% else %}
+                        <span class="customer-product-media-fallback">{{ product.name|first|upper }}</span>
+                      {% endif %}
+                    </div>
+                    <div class="min-w-0 space-y-3">
+                      <div>
+                        <strong class="customer-product-name">{{ product.name }}</strong>
+                        <p class="customer-product-description">{{ product.preview_description|default:product.subtitle }}</p>
+                      </div>
+                      <div class="flex flex-wrap items-center justify-between gap-3">
+                        <strong class="customer-product-price">Rs. {{ product.price }}</strong>
+                        <form method="post" action="{% url 'core:cart_add' product.id %}" class="customer-product-cart-form" data-product-stepper>
+                          {% csrf_token %}
+                          <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+                          <div class="customer-product-cart-row">
+                            <div class="customer-product-stepper">
+                              <button class="customer-product-stepper-button" type="button" data-stepper-decrease aria-label="Decrease quantity">-</button>
+                              <input type="number" min="1" max="{{ product.stock }}" name="quantity" value="1" class="customer-product-stepper-input" />
+                              <button class="customer-product-stepper-button" type="button" data-stepper-increase aria-label="Increase quantity">+</button>
+                            </div>
+                            <button class="button small primary customer-product-add-button" type="submit" {% if product.stock <= 0 or not shop.is_open %}disabled{% endif %}>
+                              Add
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </details>
+        {% endif %}
+      {% else %}
+        <div class="nested-panel top-gap-sm">
+          <strong>No matching products</strong>
+          <p>Try another search term or switch back to All categories to keep browsing.</p>
+          <div class="inline-actions">
+            <a class="button small primary" href="{% url 'core:customer_store_detail' shop.slug %}">Clear Search</a>
+            <a class="button small secondary" href="{% url 'core:customer_dashboard' %}">Browse Other Stores</a>
+          </div>
+        </div>
+      {% endif %}
+    </section>
   </section>
 {% endblock %}
 
