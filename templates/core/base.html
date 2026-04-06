@@ -1620,10 +1620,28 @@
 
         if ('serviceWorker' in navigator) {
           window.addEventListener('load', function () {
+            var isLocalDevHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
             {% if shell_pwa_enabled %}
+            if (!isLocalDevHost) {
               navigator.serviceWorker.register("{% url 'core:service_worker' %}?v={{ shell_asset_version }}", { updateViaCache: 'none' }).then(function (registration) {
                 registration.update();
               });
+            } else {
+              navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                registrations.forEach(function (registration) {
+                  registration.unregister();
+                });
+              });
+              if ('caches' in window) {
+                caches.keys().then(function (keys) {
+                  keys.forEach(function (key) {
+                    if (key.indexOf('gramexpress-shell-v') === 0) {
+                      caches.delete(key);
+                    }
+                  });
+                });
+              }
+            }
             {% else %}
               navigator.serviceWorker.getRegistrations().then(function (registrations) {
                 registrations.forEach(function (registration) {

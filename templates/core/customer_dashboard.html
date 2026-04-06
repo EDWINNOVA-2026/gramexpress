@@ -1,101 +1,310 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
-  <section class="customer-home-shell" id="top">
-    {% if not location_required %}
-      <section class="customer-home-toolbar" data-appear>
-        <div class="customer-home-filters" aria-label="Quick filters">
-          <a class="customer-home-filter{% if not shop_query %} customer-home-filter-active{% endif %}" href="{% url 'core:customer_dashboard' %}">Nearby</a>
-          <a class="customer-home-filter{% if shop_query == 'top rated' %} customer-home-filter-active{% endif %}" href="?q=top rated">Top Rated</a>
-          <a class="customer-home-filter{% if shop_query == 'fast delivery' %} customer-home-filter-active{% endif %}" href="?q=fast delivery">Fast Delivery</a>
-          <a class="customer-home-filter{% if shop_query == 'groceries' or shop_query == 'kirana' %} customer-home-filter-active{% endif %}" href="?q=groceries">Groceries</a>
-        </div>
-      </section>
-    {% endif %}
+<section class="customer-home-shell" id="top">
 
-    {% if customer_khatabook_warning %}
-      <section class="card border-amber-200 bg-amber-50/80" data-appear>
-        <div class="checkout-alert border-0 bg-transparent p-0 shadow-none">
-          <strong>{{ customer_khatabook_warning.title }}</strong>
-          <p>{{ customer_khatabook_warning.detail }}</p>
-          <div class="inline-actions">
-            <a class="button small primary" href="{% url 'core:customer_khatabook' %}">Review KhataBook</a>
-          </div>
-        </div>
-      </section>
-    {% endif %}
+  {% if not location_required %}
+    <section class="customer-home-toolbar" data-appear>
+      <div class="customer-home-filters" aria-label="Quick filters">
+        <a class="customer-home-filter{% if not shop_query %} customer-home-filter-active{% endif %}" href="{% url 'core:customer_dashboard' %}">Nearby</a>
+        <a class="customer-home-filter{% if shop_query == 'top rated' %} customer-home-filter-active{% endif %}" href="?q=top rated">Top Rated</a>
+        <a class="customer-home-filter{% if shop_query == 'fast delivery' %} customer-home-filter-active{% endif %}" href="?q=fast delivery">Fast Delivery</a>
+        <a class="customer-home-filter{% if shop_query == 'groceries' or shop_query == 'kirana' %} customer-home-filter-active{% endif %}" href="?q=groceries">Groceries</a>
+      </div>
+    </section>
+  {% endif %}
 
-    {% if cart.item_count or orders or khatabook_summary.outstanding_amount %}
-      <details class="card overflow-hidden border-slate-200 bg-white/95 customer-home-continue-card" data-appear>
-        <summary class="list-none cursor-pointer p-4">
-          <div class="customer-home-continue-head">
-            <div>
-              <span class="eyebrow">Continue</span>
-              <h2 class="section-title !text-[1.15rem]">Pick up where you left off</h2>
-            </div>
-            <span class="customer-home-continue-arrow" aria-hidden="true">▾</span>
+  {% if customer_khatabook_warning %}
+    <section class="card border-amber-200 bg-amber-50/80" data-appear>
+      <div class="checkout-alert border-0 bg-transparent p-0 shadow-none">
+        <strong>{{ customer_khatabook_warning.title }}</strong>
+        <p>{{ customer_khatabook_warning.detail }}</p>
+        <div class="inline-actions">
+          <a class="button small primary" href="{% url 'core:customer_khatabook' %}">Review KhataBook</a>
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if cart.item_count or orders or khatabook_summary.outstanding_amount %}
+    <details class="card overflow-hidden border-slate-200 bg-white/95 customer-home-continue-card" data-appear>
+      <summary class="list-none cursor-pointer p-4">
+        <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+          <div class="min-w-0">
+            <span class="eyebrow">Continue</span>
+            <h2 class="section-title !mb-0 !text-[1.15rem] leading-tight">Pick up where you left off</h2>
           </div>
-        </summary>
-        <div class="border-t border-slate-100 px-4 pb-4 pt-4">
-          <div class="grid gap-3">
+          <span class="customer-home-continue-arrow shrink-0" aria-hidden="true">▾</span>
+        </div>
+      </summary>
+      <div class="border-t border-slate-100 px-4 pb-4 pt-4">
+        <div class="grid gap-3">
           {% if cart.item_count %}
             <div class="compact-item">
               <div class="split-row">
-                <div>
+                <div class="min-w-0">
                   <strong>Resume checkout</strong>
                   <p>{{ cart.item_count }} item{{ cart.item_count|pluralize }} already waiting in your cart.</p>
                 </div>
-                <a class="button small primary w-fit" href="{% url 'core:customer_cart' %}">Open Cart</a>
+                <a class="button small primary shrink-0" href="{% url 'core:customer_cart' %}">Open Cart</a>
               </div>
             </div>
           {% endif %}
           {% if orders %}
             <div class="compact-item">
               <div class="split-row">
-                <div>
+                <div class="min-w-0">
                   <strong>Latest order</strong>
-                  <p>{{ orders.0.shop.name }} • {{ orders.0.get_status_display }}</p>
+                  <p class="truncate">{{ orders.0.shop.name }} • {{ orders.0.get_status_display }}</p>
                 </div>
-                <a class="button small secondary w-fit" href="{% url 'core:order_detail' orders.0.id %}">Open Order</a>
+                <a class="button small secondary shrink-0" href="{% url 'core:order_detail' orders.0.id %}">Open Order</a>
               </div>
             </div>
           {% endif %}
           {% if khatabook_summary.outstanding_amount %}
             <div class="compact-item">
               <div class="split-row">
-                <div>
+                <div class="min-w-0">
                   <strong>KhataBook due</strong>
                   <p>{{ khatabook_summary.status_label }} • Rs. {{ khatabook_summary.outstanding_amount }}</p>
                 </div>
-                <a class="button small secondary w-fit" href="{% url 'core:customer_khatabook' %}">Open KhataBook</a>
+                <a class="button small secondary shrink-0" href="{% url 'core:customer_khatabook' %}">Open KhataBook</a>
               </div>
             </div>
           {% endif %}
         </div>
+      </div>
+    </details>
+  {% endif %}
+
+  {% if location_required %}
+
+    <section class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]" data-appear>
+      <details class="card overflow-hidden border-emerald-200 bg-emerald-50/60" open data-location-scope>
+        <summary class="cursor-pointer list-none p-4 sm:p-5">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div class="min-w-0">
+              <span class="eyebrow">Location Required</span>
+              <h2 class="section-title">Turn on location to see nearby stores</h2>
+            </div>
+            <span class="status-chip success shrink-0">Needed now</span>
+          </div>
+          <p class="subtle top-gap-xs">Use your current location once and we'll filter the store list to your area.</p>
+        </summary>
+        <div class="border-t border-emerald-100 px-4 pb-4 pt-4 sm:px-5 sm:pb-5">
+          <form method="post" action="{% url 'core:customer_update_location' %}" class="stack top-gap-sm">
+            {% csrf_token %}
+            <input type="hidden" name="latitude" value="{{ customer.latitude }}" />
+            <input type="hidden" name="longitude" value="{{ customer.longitude }}" />
+            <div
+              class="location-editor-card"
+              data-precise-location-editor
+              data-maps-key="{{ google_maps_browser_api_key|default:'' }}"
+              data-default-lat="{{ customer.latitude }}"
+              data-default-lng="{{ customer.longitude }}"
+              data-location-autoload
+            >
+              <div class="location-editor-toolbar flex flex-wrap gap-2">
+                <button class="button primary customer-home-location-button" type="button" data-location-current>
+                  <span class="ui-icon icon-locate-fixed" aria-hidden="true"></span>
+                  <span>Use Current Location</span>
+                </button>
+                <button class="button secondary" type="submit">
+                  <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
+                  <span>Save Location</span>
+                </button>
+                <a class="button secondary" href="https://www.google.com/maps/search/?api=1&query={{ customer.latitude }},{{ customer.longitude }}" target="_blank" rel="noreferrer" data-location-open-maps>
+                  <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
+                  <span>Open Maps</span>
+                </a>
+              </div>
+              <div class="location-editor-status-row flex flex-wrap items-center gap-2">
+                <span class="soft-pill shrink-0">
+                  <span class="ui-icon icon-map-pin" aria-hidden="true"></span>
+                  <span data-location-coordinates>{{ customer.latitude }}, {{ customer.longitude }}</span>
+                </span>
+                <span class="tiny customer-home-status" data-location-status>
+                  Enable live location, then save it once to start browsing nearby stores.
+                </span>
+              </div>
+              <div class="location-editor-preview min-w-0">
+                <strong class="location-editor-preview-main block truncate" data-location-preview-main>
+                  {% if address_summary %}{{ address_summary }}{% else %}Your detected address will appear here.{% endif %}
+                </strong>
+                <p class="location-editor-preview-sub" data-location-preview-sub>
+                  {% if location_heading %}{{ location_heading }}{% if location_subtitle %} • {{ location_subtitle }}{% endif %}{% else %}Move the pin or use current location to refresh the address line.{% endif %}
+                </p>
+              </div>
+              <div class="location-editor-map-shell">
+                <div class="location-editor-map-canvas" data-location-map>
+                  <div class="location-editor-map-fallback">
+                    <div>
+                      <strong>Map loading</strong>
+                      <p>The draggable location pin will appear here when Google Maps is available.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </form>
         </div>
       </details>
-    {% endif %}
 
-    {% if location_required %}
-      <section class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]" data-appear>
-        <details class="card overflow-hidden border-emerald-200 bg-emerald-50/60" open data-location-scope>
-          <summary class="cursor-pointer list-none p-4 sm:p-5">
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <span class="eyebrow">Location Required</span>
-                <h2 class="section-title">Turn on location to see nearby stores</h2>
+      <article class="card border-slate-200 bg-white/95 p-4 sm:p-5">
+        <span class="eyebrow">Next</span>
+        <h2 class="section-title">Once location is saved</h2>
+        <div class="stack small-gap top-gap-sm">
+          <div class="journey-card">
+            <strong>Browse nearby stores</strong>
+            <p>The home feed refreshes for your area automatically.</p>
+          </div>
+          <div class="journey-card">
+            <strong>Add products faster</strong>
+            <p>Your cart, fees, and delivery timings become more accurate.</p>
+          </div>
+        </div>
+      </article>
+    </section>
+
+  {% else %}
+
+    <section class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]" data-appear>
+
+      <div class="grid gap-4 min-w-0">
+
+        {% if category_tiles %}
+          <section class="card overflow-hidden border-slate-200 bg-white/95 p-4 customer-home-category-panel">
+            <div class="split-row customer-home-category-head">
+              <div class="min-w-0">
+                <span class="eyebrow">Browse By Category</span>
+                <h2 class="section-title">Quick picks</h2>
               </div>
-              <span class="status-chip success">Needed now</span>
+              <span class="soft-pill shrink-0">{{ category_tiles|slice:":4"|length }} quick picks</span>
             </div>
-            <p class="subtle top-gap-xs">Use your current location once and we’ll filter the store list to your area.</p>
-          </summary>
+            <div class="relative top-gap-sm -mx-4">
+              <div
+                class="overflow-x-auto overflow-y-hidden px-4 pb-2"
+                style="scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch;"
+              >
+                <div class="flex gap-3" style="width: max-content;">
+                  {% for category in category_tiles|slice:":4" %}
+                    <a class="customer-home-category flex-none w-[148px]" href="?q={{ category.label|urlencode }}">
+                      <span class="customer-home-category-icon">
+                        <span class="ui-icon ui-icon-xl icon-{{ category.icon }}" aria-hidden="true"></span>
+                      </span>
+                      <strong>{{ category.label }}</strong>
+                    </a>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          </section>
+        {% endif %}
 
-          <div class="border-t border-emerald-100 px-4 pb-4 pt-4 sm:px-5 sm:pb-5">
+        <section class="card overflow-hidden border-slate-200 bg-white/95 p-4 sm:p-5">
+          <div class="split-row">
+            <div class="min-w-0">
+              <span class="eyebrow">Nearby Stores</span>
+              <h2 class="section-title truncate">Best matches for {{ location_heading|default:'your area' }}</h2>
+              <p class="subtle top-gap-xs">The first list stays short so you can choose faster.</p>
+            </div>
+            <span class="status-chip info shrink-0">{{ recommended_shops|length }} result{{ recommended_shops|length|pluralize }}</span>
+          </div>
+
+          {% if recommended_shops %}
+            <div class="grid gap-3 top-gap-sm">
+              {% for shop in recommended_shops|slice:":6" %}
+                <a
+                  class="grid gap-3 rounded-[1.6rem] border border-slate-200 bg-slate-50/70 p-3 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white md:grid-cols-[96px_minmax(0,1fr)_auto] md:items-center"
+                  href="{% url 'core:customer_store_detail' shop.slug %}"
+                >
+                  <div class="h-36 w-full overflow-hidden rounded-[1.2rem] bg-slate-100 md:h-20 md:w-24">
+                    {% if shop.card_image_source %}
+                      <img class="h-full w-full object-cover" src="{{ shop.card_image_source }}" alt="{{ shop.name }}" />
+                    {% else %}
+                      <div class="store-card-placeholder h-full">{{ shop.name|first|upper }}</div>
+                    {% endif %}
+                  </div>
+                  <div class="min-w-0 space-y-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <strong class="truncate text-lg text-slate-900">{{ shop.name }}</strong>
+                      {% if shop.display_rating|default:shop.rating >= 4.5 %}
+                        <span class="status-chip success shrink-0">Top Rated</span>
+                      {% endif %}
+                    </div>
+                    <p class="text-sm text-slate-500 truncate">{{ shop.get_shop_type_display }} • {{ shop.area }}</p>
+                    <div class="flex flex-wrap gap-2 text-sm text-slate-600">
+                      <span class="soft-pill">{{ shop.display_rating|default:shop.rating }} rating</span>
+                      <span class="soft-pill">{{ shop.distance_km }} km away</span>
+                      <span class="soft-pill">{{ shop.delivery_eta_label }}</span>
+                    </div>
+                  </div>
+                  <div class="flex items-center md:justify-end">
+                    <span class="button small primary w-full md:w-fit">Open Store</span>
+                  </div>
+                </a>
+              {% endfor %}
+            </div>
+
+            {% if recommended_shops|length > 6 %}
+              <details class="top-gap-sm overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4">
+                <summary class="cursor-pointer font-semibold text-slate-800">Show more stores</summary>
+                <div class="grid gap-3 pt-4">
+                  {% for shop in recommended_shops|slice:"6:" %}
+                    <a
+                      class="grid gap-3 rounded-[1.4rem] border border-slate-200 bg-white p-3 transition hover:border-slate-300 md:grid-cols-[80px_minmax(0,1fr)_auto] md:items-center"
+                      href="{% url 'core:customer_store_detail' shop.slug %}"
+                    >
+                      <div class="h-28 w-full overflow-hidden rounded-[1rem] bg-slate-100 md:h-16 md:w-20">
+                        {% if shop.card_image_source %}
+                          <img class="h-full w-full object-cover" src="{{ shop.card_image_source }}" alt="{{ shop.name }}" />
+                        {% else %}
+                          <div class="store-card-placeholder h-full">{{ shop.name|first|upper }}</div>
+                        {% endif %}
+                      </div>
+                      <div class="min-w-0">
+                        <strong class="block truncate text-slate-900">{{ shop.name }}</strong>
+                        <p class="text-sm text-slate-500 truncate">{{ shop.get_shop_type_display }} • {{ shop.area }}</p>
+                      </div>
+                      <span class="button small secondary w-full md:w-fit">Open</span>
+                    </a>
+                  {% endfor %}
+                </div>
+              </details>
+            {% endif %}
+
+          {% else %}
+            <div class="customer-home-empty">
+              <strong>No stores matched this search</strong>
+              <p>Try a broader search term or refresh your location to see nearby options again.</p>
+              <div class="flex flex-col gap-3 sm:flex-row">
+                <a class="button primary" href="{% url 'core:customer_dashboard' %}">Clear Search</a>
+                <a class="button secondary" href="{% url 'core:customer_profile' %}">Open Profile</a>
+              </div>
+            </div>
+          {% endif %}
+        </section>
+
+      </div>
+
+      <aside class="grid gap-4 min-w-0">
+
+        <details class="card overflow-hidden border-slate-200 bg-white/95" data-location-scope>
+          <summary class="cursor-pointer list-none p-4 sm:p-5">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <span class="eyebrow">Location</span>
+                <h2 class="section-title">Manage delivery area</h2>
+                <p class="subtle top-gap-xs truncate">{{ location_heading }}{% if location_subtitle %} • {{ location_subtitle }}{% endif %}</p>
+              </div>
+              <span class="status-chip success shrink-0">{% if has_live_location %}Saved{% else %}Needs review{% endif %}</span>
+            </div>
+          </summary>
+          <div class="border-t border-slate-200 px-4 pb-4 pt-4 sm:px-5 sm:pb-5">
             <form method="post" action="{% url 'core:customer_update_location' %}" class="stack top-gap-sm">
               {% csrf_token %}
               <input type="hidden" name="latitude" value="{{ customer.latitude }}" />
               <input type="hidden" name="longitude" value="{{ customer.longitude }}" />
-
               <div
                 class="location-editor-card"
                 data-precise-location-editor
@@ -104,7 +313,7 @@
                 data-default-lng="{{ customer.longitude }}"
                 data-location-autoload
               >
-                <div class="location-editor-toolbar">
+                <div class="location-editor-toolbar flex flex-wrap gap-2">
                   <button class="button primary customer-home-location-button" type="button" data-location-current>
                     <span class="ui-icon icon-locate-fixed" aria-hidden="true"></span>
                     <span>Use Current Location</span>
@@ -118,26 +327,27 @@
                     <span>Open Maps</span>
                   </a>
                 </div>
-
-                <div class="location-editor-status-row">
-                  <span class="soft-pill">
+                <div class="location-editor-status-row flex flex-wrap items-center gap-2">
+                  <span class="soft-pill shrink-0">
                     <span class="ui-icon icon-map-pin" aria-hidden="true"></span>
                     <span data-location-coordinates>{{ customer.latitude }}, {{ customer.longitude }}</span>
                   </span>
                   <span class="tiny customer-home-status" data-location-status>
-                    Enable live location, then save it once to start browsing nearby stores.
+                    {% if has_live_location %}
+                      Current location saved. You can still drag the pin to fine-tune it.
+                    {% else %}
+                      Enable live location, then drag the pin if you want a more exact address.
+                    {% endif %}
                   </span>
                 </div>
-
-                <div class="location-editor-preview">
-                  <strong class="location-editor-preview-main" data-location-preview-main>
-                    {% if address_summary %}{{ address_summary }}{% else %}Your detected address will appear here.{% endif %}
+                <div class="location-editor-preview min-w-0">
+                  <strong class="location-editor-preview-main block truncate" data-location-preview-main>
+                    {% if address_summary %}{{ address_summary }}{% else %}Your address preview will appear here automatically.{% endif %}
                   </strong>
                   <p class="location-editor-preview-sub" data-location-preview-sub>
                     {% if location_heading %}{{ location_heading }}{% if location_subtitle %} • {{ location_subtitle }}{% endif %}{% else %}Move the pin or use current location to refresh the address line.{% endif %}
                   </p>
                 </div>
-
                 <div class="location-editor-map-shell">
                   <div class="location-editor-map-canvas" data-location-map>
                     <div class="location-editor-map-fallback">
@@ -153,220 +363,28 @@
           </div>
         </details>
 
-        <article class="card border-slate-200 bg-white/95 p-4 sm:p-5">
-          <span class="eyebrow">Next</span>
-          <h2 class="section-title">Once location is saved</h2>
-          <div class="stack small-gap top-gap-sm">
-            <div class="journey-card">
-              <strong>Browse nearby stores</strong>
-              <p>The home feed refreshes for your area automatically.</p>
+        <article class="card border-amber-200 bg-amber-50/70 p-4 sm:p-5">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <span class="eyebrow">KhataBook</span>
+              <h2 class="section-title">Credit at a glance</h2>
             </div>
-            <div class="journey-card">
-              <strong>Add products faster</strong>
-              <p>Your cart, fees, and delivery timings become more accurate.</p>
-            </div>
+            <span class="status-chip {{ khatabook_summary.badge_class }} shrink-0">{{ khatabook_summary.status_label }}</span>
+          </div>
+          <p class="subtle top-gap-sm">{{ khatabook_summary.headline }}</p>
+          {% if khatabook_summary.due_date %}
+            <p class="tiny text-slate-600 top-gap-xs">Due on {{ khatabook_summary.due_date|date:"M d, Y" }}</p>
+          {% endif %}
+          <div class="top-gap-sm">
+            <a class="button small primary" href="{% url 'core:customer_khatabook' %}">Open KhataBook</a>
           </div>
         </article>
-      </section>
-    {% else %}
-      <section class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]" data-appear>
-        <div class="grid gap-4">
-          {% if category_tiles %}
-            <section class="card border-slate-200 bg-white/95 p-4 sm:p-4 customer-home-category-panel">
-              <div class="split-row customer-home-category-head">
-                <div>
-                  <span class="eyebrow">Browse By Category</span>
-                  <h2 class="section-title">Quick picks</h2>
-                </div>
-                <span class="soft-pill">{{ category_tiles|slice:":4"|length }} quick picks</span>
-              </div>
-              <div class="customer-home-strip customer-home-strip-compact customer-home-slider top-gap-sm">
-                {% for category in category_tiles|slice:":4" %}
-                  <a class="customer-home-category customer-home-slider-card" href="?q={{ category.label|urlencode }}">
-                    <span class="customer-home-category-icon"><span class="ui-icon ui-icon-xl icon-{{ category.icon }}" aria-hidden="true"></span></span>
-                    <strong>{{ category.label }}</strong>
-                  </a>
-                {% endfor %}
-              </div>
-            </section>
-          {% endif %}
 
-          <section class="card border-slate-200 bg-white/95 p-4 sm:p-5">
-              <div class="split-row">
-                <div>
-                  <span class="eyebrow">Nearby Stores</span>
-                  <h2 class="section-title">Best matches for {{ location_heading|default:'your area' }}</h2>
-                  <p class="subtle top-gap-xs">The first list stays short so you can choose faster.</p>
-                </div>
-                <span class="status-chip info">{{ recommended_shops|length }} result{{ recommended_shops|length|pluralize }}</span>
-              </div>
+      </aside>
 
-            {% if recommended_shops %}
-              <div class="grid gap-3 top-gap-sm">
-                {% for shop in recommended_shops|slice:":6" %}
-                  <a class="grid gap-4 rounded-[1.6rem] border border-slate-200 bg-slate-50/70 p-3 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white sm:grid-cols-[112px_minmax(0,1fr)_auto] sm:items-center" href="{% url 'core:customer_store_detail' shop.slug %}">
-                    <div class="h-24 overflow-hidden rounded-[1.2rem] bg-slate-100 sm:h-24 sm:w-28">
-                      {% if shop.card_image_source %}
-                        <img class="h-full w-full object-cover" src="{{ shop.card_image_source }}" alt="{{ shop.name }}" />
-                      {% else %}
-                        <div class="store-card-placeholder h-full">{{ shop.name|first|upper }}</div>
-                      {% endif %}
-                    </div>
-                    <div class="min-w-0 space-y-2">
-                      <div class="flex flex-wrap items-center gap-2">
-                        <strong class="truncate text-lg text-slate-900">{{ shop.name }}</strong>
-                        {% if shop.display_rating|default:shop.rating >= 4.5 %}
-                          <span class="status-chip success">Top Rated</span>
-                        {% endif %}
-                      </div>
-                      <p class="text-sm text-slate-500">{{ shop.get_shop_type_display }} • {{ shop.area }}</p>
-                      <div class="flex flex-wrap gap-2 text-sm text-slate-600">
-                        <span class="soft-pill">{{ shop.display_rating|default:shop.rating }} rating</span>
-                        <span class="soft-pill">{{ shop.distance_km }} km away</span>
-                        <span class="soft-pill">{{ shop.delivery_eta_label }}</span>
-                      </div>
-                    </div>
-                    <div class="flex items-center sm:justify-end">
-                      <span class="button small primary">Open Store</span>
-                    </div>
-                  </a>
-                {% endfor %}
-              </div>
+    </section>
 
-              {% if recommended_shops|length > 6 %}
-                <details class="top-gap-sm rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4">
-                  <summary class="cursor-pointer font-semibold text-slate-800">Show more stores</summary>
-                  <div class="grid gap-3 pt-4">
-                    {% for shop in recommended_shops|slice:"6:" %}
-                      <a class="grid gap-4 rounded-[1.4rem] border border-slate-200 bg-white p-3 transition hover:border-slate-300 sm:grid-cols-[96px_minmax(0,1fr)_auto] sm:items-center" href="{% url 'core:customer_store_detail' shop.slug %}">
-                        <div class="h-20 overflow-hidden rounded-[1rem] bg-slate-100 sm:h-20 sm:w-24">
-                          {% if shop.card_image_source %}
-                            <img class="h-full w-full object-cover" src="{{ shop.card_image_source }}" alt="{{ shop.name }}" />
-                          {% else %}
-                            <div class="store-card-placeholder h-full">{{ shop.name|first|upper }}</div>
-                          {% endif %}
-                        </div>
-                        <div class="min-w-0">
-                          <strong class="block truncate text-slate-900">{{ shop.name }}</strong>
-                          <p class="text-sm text-slate-500">{{ shop.get_shop_type_display }} • {{ shop.area }}</p>
-                        </div>
-                        <span class="button small secondary">Open</span>
-                      </a>
-                    {% endfor %}
-                  </div>
-                </details>
-              {% endif %}
-            {% else %}
-              <div class="customer-home-empty">
-                <strong>No stores matched this search</strong>
-                <p>Try a broader search term or refresh your location to see nearby options again.</p>
-                <div class="flex flex-col gap-3 sm:flex-row">
-                  <a class="button primary" href="{% url 'core:customer_dashboard' %}">Clear Search</a>
-                  <a class="button secondary" href="{% url 'core:customer_profile' %}">Open Profile</a>
-                </div>
-              </div>
-            {% endif %}
-          </section>
-        </div>
+  {% endif %}
 
-        <aside class="grid gap-4">
-          <details class="card overflow-hidden border-slate-200 bg-white/95" data-location-scope>
-            <summary class="cursor-pointer list-none p-4 sm:p-5">
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <span class="eyebrow">Location</span>
-                  <h2 class="section-title">Manage delivery area</h2>
-                  <p class="subtle top-gap-xs">{{ location_heading }}{% if location_subtitle %} • {{ location_subtitle }}{% endif %}</p>
-                </div>
-                <span class="status-chip success">{% if has_live_location %}Saved{% else %}Needs review{% endif %}</span>
-              </div>
-            </summary>
-
-            <div class="border-t border-slate-200 px-4 pb-4 pt-4 sm:px-5 sm:pb-5">
-              <form method="post" action="{% url 'core:customer_update_location' %}" class="stack top-gap-sm">
-                {% csrf_token %}
-                <input type="hidden" name="latitude" value="{{ customer.latitude }}" />
-                <input type="hidden" name="longitude" value="{{ customer.longitude }}" />
-
-                <div
-                  class="location-editor-card"
-                  data-precise-location-editor
-                  data-maps-key="{{ google_maps_browser_api_key|default:'' }}"
-                  data-default-lat="{{ customer.latitude }}"
-                  data-default-lng="{{ customer.longitude }}"
-                  data-location-autoload
-                >
-                  <div class="location-editor-toolbar">
-                    <button class="button primary customer-home-location-button" type="button" data-location-current>
-                      <span class="ui-icon icon-locate-fixed" aria-hidden="true"></span>
-                      <span>Use Current Location</span>
-                    </button>
-                    <button class="button secondary" type="submit">
-                      <span class="ui-icon icon-badge-check" aria-hidden="true"></span>
-                      <span>Save Location</span>
-                    </button>
-                    <a class="button secondary" href="https://www.google.com/maps/search/?api=1&query={{ customer.latitude }},{{ customer.longitude }}" target="_blank" rel="noreferrer" data-location-open-maps>
-                      <span class="ui-icon icon-map-pinned" aria-hidden="true"></span>
-                      <span>Open Maps</span>
-                    </a>
-                  </div>
-
-                  <div class="location-editor-status-row">
-                    <span class="soft-pill">
-                      <span class="ui-icon icon-map-pin" aria-hidden="true"></span>
-                      <span data-location-coordinates>{{ customer.latitude }}, {{ customer.longitude }}</span>
-                    </span>
-                    <span class="tiny customer-home-status" data-location-status>
-                      {% if has_live_location %}
-                        Current location saved. You can still drag the pin to fine-tune it.
-                      {% else %}
-                        Enable live location, then drag the pin if you want a more exact address.
-                      {% endif %}
-                    </span>
-                  </div>
-
-                  <div class="location-editor-preview">
-                    <strong class="location-editor-preview-main" data-location-preview-main>
-                      {% if address_summary %}{{ address_summary }}{% else %}Your address preview will appear here automatically.{% endif %}
-                    </strong>
-                    <p class="location-editor-preview-sub" data-location-preview-sub>
-                      {% if location_heading %}{{ location_heading }}{% if location_subtitle %} • {{ location_subtitle }}{% endif %}{% else %}Move the pin or use current location to refresh the address line.{% endif %}
-                    </p>
-                  </div>
-
-                  <div class="location-editor-map-shell">
-                    <div class="location-editor-map-canvas" data-location-map>
-                      <div class="location-editor-map-fallback">
-                        <div>
-                          <strong>Map loading</strong>
-                          <p>The draggable location pin will appear here when Google Maps is available.</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </form>
-            </div>
-          </details>
-
-          <article class="card border-amber-200 bg-amber-50/70 p-4 sm:p-5">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <span class="eyebrow">KhataBook</span>
-                <h2 class="section-title">Credit at a glance</h2>
-              </div>
-              <span class="status-chip {{ khatabook_summary.badge_class }}">{{ khatabook_summary.status_label }}</span>
-            </div>
-            <p class="subtle top-gap-sm">{{ khatabook_summary.headline }}</p>
-            {% if khatabook_summary.due_date %}
-              <p class="tiny text-slate-600 top-gap-xs">Due on {{ khatabook_summary.due_date|date:"M d, Y" }}</p>
-            {% endif %}
-            <div class="top-gap-sm">
-              <a class="button small primary" href="{% url 'core:customer_khatabook' %}">Open KhataBook</a>
-            </div>
-          </article>
-        </aside>
-      </section>
-    {% endif %}
-  </section>
+</section>
 {% endblock %}

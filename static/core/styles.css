@@ -2479,6 +2479,21 @@ code {
 .customer-home-shell {
   display: grid;
   gap: 1.15rem;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.customer-home-shell > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.customer-home-shell .section-title,
+.customer-home-shell .subtle,
+.customer-home-shell .soft-pill,
+.customer-home-shell strong,
+.customer-home-shell p {
+  overflow-wrap: anywhere;
 }
 
 .customer-home-toolbar {
@@ -3160,6 +3175,24 @@ code {
 
   .customer-home-strip {
     gap: 0.7rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
+    min-width: 0;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+  }
+
+  .customer-home-continue-head > div {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .customer-home-continue-head .section-title {
+    margin-bottom: 0;
+    line-height: 1.15;
+    word-break: break-word;
   }
 
   .customer-home-category-icon {
