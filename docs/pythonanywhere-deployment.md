@@ -6,7 +6,7 @@ This guide is for deploying GramExpress on PythonAnywhere with:
 - GitHub as the source of truth for code changes
 - `.env` on the server for secrets and deployment settings
 
-The project already uses SQLite by default in [gramexpress/settings.py](./gramexpress/settings.py), and `db.sqlite3` is ignored by git in [.gitignore](./.gitignore), which is exactly what we want for a simple PythonAnywhere deployment.
+The project already uses SQLite by default in [gramexpress/settings.py](../gramexpress/settings.py), and `db.sqlite3` is ignored by git in [`.gitignore`](../.gitignore), which is exactly what we want for a simple PythonAnywhere deployment.
 
 ## At First: Use GitHub As The Main Workflow
 

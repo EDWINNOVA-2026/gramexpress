@@ -8,7 +8,7 @@ The app reads this value from:
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 ```
 
-That variable is loaded in [gramexpress/settings.py](./gramexpress/settings.py).
+That variable is loaded in [gramexpress/settings.py](../gramexpress/settings.py).
 
 ## What You Need
 
@@ -89,8 +89,8 @@ That means Google sends the credential directly to this Django endpoint:
 
 From the codebase:
 
-- Route: [core/urls.py](./core/urls.py)
-- Frontend redirect target: [templates/core/base.html](./templates/core/base.html)
+- Route: [core/urls.py](../core/urls.py)
+- Frontend redirect target: [templates/core/base.html](../templates/core/base.html)
 
 Add the exact redirect URIs below.
 

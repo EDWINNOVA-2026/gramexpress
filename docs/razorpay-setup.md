@@ -21,8 +21,8 @@ These values are loaded from `.env`.
 
 Relevant code:
 
-- Checkout + Razorpay order creation: [core/views.py](./core/views.py)
-- Webhook endpoint route: [core/urls.py](./core/urls.py)
+- Checkout + Razorpay order creation: [core/views.py](../core/views.py)
+- Webhook endpoint route: [core/urls.py](../core/urls.py)
 
 ## Step 1: Create Or Log In To Razorpay
 
