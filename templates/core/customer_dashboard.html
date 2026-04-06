@@ -5,11 +5,14 @@
 
   {% if not location_required %}
     <section class="customer-home-toolbar" data-appear>
-      <div class="customer-home-filters" aria-label="Quick filters">
-        <a class="customer-home-filter{% if not shop_query %} customer-home-filter-active{% endif %}" href="{% url 'core:customer_dashboard' %}">Nearby</a>
-        <a class="customer-home-filter{% if shop_query == 'top rated' %} customer-home-filter-active{% endif %}" href="?q=top rated">Top Rated</a>
-        <a class="customer-home-filter{% if shop_query == 'fast delivery' %} customer-home-filter-active{% endif %}" href="?q=fast delivery">Fast Delivery</a>
-        <a class="customer-home-filter{% if shop_query == 'groceries' or shop_query == 'kirana' %} customer-home-filter-active{% endif %}" href="?q=groceries">Groceries</a>
+      <div
+        aria-label="Quick filters"
+        style="display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;padding:4px 0 8px;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;"
+      >
+        <a class="customer-home-filter{% if not shop_query %} customer-home-filter-active{% endif %}" href="{% url 'core:customer_dashboard' %}" style="flex-shrink:0;white-space:nowrap;">Nearby</a>
+        <a class="customer-home-filter{% if shop_query == 'top rated' %} customer-home-filter-active{% endif %}" href="?q=top rated" style="flex-shrink:0;white-space:nowrap;">Top Rated</a>
+        <a class="customer-home-filter{% if shop_query == 'fast delivery' %} customer-home-filter-active{% endif %}" href="?q=fast delivery" style="flex-shrink:0;white-space:nowrap;">Fast Delivery</a>
+        <a class="customer-home-filter{% if shop_query == 'groceries' or shop_query == 'kirana' %} customer-home-filter-active{% endif %}" href="?q=groceries" style="flex-shrink:0;white-space:nowrap;">Groceries</a>
       </div>
     </section>
   {% endif %}
@@ -173,7 +176,7 @@
       <div class="grid gap-4 min-w-0">
 
         {% if category_tiles %}
-          <section class="card overflow-hidden border-slate-200 bg-white/95 p-4 customer-home-category-panel">
+          <section class="card border-slate-200 bg-white/95 p-4 customer-home-category-panel" style="overflow:hidden;">
             <div class="split-row customer-home-category-head">
               <div class="min-w-0">
                 <span class="eyebrow">Browse By Category</span>
@@ -181,21 +184,18 @@
               </div>
               <span class="soft-pill shrink-0">{{ category_tiles|slice:":4"|length }} quick picks</span>
             </div>
-            <div class="relative top-gap-sm -mx-4">
+            <div style="margin-top:12px;margin-left:-16px;margin-right:-16px;">
               <div
-                class="overflow-x-auto overflow-y-hidden px-4 pb-2"
-                style="scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch;"
+                style="display:flex;flex-wrap:nowrap;gap:12px;overflow-x:auto;overflow-y:hidden;padding:4px 16px 10px;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;"
               >
-                <div class="flex gap-3" style="width: max-content;">
-                  {% for category in category_tiles|slice:":4" %}
-                    <a class="customer-home-category flex-none w-[148px]" href="?q={{ category.label|urlencode }}">
-                      <span class="customer-home-category-icon">
-                        <span class="ui-icon ui-icon-xl icon-{{ category.icon }}" aria-hidden="true"></span>
-                      </span>
-                      <strong>{{ category.label }}</strong>
-                    </a>
-                  {% endfor %}
-                </div>
+                {% for category in category_tiles|slice:":4" %}
+                  <a class="customer-home-category" href="?q={{ category.label|urlencode }}" style="flex-shrink:0;width:148px;">
+                    <span class="customer-home-category-icon">
+                      <span class="ui-icon ui-icon-xl icon-{{ category.icon }}" aria-hidden="true"></span>
+                    </span>
+                    <strong>{{ category.label }}</strong>
+                  </a>
+                {% endfor %}
               </div>
             </div>
           </section>
