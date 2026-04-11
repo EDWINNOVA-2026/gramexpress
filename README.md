@@ -163,3 +163,6 @@ The current public deployment runs on PythonAnywhere:
 - The app uses SQLite by default for simple local setup and lightweight deployment
 - Demo data is available through the custom `seed_demo` management command
 - External services can be enabled incrementally without changing the local development workflow
+
+
+This will be converted to React Native 
